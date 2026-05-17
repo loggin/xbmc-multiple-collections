@@ -54,6 +54,8 @@ public:
   static bool GetSetForMovie(const CFileItem* movieItem, std::shared_ptr<CFileItem>& selectedSet);
   static bool SetMovieSet(const CFileItem *movieItem, const CFileItem *selectedSet);
 
+  static bool ManageMediaCollections(const std::shared_ptr<CFileItem>& item);
+
   static void ManageVideoVersions(const std::shared_ptr<CFileItem>& item);
 
   static bool GetItemsForTag(const std::string &strHeading, const std::string &type, CFileItemList &items, int idTag = -1, bool showAll = true);

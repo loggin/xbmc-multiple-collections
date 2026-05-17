@@ -21,7 +21,8 @@ using namespace XFILE::VIDEODATABASEDIRECTORY;
 Node TvShowChildren[] = {
     {NodeType::GENRE, "genres", 135},     {NodeType::TITLE_TVSHOWS, "titles", 10024},
     {NodeType::YEAR, "years", 652},       {NodeType::ACTOR, "actors", 344},
-    {NodeType::STUDIO, "studios", 20388}, {NodeType::TAGS, "tags", 20459}};
+    {NodeType::STUDIO, "studios", 20388}, {NodeType::TAGS, "tags", 20459},
+    {NodeType::COLLECTIONS, "collections", 40803}};
 
 CDirectoryNodeTvShowsOverview::CDirectoryNodeTvShowsOverview(const std::string& strName,
                                                              CDirectoryNode* pParent)

@@ -24919,3 +24919,9 @@ msgstr ""
 msgctxt "#40803"
 msgid "Collections"
 msgstr ""
+
+#. Manage context menu item — add/remove this media item from a collection
+#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+msgctxt "#40804"
+msgid "Set collection"
+msgstr ""

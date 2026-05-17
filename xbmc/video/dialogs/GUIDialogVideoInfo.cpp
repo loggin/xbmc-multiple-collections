@@ -71,6 +71,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 using namespace XFILE::VIDEODATABASEDIRECTORY;
 using namespace XFILE;
@@ -1084,6 +1085,12 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
     buttons.Add(CONTEXT_BUTTON_SET_MOVIESET, 20465);
   }
 
+  if (type == MediaTypeTvShow)
+  {
+    // add/remove this TV show from a collection
+    buttons.Add(CONTEXT_BUTTON_SET_COLLECTION, 40804);
+  }
+
   if (type == MediaTypeMovie)
   {
     // manage video versions
@@ -1167,6 +1174,10 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
           result = SetMovieSet(item.get(), selectedSet.get());
         break;
       }
+
+      case CONTEXT_BUTTON_SET_COLLECTION:
+        result = ManageMediaCollections(item);
+        break;
 
       case CONTEXT_BUTTON_MANAGE_VIDEOVERSIONS:
         ManageVideoVersions(item);
@@ -1558,6 +1569,104 @@ bool CGUIDialogVideoInfo::GetMoviesForSet(const CFileItem *setItem, CFileItemLis
   }
   else
     return false;
+}
+
+bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem>& item)
+{
+  if (!item || !item->HasVideoInfoTag())
+    return false;
+
+  const std::string& mediaType = item->GetVideoInfoTag()->m_type;
+  const int idMedia = item->GetVideoInfoTag()->m_iDbId;
+  if (idMedia < 0)
+    return false;
+
+  CVideoDatabase videodb;
+  if (!videodb.Open())
+    return false;
+
+  // Fetch all available collections
+  std::vector<CVideoDatabase::CCollection> allCollections;
+  if (!videodb.GetCollections(allCollections) || allCollections.empty())
+    return false;
+
+  // Fetch current membership for this item
+  std::vector<CVideoDatabase::CCollection> currentCollections;
+  videodb.GetCollectionsForMedia(mediaType, idMedia, currentCollections);
+
+  // Build collection ids set for quick lookup
+  std::unordered_set<int> currentIds;
+  for (const auto& c : currentCollections)
+    currentIds.insert(c.idCollection);
+
+  // Build the list for the select dialog
+  CFileItemList listItems;
+  for (const auto& c : allCollections)
+  {
+    CFileItemPtr pItem = std::make_shared<CFileItem>(c.name);
+    pItem->GetVideoInfoTag()->m_iDbId = c.idCollection;
+    listItems.Add(pItem);
+  }
+
+  CGUIDialogSelect* dialog =
+      CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogSelect>(
+          WINDOW_DIALOG_SELECT);
+  if (!dialog)
+    return false;
+
+  dialog->Reset();
+  dialog->SetMultiSelection(true);
+  dialog->SetHeading(
+      CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40804)});
+  dialog->SetItems(listItems);
+
+  // Pre-select current collections
+  std::vector<int> preSelected;
+  for (int i = 0; i < listItems.Size(); ++i)
+  {
+    const int id = listItems.Get(i)->GetVideoInfoTag()->m_iDbId;
+    if (currentIds.count(id))
+      preSelected.push_back(i);
+  }
+  dialog->SetSelected(preSelected);
+  dialog->Open();
+
+  if (!dialog->IsConfirmed())
+    return false;
+
+  // Build selected ids set
+  std::unordered_set<int> selectedIds;
+  for (int idx : dialog->GetSelectedItems())
+    selectedIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
+
+  bool changed = false;
+
+  // Add newly selected
+  for (int id : selectedIds)
+  {
+    if (!currentIds.count(id))
+    {
+      CVideoDatabase::CCollectionItem ci;
+      ci.idCollection = id;
+      ci.mediaType = mediaType;
+      ci.idMedia = idMedia;
+      ci.sortOrder = 0;
+      if (videodb.AddOrUpdateCollectionItem(ci))
+        changed = true;
+    }
+  }
+
+  // Remove deselected
+  for (int id : currentIds)
+  {
+    if (!selectedIds.count(id))
+    {
+      if (videodb.RemoveCollectionItem(id, mediaType, idMedia))
+        changed = true;
+    }
+  }
+
+  return changed;
 }
 
 bool CGUIDialogVideoInfo::GetSetForMovie(const CFileItem* movieItem,
