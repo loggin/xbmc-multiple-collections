@@ -10,6 +10,9 @@
 
 #include "FileItem.h"
 #include "FileItemList.h"
+#include "ServiceBroker.h"
+#include "guilib/GUIComponent.h"
+#include "guilib/GUIWindowManager.h"
 #include "guilib/WindowIDs.h"
 #include "media/MediaType.h"
 #include "video/VideoFileItemClassify.h"
@@ -47,6 +50,17 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
   const CFileItemPtr item = m_vecItems->Get(iItem);
   if (item && item->GetProperty("collection.isgroupheader").asBoolean())
     return true;
+
+  // TV shows and seasons: navigate to WINDOW_VIDEO_NAV for proper season/episode browsing
+  if (item && item->HasVideoInfoTag() && item->IsFolder())
+  {
+    const std::string& type = item->GetVideoInfoTag()->m_type;
+    if (type == MediaTypeTvShow || type == MediaTypeSeason)
+    {
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, item->GetPath());
+      return true;
+    }
+  }
 
   return CGUIWindowVideoBase::OnSelect(iItem);
 }

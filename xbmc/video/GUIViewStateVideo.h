@@ -88,3 +88,11 @@ protected:
   void SaveViewState() override;
 };
 
+class CGUIViewStateWindowVideoCollection : public CGUIViewStateWindowVideo
+{
+public:
+  explicit CGUIViewStateWindowVideoCollection(const CFileItemList& items);
+protected:
+  void SaveViewState() override;
+};
+

@@ -87,6 +87,55 @@ using namespace KODI::GUILIB;
 using namespace KODI::VIDEO;
 using namespace std::chrono_literals;
 
+namespace
+{
+bool IsValidCollectionMediaType(std::string mediaType)
+{
+  StringUtils::ToLower(mediaType);
+  return mediaType == "movie" || mediaType == "tvshow" || mediaType == "season" ||
+         mediaType == "episode" || mediaType == "special";
+}
+
+std::string NormalizeCollectionMediaType(std::string mediaType)
+{
+  StringUtils::ToLower(mediaType);
+  return mediaType;
+}
+
+std::string NormalizeCollectionType(std::string collectionType)
+{
+  StringUtils::ToLower(collectionType);
+  if (collectionType == "franchise" || collectionType == "crossover" || collectionType == "arc" ||
+      collectionType == "timeline" || collectionType == "set")
+  {
+    return collectionType;
+  }
+
+  return "franchise";
+}
+
+std::string NormalizeCollectionSortType(std::string sortType)
+{
+  StringUtils::ToLower(sortType);
+  if (sortType == "custom" || sortType == "release" || sortType == "chronological")
+    return sortType;
+
+  return "custom";
+}
+
+std::string NormalizeCollectionOrderBy(std::string orderBy)
+{
+  StringUtils::ToLower(orderBy);
+  if (orderBy == "sortorder" || orderBy == "groupname" || orderBy == "mediatype" ||
+      orderBy == "idmedia")
+  {
+    return orderBy;
+  }
+
+  return "sortOrder";
+}
+} // namespace
+
 CVideoDatabase::FileInformation::FileInformation(std::string&& newPath,
                                                  int newFileId,
                                                  int newVvId,
@@ -1415,7 +1464,17 @@ int CVideoDatabase::AddSet(const std::string& strSet,
                           strSet.c_str(), strOverview.c_str(),
                           strOriginalSet.empty() ? strSet.c_str() : strOriginalSet.c_str());
       m_pDS->exec(strSQL);
-      return static_cast<int>(m_pDS->lastinsertid());
+      const int id = static_cast<int>(m_pDS->lastinsertid());
+
+      CCollection collection;
+      collection.idCollection = id;
+      collection.name = strSet;
+      collection.type = "set";
+      collection.description = strOverview;
+      collection.sortType = "custom";
+      AddOrUpdateCollection(collection);
+
+      return id;
     }
     else
     {
@@ -1430,6 +1489,14 @@ int CVideoDatabase::AddSet(const std::string& strSet,
         strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s' WHERE idSet = %i", strSet.c_str(), id);
 
       m_pDS->exec(strSQL);
+
+      CCollection collection;
+      collection.idCollection = id;
+      collection.name = strSet;
+      collection.type = "set";
+      collection.description = strOverview;
+      collection.sortType = "custom";
+      AddOrUpdateCollection(collection);
 
       return id;
     }
@@ -4019,6 +4086,11 @@ void CVideoDatabase::DeleteSet(int idSet)
     m_pDS->exec(strSQL);
     strSQL = PrepareSQL("update movie set idSet = null where idSet = %i", idSet);
     m_pDS->exec(strSQL);
+    strSQL = PrepareSQL("delete from collection_item where idCollection = %i and mediaType='movie'",
+                        idSet);
+    m_pDS->exec(strSQL);
+    strSQL = PrepareSQL("delete from collection where idCollection = %i and type='set'", idSet);
+    m_pDS->exec(strSQL);
   }
   catch (...)
   {
@@ -4034,9 +4106,26 @@ void CVideoDatabase::ClearMovieSet(int idMovie)
 void CVideoDatabase::SetMovieSet(int idMovie, int idSet)
 {
   if (idSet >= 0)
+  {
     ExecuteQuery(PrepareSQL("update movie set idSet = %i where idMovie = %i", idSet, idMovie));
+    AddOrUpdateCollectionItem(CCollectionItem{idSet, "movie", idMovie, 0, std::string{}});
+  }
   else
+  {
     ExecuteQuery(PrepareSQL("update movie set idSet = null where idMovie = %i", idMovie));
+    ExecuteQuery(
+        PrepareSQL("delete from collection_item where mediaType='movie' and idMedia = %i", idMovie));
+  }
+}
+
+void CVideoDatabase::UpdateMovieSetId(int idMovie, int idSet)
+{
+  // Updates only movie.idSet without touching collection_item.
+  // Use this instead of SetMovieSet(-1) when managing multi-collection membership.
+  if (idSet >= 0)
+    ExecuteQuery(PrepareSQL("UPDATE movie SET idSet = %i WHERE idMovie = %i", idSet, idMovie));
+  else
+    ExecuteQuery(PrepareSQL("UPDATE movie SET idSet = NULL WHERE idMovie = %i", idMovie));
 }
 
 std::string CVideoDatabase::GetFileBasePathById(int idFile)
@@ -8173,6 +8262,11 @@ std::string CVideoDatabase::GetCountryById(int id) const
 
 std::string CVideoDatabase::GetSetById(int id) const
 {
+  std::string value =
+      GetSingleValue("collection", "name", PrepareSQL("idCollection=%i AND type='set'", id));
+  if (!value.empty())
+    return value;
+
   return GetSingleValue("sets", "strSet", PrepareSQL("idSet=%i", id));
 }
 
@@ -8183,6 +8277,11 @@ std::string CVideoDatabase::GetOriginalSetById(int id) const
 
 std::string CVideoDatabase::GetSetByNameLike(const std::string& nameLike) const
 {
+  std::string value = GetSingleValue(
+      "collection", "name", PrepareSQL("type='set' AND name LIKE '%s'", nameLike.c_str()));
+  if (!value.empty())
+    return value;
+
   return GetSingleValue("sets", "strSet", PrepareSQL("strSet LIKE '%s'", nameLike.c_str()));
 }
 
@@ -8220,11 +8319,22 @@ bool CVideoDatabase::HasSets() const
     if (nullptr == m_pDS)
       return false;
 
-    m_pDS->query("SELECT movie_view.idSet,COUNT(1) AS c FROM movie_view "
-                 "JOIN `sets` ON `sets`.idSet = movie_view.idSet "
-                 "GROUP BY movie_view.idSet HAVING c>1");
+    m_pDS->query("SELECT ci.idCollection, COUNT(1) AS c FROM collection_item ci "
+                 "JOIN collection c ON c.idCollection = ci.idCollection "
+                 "WHERE c.type='set' AND ci.mediaType='movie' "
+                 "GROUP BY ci.idCollection HAVING c>1");
 
     bool bResult = (m_pDS->num_rows() > 0);
+    m_pDS->close();
+
+    if (!bResult)
+    {
+      m_pDS->query("SELECT movie_view.idSet,COUNT(1) AS c FROM movie_view "
+                   "JOIN `sets` ON `sets`.idSet = movie_view.idSet "
+                   "GROUP BY movie_view.idSet HAVING c>1");
+      bResult = (m_pDS->num_rows() > 0);
+    }
+
     m_pDS->close();
     return bResult;
   }
@@ -8527,6 +8637,341 @@ bool CVideoDatabase::GetUseAllExternalAudioForVideo(const std::string& videoPath
 
   if (!m_pDS->eof())
     return m_pDS->fv("allAudio").get_asBool();
+
+  return false;
+}
+
+bool CVideoDatabase::GetCollections(std::vector<CCollection>& outCollections,
+                                    const std::string& typeFilter /* = "" */,
+                                    const std::string& where /* = "" */)
+{
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    outCollections.clear();
+
+    std::string sql = "SELECT idCollection, name, type, description, sortType, artwork FROM collection";
+    std::string whereClause;
+
+    if (!typeFilter.empty())
+    {
+      whereClause = PrepareSQL("type='%s'", NormalizeCollectionType(typeFilter).c_str());
+    }
+
+    if (!where.empty())
+    {
+      if (!whereClause.empty())
+        whereClause += " AND (" + where + ")";
+      else
+        whereClause = where;
+    }
+
+    if (!whereClause.empty())
+      sql += " WHERE " + whereClause;
+
+    sql += " ORDER BY name";
+
+    if (!m_pDS->query(sql))
+      return false;
+
+    while (!m_pDS->eof())
+    {
+      CCollection& collection = outCollections.emplace_back();
+      collection.idCollection = m_pDS->fv(0).get_asInt();
+      collection.name = m_pDS->fv(1).get_asString();
+      collection.type = m_pDS->fv(2).get_asString();
+      collection.description = m_pDS->fv(3).get_asString();
+      collection.sortType = m_pDS->fv(4).get_asString();
+      collection.artwork = m_pDS->fv(5).get_asString();
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "failed");
+  }
+
+  return false;
+}
+
+bool CVideoDatabase::GetCollectionItems(int idCollection,
+                                        std::vector<CCollectionItem>& outItems,
+                                        const std::string& orderBy /* = "sortOrder" */)
+{
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    outItems.clear();
+
+    const std::string collectionType = NormalizeCollectionType(
+      GetSingleValue("collection", "type", PrepareSQL("idCollection=%i", idCollection)));
+    const bool hasLegacySet =
+      !GetSingleValue("sets", "idSet", PrepareSQL("idSet=%i", idCollection)).empty();
+
+    std::string sql = PrepareSQL(
+        "SELECT ci.idCollection, ci.mediaType, ci.idMedia, ci.sortOrder, ci.groupName "
+        "FROM collection_item ci "
+        "WHERE ci.idCollection=%i "
+        "AND ((ci.mediaType='movie' AND EXISTS(SELECT 1 FROM movie WHERE movie.idMovie=ci.idMedia)) "
+        "OR (ci.mediaType='tvshow' AND EXISTS(SELECT 1 FROM tvshow WHERE tvshow.idShow=ci.idMedia)) "
+        "OR (ci.mediaType='season' AND EXISTS(SELECT 1 FROM seasons WHERE seasons.idSeason=ci.idMedia)) "
+        "OR ((ci.mediaType='episode' OR ci.mediaType='special') AND EXISTS(SELECT 1 FROM episode WHERE episode.idEpisode=ci.idMedia)))",
+        idCollection);
+
+    sql += StringUtils::Format(" ORDER BY {}", NormalizeCollectionOrderBy(orderBy));
+
+    if (!m_pDS->query(sql))
+      return false;
+
+    while (!m_pDS->eof())
+    {
+      CCollectionItem& item = outItems.emplace_back();
+      item.idCollection = m_pDS->fv(0).get_asInt();
+      item.mediaType = m_pDS->fv(1).get_asString();
+      item.idMedia = m_pDS->fv(2).get_asInt();
+      item.sortOrder = m_pDS->fv(3).get_asInt();
+      item.groupName = m_pDS->fv(4).get_asString();
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    // Compatibility path for legacy movie sets populated only through movie.idSet.
+    // Fresh scans may not materialize collection_item rows yet, so merge set members from movie.
+    if (collectionType == "set" || hasLegacySet)
+    {
+      std::unordered_set<int> existingMovieIds;
+      for (const auto& item : outItems)
+      {
+        if (item.mediaType == "movie")
+          existingMovieIds.insert(item.idMedia);
+      }
+
+      std::string legacySetSql =
+          PrepareSQL("SELECT idMovie FROM movie WHERE idSet=%i", idCollection);
+      if (!m_pDS->query(legacySetSql))
+        return false;
+
+      while (!m_pDS->eof())
+      {
+        const int idMovie = m_pDS->fv(0).get_asInt();
+        if (existingMovieIds.insert(idMovie).second)
+        {
+          CCollectionItem legacyItem;
+          legacyItem.idCollection = idCollection;
+          legacyItem.mediaType = "movie";
+          legacyItem.idMedia = idMovie;
+          legacyItem.sortOrder = 0;
+          outItems.emplace_back(std::move(legacyItem));
+        }
+        m_pDS->next();
+      }
+      m_pDS->close();
+    }
+
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}) failed", idCollection);
+  }
+
+  return false;
+}
+
+bool CVideoDatabase::GetCollectionsForMedia(const std::string& mediaType,
+                                            int idMedia,
+                                            std::vector<CCollection>& outCollections)
+{
+  std::string normalizedType = NormalizeCollectionMediaType(mediaType);
+  if (!IsValidCollectionMediaType(normalizedType) || idMedia <= 0)
+    return false;
+
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    outCollections.clear();
+
+    std::string sql = PrepareSQL(
+        "SELECT c.idCollection, c.name, c.type, c.description, c.sortType, c.artwork "
+        "FROM collection c "
+        "JOIN collection_item ci ON ci.idCollection = c.idCollection "
+        "WHERE ci.mediaType='%s' AND ci.idMedia=%i "
+        "ORDER BY c.name",
+        normalizedType.c_str(), idMedia);
+
+    if (!m_pDS->query(sql))
+      return false;
+
+    while (!m_pDS->eof())
+    {
+      CCollection& collection = outCollections.emplace_back();
+      collection.idCollection = m_pDS->fv(0).get_asInt();
+      collection.name = m_pDS->fv(1).get_asString();
+      collection.type = m_pDS->fv(2).get_asString();
+      collection.description = m_pDS->fv(3).get_asString();
+      collection.sortType = m_pDS->fv(4).get_asString();
+      collection.artwork = m_pDS->fv(5).get_asString();
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}, {}) failed", mediaType, idMedia);
+  }
+
+  return false;
+}
+
+bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
+{
+  if (collection.name.empty())
+    return false;
+
+  const std::string normalizedType = NormalizeCollectionType(collection.type);
+  const std::string normalizedSortType = NormalizeCollectionSortType(collection.sortType);
+
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    int idCollection = collection.idCollection;
+
+    if (idCollection <= 0)
+    {
+      std::string query = PrepareSQL("SELECT idCollection FROM collection WHERE name='%s' AND type='%s'",
+                                     collection.name.c_str(), normalizedType.c_str());
+      m_pDS->query(query);
+      if (!m_pDS->eof())
+        idCollection = m_pDS->fv(0).get_asInt();
+      m_pDS->close();
+    }
+
+    bool collectionExistsById = false;
+    if (idCollection > 0)
+    {
+      m_pDS->query(PrepareSQL("SELECT 1 FROM collection WHERE idCollection=%i", idCollection));
+      collectionExistsById = !m_pDS->eof();
+      m_pDS->close();
+    }
+
+    std::string sql;
+    if (idCollection > 0)
+    {
+      if (collectionExistsById)
+      {
+        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s' WHERE idCollection=%i",
+                         collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
+                         normalizedSortType.c_str(), collection.artwork.c_str(), idCollection);
+      }
+      else
+      {
+        sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork) VALUES(%i, '%s', '%s', '%s', '%s', '%s')",
+                         idCollection, collection.name.c_str(), normalizedType.c_str(),
+                         collection.description.c_str(), normalizedSortType.c_str(),
+                         collection.artwork.c_str());
+      }
+    }
+    else
+    {
+      sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork) VALUES(NULL, '%s', '%s', '%s', '%s', '%s')",
+                       collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
+                       normalizedSortType.c_str(), collection.artwork.c_str());
+    }
+
+    m_pDS->exec(sql);
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}) failed", collection.name);
+  }
+
+  return false;
+}
+
+bool CVideoDatabase::AddOrUpdateCollectionItem(const CCollectionItem& item)
+{
+  const std::string normalizedType = NormalizeCollectionMediaType(item.mediaType);
+  if (item.idCollection <= 0 || item.idMedia <= 0 || !IsValidCollectionMediaType(normalizedType))
+    return false;
+
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    bool exists = false;
+    m_pDS->query(PrepareSQL(
+        "SELECT 1 FROM collection_item WHERE idCollection=%i AND mediaType='%s' AND idMedia=%i",
+        item.idCollection, normalizedType.c_str(), item.idMedia));
+    exists = !m_pDS->eof();
+    m_pDS->close();
+
+    std::string sql;
+    if (exists)
+    {
+      sql = PrepareSQL(
+          "UPDATE collection_item SET sortOrder=%i, groupName='%s' "
+          "WHERE idCollection=%i AND mediaType='%s' AND idMedia=%i",
+          item.sortOrder, item.groupName.c_str(), item.idCollection, normalizedType.c_str(),
+          item.idMedia);
+    }
+    else
+    {
+      sql = PrepareSQL(
+          "INSERT INTO collection_item (idCollection, mediaType, idMedia, sortOrder, groupName) "
+          "VALUES(%i, '%s', %i, %i, '%s')",
+          item.idCollection, normalizedType.c_str(), item.idMedia, item.sortOrder,
+          item.groupName.c_str());
+    }
+
+    m_pDS->exec(sql);
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}, {}, {}) failed", item.idCollection, item.mediaType, item.idMedia);
+  }
+
+  return false;
+}
+
+bool CVideoDatabase::RemoveCollectionItem(int idCollection,
+                                          const std::string& mediaType,
+                                          int idMedia)
+{
+  const std::string normalizedType = NormalizeCollectionMediaType(mediaType);
+  if (idCollection <= 0 || idMedia <= 0 || !IsValidCollectionMediaType(normalizedType))
+    return false;
+
+  try
+  {
+    if (m_pDB == nullptr || m_pDS == nullptr)
+      return false;
+
+    m_pDS->exec(PrepareSQL(
+        "DELETE FROM collection_item WHERE idCollection=%i AND mediaType='%s' AND idMedia=%i",
+        idCollection, normalizedType.c_str(), idMedia));
+
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}, {}, {}) failed", idCollection, mediaType, idMedia);
+  }
 
   return false;
 }

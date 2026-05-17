@@ -189,6 +189,25 @@ public:
     DatabaseResults results;
   };
 
+  struct CCollection
+  {
+    int idCollection{-1};
+    std::string name;
+    std::string type;
+    std::string description;
+    std::string sortType;
+    std::string artwork;
+  };
+
+  struct CCollectionItem
+  {
+    int idCollection{-1};
+    std::string mediaType;
+    int idMedia{-1};
+    int sortOrder{0};
+    std::string groupName;
+  };
+
   CVideoDatabase();
   ~CVideoDatabase() override;
 
@@ -278,6 +297,19 @@ public:
   std::string GetMusicVideoAlbumById(int id) const;
   int GetTvShowForEpisode(int idEpisode) const;
   int GetSeasonForEpisode(int idEpisode) const;
+
+  bool GetCollections(std::vector<CCollection>& outCollections,
+                      const std::string& typeFilter = "",
+                      const std::string& where = "");
+  bool GetCollectionItems(int idCollection,
+                          std::vector<CCollectionItem>& outItems,
+                          const std::string& orderBy = "sortOrder");
+  bool GetCollectionsForMedia(const std::string& mediaType,
+                              int idMedia,
+                              std::vector<CCollection>& outCollections);
+  bool AddOrUpdateCollection(const CCollection& collection);
+  bool AddOrUpdateCollectionItem(const CCollectionItem& item);
+  bool RemoveCollectionItem(int idCollection, const std::string& mediaType, int idMedia);
 
   bool LoadVideoInfo(const std::string& strFilenameAndPath, CVideoInfoTag& details);
   bool GetMovieInfo(const std::string& strFilenameAndPath,
@@ -917,6 +949,7 @@ public:
              const bool updateOverview = true);
   void ClearMovieSet(int idMovie);
   void SetMovieSet(int idMovie, int idSet);
+  void UpdateMovieSetId(int idMovie, int idSet);
   bool SetVideoUserRating(int dbId, int rating, const MediaType& mediaType);
   bool GetUseAllExternalAudioForVideo(const std::string& videoPath);
 

@@ -773,8 +773,11 @@ void CGUIDialogVideoInfo::Play(bool resume)
   }
   else if (videoTag->m_type == MediaTypeVideoCollection)
   {
-    strPath = StringUtils::Format("videodb://movies/sets/{}/?setid={}", videoTag->m_iDbId,
-                                  videoTag->m_iDbId);
+    Close();
+    CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(
+        WINDOW_VIDEO_COLLECTION,
+        StringUtils::Format("videodb://collections/{}/", videoTag->m_iDbId));
+    return;
   }
 
   if (!strPath.empty())
@@ -1168,12 +1171,8 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
         break;
 
       case CONTEXT_BUTTON_SET_MOVIESET:
-      {
-        CFileItemPtr selectedSet;
-        if (GetSetForMovie(item.get(), selectedSet))
-          result = SetMovieSet(item.get(), selectedSet.get());
+        result = ManageMediaCollections(item);
         break;
-      }
 
       case CONTEXT_BUTTON_SET_COLLECTION:
         result = ManageMediaCollections(item);
@@ -1599,6 +1598,15 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   for (const auto& c : currentCollections)
     currentIds.insert(c.idCollection);
 
+  // For movies, also include the legacy idSet for pre-selection
+  // (GetCollectionsForMedia reads only collection_item, not movie.idSet)
+  if (mediaType == MediaTypeMovie)
+  {
+    const int legacySetId = item->GetVideoInfoTag()->m_set.GetID();
+    if (legacySetId > 0)
+      currentIds.insert(legacySetId);
+  }
+
   // Build the list for the select dialog
   CFileItemList listItems;
   for (const auto& c : allCollections)
@@ -1663,6 +1671,24 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
     {
       if (videodb.RemoveCollectionItem(id, mediaType, idMedia))
         changed = true;
+    }
+  }
+
+  // For movies: update legacy movie.idSet for backward compat.
+  // Never call SetMovieSet(-1) here — it nukes all collection_item rows for the movie.
+  if (changed && mediaType == MediaTypeMovie)
+  {
+    const int oldLegacySetId = item->GetVideoInfoTag()->m_set.GetID();
+    if (!selectedIds.count(oldLegacySetId))
+    {
+      // Primary set was deselected; pick first remaining or clear
+      const int newIdSet = selectedIds.empty() ? -1 : *selectedIds.begin();
+      videodb.UpdateMovieSetId(idMedia, newIdSet);
+    }
+    else if (oldLegacySetId <= 0 && !selectedIds.empty())
+    {
+      // No legacy set but now has collections; set idSet to first one
+      videodb.UpdateMovieSetId(idMedia, *selectedIds.begin());
     }
   }
 

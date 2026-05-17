@@ -792,3 +792,29 @@ void CGUIViewStateVideoPlaylist::SaveViewState()
 {
   SaveViewToDb(m_items.GetPath(), WINDOW_VIDEO_NAV);
 }
+
+CGUIViewStateWindowVideoCollection::CGUIViewStateWindowVideoCollection(
+    const CFileItemList& items)
+  : CGUIViewStateWindowVideo(items)
+{
+  AddSortMethod(SortBy::LABEL, 551, LABEL_MASKS("%L", "", "%L", ""));
+  AddSortMethod(SortBy::NONE, 551, LABEL_MASKS("%L", "", "%L", ""));
+
+  const CViewState* viewState = CViewStateSettings::GetInstance().Get("videocollection");
+  if (viewState)
+  {
+    SetSortMethod(viewState->m_sortDescription);
+    SetSortOrder(viewState->m_sortDescription.sortOrder);
+    SetViewAsControl(viewState->m_viewMode);
+  }
+  else
+    SetViewAsControl(DEFAULT_VIEW_ICONS);
+
+  LoadViewState(items.GetPath(), WINDOW_VIDEO_COLLECTION);
+}
+
+void CGUIViewStateWindowVideoCollection::SaveViewState()
+{
+  SaveViewToDb(m_items.GetPath(), WINDOW_VIDEO_COLLECTION,
+               CViewStateSettings::GetInstance().Get("videocollection"));
+}
