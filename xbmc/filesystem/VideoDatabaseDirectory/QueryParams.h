@@ -39,6 +39,7 @@ namespace XFILE
     long GetVideoVersionId() const { return m_idVideoVersion; }
     long GetVideoAssetType() const { return m_videoAssetType; }
     long GetVideoAssetId() const { return m_idVideoAsset; }
+    long GetCollectionId() const { return m_idCollection; }
 
   protected:
     void SetQueryParam(NodeType NodeType, const std::string& strNodeName);
@@ -64,6 +65,7 @@ namespace XFILE
     long m_idVideoVersion{-1};
     long m_videoAssetType{-1};
     long m_idVideoAsset{-1};
+    long m_idCollection{-1};
   };
   }
 }

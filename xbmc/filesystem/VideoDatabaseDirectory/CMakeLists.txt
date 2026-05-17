@@ -1,4 +1,6 @@
 set(SOURCES DirectoryNode.cpp
+            DirectoryNodeCollectionItems.cpp
+            DirectoryNodeCollections.cpp
             DirectoryNodeEpisodes.cpp
             DirectoryNodeGrouped.cpp
             DirectoryNodeInProgressTvShows.cpp
@@ -19,6 +21,8 @@ set(SOURCES DirectoryNode.cpp
             QueryParams.cpp)
 
 set(HEADERS DirectoryNode.h
+            DirectoryNodeCollectionItems.h
+            DirectoryNodeCollections.h
             DirectoryNodeEpisodes.h
             DirectoryNodeGrouped.h
             DirectoryNodeInProgressTvShows.h

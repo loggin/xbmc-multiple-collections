@@ -23,6 +23,7 @@
 #include "filesystem/VideoDatabaseFile.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIKeyboardFactory.h"
+#include "guilib/WindowIDs.h"
 #include "guilib/GUIWindowManager.h"
 #include "input/actions/Action.h"
 #include "input/actions/ActionIDs.h"
@@ -50,6 +51,7 @@
 #include "video/VideoInfoScanner.h"
 #include "video/VideoLibraryQueue.h"
 #include "video/dialogs/GUIDialogVideoInfo.h"
+#include "media/MediaType.h"
 #include "view/GUIViewState.h"
 
 #include <utility>
@@ -992,6 +994,26 @@ bool CGUIWindowVideoNav::OnAddMediaSource()
 bool CGUIWindowVideoNav::OnClick(int iItem, const std::string &player)
 {
   CFileItemPtr item = m_vecItems->Get(iItem);
+
+  if (item && item->HasVideoInfoTag() && item->GetVideoInfoTag()->m_type == MediaTypeVideoCollection)
+  {
+    XFILE::CVideoDatabaseDirectory dir;
+    CQueryParams params;
+    dir.GetQueryParams(item->GetPath(), params);
+
+    int idCollection = static_cast<int>(params.GetSetId());
+    if (idCollection <= 0)
+      idCollection = item->GetVideoInfoTag()->m_iDbId;
+
+    if (idCollection > 0)
+    {
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(
+          WINDOW_VIDEO_COLLECTION,
+          {StringUtils::Format("videodb://collections/{}/", idCollection), "return"});
+      return true;
+    }
+  }
+
   if (StringUtils::StartsWithNoCase(item->GetPath(), "newtag://"))
   {
     // dont allow update while scanning

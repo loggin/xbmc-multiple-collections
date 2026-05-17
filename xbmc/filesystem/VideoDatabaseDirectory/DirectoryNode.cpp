@@ -8,6 +8,8 @@
 
 #include "DirectoryNode.h"
 
+#include "DirectoryNodeCollectionItems.h"
+#include "DirectoryNodeCollections.h"
 #include "DirectoryNodeEpisodes.h"
 #include "DirectoryNodeGrouped.h"
 #include "DirectoryNodeInProgressTvShows.h"
@@ -141,6 +143,10 @@ CDirectoryNode* CDirectoryNode::CreateNode(NodeType Type,
     case NodeType::MOVIE_ASSETS_VERSIONS:
     case NodeType::MOVIE_ASSETS_EXTRAS:
       return new CDirectoryNodeMovieAssets(strName, pParent);
+    case NodeType::COLLECTIONS:
+      return new CDirectoryNodeCollections(strName, pParent);
+    case NodeType::COLLECTION_ITEMS:
+      return new CDirectoryNodeCollectionItems(strName, pParent);
     default:
       break;
   }

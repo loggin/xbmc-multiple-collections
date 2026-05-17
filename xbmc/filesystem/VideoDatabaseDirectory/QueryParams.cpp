@@ -30,6 +30,7 @@ CQueryParams::CQueryParams()
   m_idAlbum = -1;
   m_idSet = -1;
   m_idTag = -1;
+  m_idCollection = -1;
 }
 
 void CQueryParams::SetQueryParam(NodeType nodeType, const std::string& strNodeName)
@@ -88,6 +89,10 @@ void CQueryParams::SetQueryParam(NodeType nodeType, const std::string& strNodeNa
       break;
     case NodeType::SETS:
       m_idSet = idDb;
+      break;
+    case NodeType::COLLECTIONS:
+    case NodeType::COLLECTION_ITEMS:
+      m_idCollection = idDb;
       break;
     case NodeType::TAGS:
       m_idTag = idDb;

@@ -25,5 +25,4 @@ protected:
   bool OnContextButton(int itemNumber, CONTEXT_BUTTON button) override;
 
 private:
-  static int GetCollectionIdFromPath(const std::string& path);
 };
