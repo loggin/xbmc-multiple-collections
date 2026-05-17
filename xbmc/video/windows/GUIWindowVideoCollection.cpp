@@ -16,6 +16,9 @@
 #include "utils/log.h"
 #include "utils/StringUtils.h"
 #include "video/VideoDatabase.h"
+#include "video/VideoFileItemClassify.h"
+#include "video/VideoLibraryQueue.h"
+#include "video/dialogs/GUIDialogVideoInfo.h"
 
 #include <algorithm>
 #include <cctype>
@@ -349,4 +352,52 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
     return true;
 
   return CGUIWindowVideoBase::OnSelect(iItem);
+}
+
+void CGUIWindowVideoCollection::GetContextButtons(int itemNumber, CContextButtons& buttons)
+{
+  CGUIWindowVideoBase::GetContextButtons(itemNumber, buttons);
+
+  if (itemNumber < 0 || itemNumber >= m_vecItems->Size())
+    return;
+
+  const CFileItemPtr item = m_vecItems->Get(itemNumber);
+  if (!item || item->GetProperty("collection.isgroupheader").asBoolean())
+    return;
+
+  if (!CVideoLibraryQueue::GetInstance().IsScanningLibrary() &&
+      VIDEO::IsVideoDb(*item) && item->HasVideoInfoTag())
+  {
+    const std::string& type = item->GetVideoInfoTag()->m_type;
+    if (type == MediaTypeMovie || type == MediaTypeTvShow || type == MediaTypeSeason ||
+        type == MediaTypeEpisode || type == MediaTypeMusicVideo)
+    {
+      buttons.Add(CONTEXT_BUTTON_EDIT, 16106); // "Manage..."
+    }
+  }
+}
+
+bool CGUIWindowVideoCollection::OnContextButton(int itemNumber, CONTEXT_BUTTON button)
+{
+  if (button == CONTEXT_BUTTON_EDIT)
+  {
+    if (itemNumber >= 0 && itemNumber < m_vecItems->Size())
+    {
+      const CFileItemPtr item = m_vecItems->Get(itemNumber);
+      const CONTEXT_BUTTON ret{
+          static_cast<CONTEXT_BUTTON>(CGUIDialogVideoInfo::ManageVideoItem(item))};
+      if (ret != CONTEXT_BUTTON_CANCELLED)
+      {
+        Refresh(true);
+        if (ret == CONTEXT_BUTTON_DELETE)
+        {
+          const int select = itemNumber >= m_vecItems->Size() - 1 ? itemNumber - 1 : itemNumber;
+          m_viewControl.SetSelectedItem(select);
+        }
+      }
+      return true;
+    }
+  }
+
+  return CGUIWindowVideoBase::OnContextButton(itemNumber, button);
 }
