@@ -183,6 +183,7 @@ bool CGUIWindowVideoCollection::GetDirectory(const std::string& strDirectory, CF
              idCollection, collectionName, collectionItems.size());
 
   items.Clear();
+  items.SetPath(strDirectory);
   std::string previousGroup;
   for (const auto& collectionItem : collectionItems)
   {
@@ -320,6 +321,10 @@ bool CGUIWindowVideoCollection::GetDirectory(const std::string& strDirectory, CF
     item->SetProperty("collection.sortorder", collectionItem.sortOrder);
     item->SetProperty("collection.isspecial", mediaType == "special");
     item->SetProperty("mediatype", normalizedMediaType);
+    // Prevent CGUIMediaWindow::FormatItemLabels from clearing our label.
+    // Without this, an unknown format mask sets label to "", then GetLabel()
+    // falls back to CUtil::GetTitleFromPath which returns the numeric DB id.
+    item->SetLabelPreformatted(true);
     CLog::LogF(LOGDEBUG, "GUIWindowVideoCollection: final label='{}' for mediaType='{}' idMedia={}",
                resolvedLabel, mediaType, collectionItem.idMedia);
     item->SetProperty("collection.displaylabel", resolvedLabel);
