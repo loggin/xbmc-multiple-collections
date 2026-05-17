@@ -1607,45 +1607,80 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
       currentIds.insert(legacySetId);
   }
 
-  // Build the list for the select dialog
-  CFileItemList listItems;
-  for (const auto& c : allCollections)
-  {
-    CFileItemPtr pItem = std::make_shared<CFileItem>(c.name);
-    pItem->GetVideoInfoTag()->m_iDbId = c.idCollection;
-    listItems.Add(pItem);
-  }
-
   CGUIDialogSelect* dialog =
       CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogSelect>(
           WINDOW_DIALOG_SELECT);
   if (!dialog)
     return false;
 
-  dialog->Reset();
-  dialog->SetMultiSelection(true);
-  dialog->SetHeading(
-      CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40804)});
-  dialog->SetItems(listItems);
-
-  // Pre-select current collections
-  std::vector<int> preSelected;
-  for (int i = 0; i < listItems.Size(); ++i)
-  {
-    const int id = listItems.Get(i)->GetVideoInfoTag()->m_iDbId;
-    if (currentIds.count(id))
-      preSelected.push_back(i);
-  }
-  dialog->SetSelected(preSelected);
-  dialog->Open();
-
-  if (!dialog->IsConfirmed())
-    return false;
-
-  // Build selected ids set
+  // Open dialog in a loop to handle "New set..." button presses
+  CFileItemList listItems;
   std::unordered_set<int> selectedIds;
-  for (int idx : dialog->GetSelectedItems())
-    selectedIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
+  bool confirmed = false;
+  while (true)
+  {
+    // Rebuild list from DB (may have grown due to new sets)
+    listItems.Clear();
+    allCollections.clear();
+    if (videodb.GetCollections(allCollections))
+    {
+      for (const auto& c : allCollections)
+      {
+        CFileItemPtr pItem = std::make_shared<CFileItem>(c.name);
+        pItem->GetVideoInfoTag()->m_iDbId = c.idCollection;
+        listItems.Add(pItem);
+      }
+    }
+
+    // Pre-select current collections (or user's pending selections if looping)
+    std::vector<int> preSelected;
+    for (int i = 0; i < listItems.Size(); ++i)
+    {
+      const int id = listItems.Get(i)->GetVideoInfoTag()->m_iDbId;
+      if (currentIds.count(id))
+        preSelected.push_back(i);
+    }
+
+    dialog->Reset();
+    dialog->SetMultiSelection(true);
+    dialog->SetHeading(
+        CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40804)});
+    dialog->SetItems(listItems);
+    dialog->SetSelected(preSelected);
+    dialog->EnableButton(true, 20468); // "New set..."
+    dialog->Open();
+
+    if (dialog->IsButtonPressed())
+    {
+      // User pressed "New set..." — save current selections and ask for name
+      for (int idx : dialog->GetSelectedItems())
+        currentIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
+      std::string newSetTitle;
+      if (!CGUIKeyboardFactory::ShowAndGetInput(
+              newSetTitle,
+              CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20468)},
+              false))
+        break; // cancelled keyboard — exit loop without changes
+      if (!newSetTitle.empty())
+      {
+        const int idNew = videodb.AddSet(newSetTitle);
+        if (idNew >= 0)
+          currentIds.insert(idNew); // pre-select the new collection on re-open
+      }
+      continue; // re-open dialog
+    }
+
+    if (dialog->IsConfirmed())
+    {
+      for (int idx : dialog->GetSelectedItems())
+        selectedIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
+      confirmed = true;
+    }
+    break;
+  }
+
+  if (!confirmed)
+    return false;
 
   bool changed = false;
 

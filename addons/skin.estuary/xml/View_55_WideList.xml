@@ -44,7 +44,7 @@
 							<right>40</right>
 							<aligny>center</aligny>
 							<scroll>true</scroll>
-							<label>$VAR[ListLabelVar]</label>
+							<label>$VAR[CollectionDisplayLabelVar]</label>
 							<shadowcolor>text_shadow</shadowcolor>
 						</control>
 						<control type="label">
@@ -55,6 +55,7 @@
 							<align>right</align>
 							<aligny>center</aligny>
 							<label>$VAR[ListLabel2Var]</label>
+							<visible>![String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)]</visible>
 							<shadowcolor>text_shadow</shadowcolor>
 						</control>
 					</focusedlayout>
@@ -72,7 +73,7 @@
 							<bottom>0</bottom>
 							<right>40</right>
 							<aligny>center</aligny>
-							<label>$VAR[ListLabelVar]</label>
+							<label>$VAR[CollectionDisplayLabelVar]</label>
 							<shadowcolor>text_shadow</shadowcolor>
 						</control>
 						<control type="label">
@@ -83,6 +84,7 @@
 							<align>right</align>
 							<aligny>center</aligny>
 							<label>$VAR[ListLabel2Var]</label>
+							<visible>![String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)]</visible>
 							<shadowcolor>text_shadow</shadowcolor>
 						</control>
 					</itemlayout>

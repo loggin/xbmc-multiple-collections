@@ -3445,6 +3445,90 @@
       }
     }
   },
+  "VideoLibrary.GetCollections": {
+    "type": "method",
+    "description": "Retrieve all collections",
+    "transport": "Response",
+    "permission": "ReadData",
+    "params": [
+      {
+        "name": "type",
+        "$ref": "Video.Collection.Type"
+      },
+      {
+        "name": "properties",
+        "$ref": "Video.Fields.Collection"
+      }
+    ],
+    "returns": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "$ref": "Video.Details.Collection"
+          }
+        }
+      }
+    }
+  },
+  "VideoLibrary.GetCollectionItems": {
+    "type": "method",
+    "description": "Retrieve all items for a specific collection",
+    "transport": "Response",
+    "permission": "ReadData",
+    "params": [
+      {
+        "name": "idcollection",
+        "$ref": "Library.Id",
+        "required": true
+      },
+      {
+        "name": "properties",
+        "$ref": "Video.Fields.CollectionItem"
+      }
+    ],
+    "returns": {
+      "type": "object",
+      "properties": {
+        "collectionitems": {
+          "type": "array",
+          "items": {
+            "$ref": "Video.Details.CollectionItem"
+          }
+        }
+      }
+    }
+  },
+  "VideoLibrary.GetCollectionsForItem": {
+    "type": "method",
+    "description": "Retrieve all collections for a specific media item",
+    "transport": "Response",
+    "permission": "ReadData",
+    "params": [
+      {
+        "name": "mediatype",
+        "$ref": "Video.Collection.MediaType",
+        "required": true
+      },
+      {
+        "name": "idmedia",
+        "$ref": "Library.Id",
+        "required": true
+      }
+    ],
+    "returns": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "$ref": "Video.Details.Collection"
+          }
+        }
+      }
+    }
+  },
   "VideoLibrary.GetTVShows": {
     "type": "method",
     "description": "Retrieve all tv shows",

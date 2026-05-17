@@ -26,6 +26,7 @@
 #define WINDOW_SETTINGS_MYGAMES           10022
 
 #define WINDOW_VIDEO_NAV                  10025
+#define WINDOW_VIDEO_COLLECTION           10026
 #define WINDOW_VIDEO_PLAYLIST             10028
 
 #define WINDOW_LOGIN_SCREEN               10029

@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\3d4c9a642a2cc423945368277eb40208\build-libass-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\0fa48bf93024919b138e6bed0915e793\build-libass-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\edebb8b1973b15aec4b443e64ea354c7\build-libass.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\CMakeFiles\build-libass" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{03C21BB1-0D15-38B5-BB5A-DF974767CE53}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

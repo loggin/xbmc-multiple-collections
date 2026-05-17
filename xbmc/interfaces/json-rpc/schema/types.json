@@ -1914,6 +1914,51 @@
       ]
     }
   },
+  "Video.Collection.Type": {
+    "type": "string",
+    "enum": [
+      "franchise",
+      "crossover",
+      "arc",
+      "timeline",
+      "set"
+    ]
+  },
+  "Video.Collection.MediaType": {
+    "type": "string",
+    "enum": [
+      "movie",
+      "tvshow",
+      "season",
+      "episode",
+      "special"
+    ]
+  },
+  "Video.Fields.Collection": {
+    "extends": "Item.Fields.Base",
+    "items": {
+      "type": "string",
+      "enum": [
+        "name",
+        "type",
+        "description",
+        "sorttype"
+      ]
+    }
+  },
+  "Video.Fields.CollectionItem": {
+    "extends": "Item.Fields.Base",
+    "items": {
+      "type": "string",
+      "enum": [
+        "idcollection",
+        "mediatype",
+        "idmedia",
+        "sortorder",
+        "groupname"
+      ]
+    }
+  },
   "Video.Fields.TVShow": {
     "extends": "Item.Fields.Base",
     "items": {
@@ -2312,6 +2357,50 @@
         "items": {
           "$ref": "Video.Details.Movie"
         }
+      }
+    }
+  },
+  "Video.Details.Collection": {
+    "extends": "Media.Details.Base",
+    "properties": {
+      "idcollection": {
+        "$ref": "Library.Id",
+        "required": true
+      },
+      "name": {
+        "type": "string"
+      },
+      "type": {
+        "$ref": "Video.Collection.Type"
+      },
+      "description": {
+        "type": "string"
+      },
+      "sorttype": {
+        "type": "string"
+      }
+    }
+  },
+  "Video.Details.CollectionItem": {
+    "type": "object",
+    "properties": {
+      "idcollection": {
+        "$ref": "Library.Id",
+        "required": true
+      },
+      "mediatype": {
+        "$ref": "Video.Collection.MediaType",
+        "required": true
+      },
+      "idmedia": {
+        "$ref": "Library.Id",
+        "required": true
+      },
+      "sortorder": {
+        "type": "integer"
+      },
+      "groupname": {
+        "type": "string"
       }
     }
   },

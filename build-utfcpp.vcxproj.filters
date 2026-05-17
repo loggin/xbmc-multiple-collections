@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\26bf4a5acb0a14e2868c18561e3c844f\build-utfcpp-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\0fa48bf93024919b138e6bed0915e793\build-utfcpp-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\edebb8b1973b15aec4b443e64ea354c7\build-utfcpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\CMakeFiles\build-utfcpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{03C21BB1-0D15-38B5-BB5A-DF974767CE53}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

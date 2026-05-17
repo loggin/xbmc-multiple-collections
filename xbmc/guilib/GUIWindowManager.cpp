@@ -52,6 +52,7 @@
 #include "video/dialogs/GUIDialogVideoManagerVersions.h"
 #include "video/dialogs/GUIDialogVideoOSD.h"
 #include "video/windows/GUIWindowFullScreen.h"
+#include "video/windows/GUIWindowVideoCollection.h"
 #include "video/windows/GUIWindowVideoNav.h"
 #include "video/windows/GUIWindowVideoPlaylist.h"
 #include "weather/GUIWindowWeather.h"
@@ -195,6 +196,7 @@ void CGUIWindowManager::CreateWindows()
   Add(new CGUIWindowSettingsScreenCalibration);
   Add(new CGUIWindowSettingsCategory);
   Add(new CGUIWindowVideoNav);
+  Add(new CGUIWindowVideoCollection);
   Add(new CGUIWindowVideoPlaylist);
   Add(new CGUIWindowLoginScreen);
   Add(new CGUIWindowSettingsProfile);
@@ -347,6 +349,7 @@ bool CGUIWindowManager::DestroyWindows()
     DestroyWindow(WINDOW_DIALOG_MANAGE_VIDEO_EXTRAS);
     DestroyWindow(WINDOW_DIALOG_MANAGE_VIDEO_VERSIONS);
     DestroyWindow(WINDOW_VIDEO_PLAYLIST);
+    DestroyWindow(WINDOW_VIDEO_COLLECTION);
     DestroyWindow(WINDOW_VIDEO_NAV);
     DestroyWindow(WINDOW_FILES);
     DestroyWindow(WINDOW_DIALOG_YES_NO);

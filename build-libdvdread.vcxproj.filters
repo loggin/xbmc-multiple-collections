@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\4a235aaa7ebd75127d1ddea5f63aa058\build-libdvdread-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\0fa48bf93024919b138e6bed0915e793\build-libdvdread-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\edebb8b1973b15aec4b443e64ea354c7\build-libdvdread.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\CMakeFiles\build-libdvdread" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{03C21BB1-0D15-38B5-BB5A-DF974767CE53}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

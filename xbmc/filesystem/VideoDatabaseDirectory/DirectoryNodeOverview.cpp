@@ -15,6 +15,7 @@
 #include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "utils/StringUtils.h"
 #include "video/VideoDatabase.h"
 
 #include <utility>
@@ -57,6 +58,33 @@ std::string CDirectoryNodeOverview::GetLocalizedName() const
 
 bool CDirectoryNodeOverview::GetContent(CFileItemList& items) const
 {
+  // For the collections overview, list all collections directly so that
+  // pressing Back from a collection item list lands on the collections list.
+  if (GetName() == "collections")
+  {
+    CVideoDatabase db;
+    if (!db.Open())
+      return false;
+    std::vector<CVideoDatabase::CCollection> collections;
+    if (!db.GetCollections(collections))
+      return false;
+    const std::string basePath = "videodb://collections/";
+    for (const auto& col : collections)
+    {
+      CFileItemPtr item = std::make_shared<CFileItem>(
+          basePath + StringUtils::Format("{}/", col.idCollection), true);
+      item->SetLabel(col.name);
+      item->SetCanQueue(false);
+      item->GetVideoInfoTag()->m_iDbId = col.idCollection;
+      item->GetVideoInfoTag()->m_type = "videocollection";
+      item->SetProperty("collection.id", col.idCollection);
+      item->SetProperty("collection.name", col.name);
+      item->SetProperty("collection.type", col.type);
+      items.Add(item);
+    }
+    return true;
+  }
+
   CVideoDatabase database;
   database.Open();
   bool hasMovies = database.HasContent(VideoDbContentType::MOVIES);

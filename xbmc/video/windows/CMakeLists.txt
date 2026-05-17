@@ -1,5 +1,6 @@
 set(SOURCES GUIWindowFullScreen.cpp
             GUIWindowVideoBase.cpp
+            GUIWindowVideoCollection.cpp
             GUIWindowVideoNav.cpp
             GUIWindowVideoPlaylist.cpp
             VideoFileItemListModifier.cpp)
@@ -7,6 +8,7 @@ set(SOURCES GUIWindowFullScreen.cpp
 set(HEADERS GUIWindowFullScreen.h
             GUIWindowFullScreenDefines.h
             GUIWindowVideoBase.h
+            GUIWindowVideoCollection.h
             GUIWindowVideoNav.h
             GUIWindowVideoPlaylist.h
             VideoFileItemListModifier.h)

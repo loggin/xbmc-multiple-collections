@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\199ef7d41f77bef90a640986e6bf18fe\build-brotli-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\0fa48bf93024919b138e6bed0915e793\build-brotli-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\edebb8b1973b15aec4b443e64ea354c7\build-brotli.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\CMakeFiles\build-brotli" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{03C21BB1-0D15-38B5-BB5A-DF974767CE53}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

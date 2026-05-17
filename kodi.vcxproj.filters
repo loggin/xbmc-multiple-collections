@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\platform\win32\WinMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="F:\work\Kodi\Multi Collections\project\BuildDependencies\x64\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\cmake\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Object Include="F:\work\Kodi\Multi Collections\resources.dir\$(Configuration)\XBMC_PC.res">
+      <Filter>Object Libraries</Filter>
+    </Object>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Object Libraries">
+      <UniqueIdentifier>{940A3B68-5F86-3885-9142-FD0F7D307669}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{B664C496-05D6-3429-9101-4A8335876D14}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -79,7 +79,27 @@
 		<value condition="!String.isempty(ListItem.Thumb)">$INFO[ListItem.Thumb]</value>
 		<value>$INFO[ListItem.Icon]</value>
 	</variable>
+	<variable name="CollectionItemPrimaryLabelVar">
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Property(collection.displaylabel))">$INFO[ListItem.Property(collection.displaylabel)]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Title)">$INFO[ListItem.Title]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Label)">$INFO[ListItem.Label]</value>
+		<value>$INFO[ListItem.Label]</value>
+	</variable>
+	<variable name="CollectionDisplayLabelVar">
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Property(collection.displaylabel))">$INFO[ListItem.Property(collection.displaylabel)]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Title)">$INFO[ListItem.Title]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Label)">$INFO[ListItem.Label]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)]">$INFO[ListItem.Label]</value>
+		<value>$VAR[ListLabelVar]</value>
+	</variable>
+	<variable name="CollectionItemSecondaryLabelVar">
+		<value condition="String.StartsWith(Container.FolderPath,videodb://collections/)"></value>
+		<value>$VAR[ListLabel2Var]</value>
+	</variable>
 	<variable name="ListLabelVar">
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Property(collection.displaylabel))">$INFO[ListItem.Property(collection.displaylabel)]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)] + !String.IsEmpty(ListItem.Title)">$INFO[ListItem.Title]</value>
+		<value condition="[String.StartsWith(Container.FolderPath,videodb://collections/) | String.Contains(Container.FolderPath,/collections/)]">$INFO[ListItem.Label]</value>
 		<value condition="ListItem.HasVideoVersions + Window.IsActive(videoplaylist)">$INFO[ListItem.Label]$INFO[ListItem.VideoVersionName, [I](,)[/I]]</value>
 		<value condition="String.IsEqual(ListItem.DbType,episode) + Window.IsActive(videoplaylist)">$INFO[ListItem.TVShowtitle,,: ]$INFO[ListItem.Season,,x]$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]</value>
 		<value condition="String.IsEqual(ListItem.DbType,musicvideo) + Window.IsActive(videoplaylist)">$INFO[ListItem.Artist,, - ]$INFO[ListItem.Title]</value>
@@ -89,6 +109,7 @@
 		<value>$INFO[ListItem.Label]</value>
 	</variable>
 	<variable name="ListLabel2Var">
+		<value condition="String.StartsWith(Container.FolderPath,videodb://collections/)"></value>
 		<value condition="String.IsEmpty(Container.PluginName) + Container.Content(tvshows) + Container.SortMethod(29)">$VAR[WatchedStatusVar]</value>
 		<value condition="String.IsEmpty(Container.PluginName) + String.IsEqual(ListItem.DBType,season) + Container.SortMethod(29)">$VAR[WatchedStatusVar]</value>
 		<value condition="String.IsEmpty(Container.PluginName) + String.IsEqual(ListItem.DBType,set) + Container.SortMethod(1)">$VAR[WatchedStatusVar]</value>
@@ -523,6 +544,10 @@
 		<value condition="Container.Content(seasons)">$LOCALIZE[20343]</value>
 		<value condition="Container.Content(episodes)">$LOCALIZE[20343]</value>
 		<value>$LOCALIZE[3]</value>
+	</variable>
+	<variable name="BreadcrumbsCollectionVar">
+		<value condition="!String.IsEmpty(Window.Property(CollectionName))">$INFO[Window.Property(CollectionName)]</value>
+		<value>$VAR[BreadcrumbsVideoVar]</value>
 	</variable>
 	<variable name="BreadcrumbsPVRChannelsVar">
 		<value condition="Window.IsActive(TVChannels)">$LOCALIZE[19020] / $LOCALIZE[19019] / $INFO[Control.GetLabel(29)]$INFO[Control.GetLabel(30), - ]</value>

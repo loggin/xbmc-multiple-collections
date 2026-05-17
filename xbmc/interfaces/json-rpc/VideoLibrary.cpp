@@ -141,6 +141,173 @@ JSONRPC_STATUS CVideoLibrary::GetMovieSetDetails(const std::string &method, ITra
   return HandleItems("movieid", "movies", items, parameterObject["movies"], result["setdetails"], true);
 }
 
+JSONRPC_STATUS CVideoLibrary::GetCollections(const std::string& method,
+                                             ITransportLayer* transport,
+                                             IClient* client,
+                                             const CVariant& parameterObject,
+                                             CVariant& result)
+{
+  CVideoDatabase videodatabase;
+  if (!videodatabase.Open())
+    return InternalError;
+
+  std::vector<CVideoDatabase::CCollection> collections;
+  std::string typeFilter;
+  if (parameterObject.isMember("type"))
+    typeFilter = parameterObject["type"].asString();
+
+  if (!videodatabase.GetCollections(collections, typeFilter))
+    return InternalError;
+
+  CVariant collectionArray{CVariant::VariantTypeArray};
+  for (const auto& collection : collections)
+  {
+    CVariant item{CVariant::VariantTypeObject};
+    item["idcollection"] = collection.idCollection;
+    item["name"] = collection.name;
+    item["type"] = collection.type;
+    item["description"] = collection.description;
+    item["sorttype"] = collection.sortType;
+    collectionArray.append(item);
+  }
+
+  result = CVariant{CVariant::VariantTypeObject};
+  result["collections"] = collectionArray;
+  return OK;
+}
+
+JSONRPC_STATUS CVideoLibrary::GetCollectionItems(const std::string& method,
+                                                 ITransportLayer* transport,
+                                                 IClient* client,
+                                                 const CVariant& parameterObject,
+                                                 CVariant& result)
+{
+  const int idCollection = parameterObject["idcollection"].asInteger();
+
+  CVideoDatabase videodatabase;
+  if (!videodatabase.Open())
+    return InternalError;
+
+  // Verify collection exists so callers can distinguish unknown IDs from empty item membership.
+  std::vector<CVideoDatabase::CCollection> collections;
+  if (!videodatabase.GetCollections(collections, "", StringUtils::Format("idCollection=%i", idCollection)))
+    return InternalError;
+  if (collections.empty())
+    return InvalidParams;
+
+  std::vector<CVideoDatabase::CCollectionItem> collectionItems;
+  if (!videodatabase.GetCollectionItems(idCollection, collectionItems))
+    return InternalError;
+
+  CVariant itemArray{CVariant::VariantTypeArray};
+  for (const auto& collectionItem : collectionItems)
+  {
+    CVariant item{CVariant::VariantTypeObject};
+    item["idcollection"] = collectionItem.idCollection;
+    item["mediatype"] = collectionItem.mediaType;
+    item["idmedia"] = collectionItem.idMedia;
+    item["sortorder"] = collectionItem.sortOrder;
+    item["groupname"] = collectionItem.groupName;
+
+    const std::string mediaType = StringUtils::ToLower(collectionItem.mediaType);
+    CVariant itemDetails{CVariant::VariantTypeObject};
+
+    if (mediaType == "movie")
+    {
+      CVideoInfoTag infos;
+      if (videodatabase.GetMovieInfo("", infos, collectionItem.idMedia, -1, -1,
+                                     RequiresAdditionalDetails(MediaTypeMovie, parameterObject)) &&
+          infos.m_iDbId > 0)
+      {
+        HandleFileItem("movieid", true, "itemdetails", std::make_shared<CFileItem>(infos),
+                       parameterObject, parameterObject["properties"], itemDetails, false);
+      }
+    }
+    else if (mediaType == "tvshow")
+    {
+      CVideoInfoTag infos;
+      if (videodatabase.GetTvShowInfo("", infos, collectionItem.idMedia, nullptr,
+                                      RequiresAdditionalDetails(MediaTypeTvShow,
+                                                                parameterObject)) &&
+          infos.m_iDbId > 0)
+      {
+        HandleFileItem("tvshowid", true, "itemdetails", std::make_shared<CFileItem>(infos),
+                       parameterObject, parameterObject["properties"], itemDetails, false);
+      }
+    }
+    else if (mediaType == "season")
+    {
+      CVideoInfoTag infos;
+      if (videodatabase.GetSeasonInfo(collectionItem.idMedia, infos) && infos.m_iDbId > 0)
+      {
+        HandleFileItem("seasonid", false, "itemdetails", std::make_shared<CFileItem>(infos),
+                       parameterObject, parameterObject["properties"], itemDetails, false);
+      }
+    }
+    else if (mediaType == "episode" || mediaType == "special")
+    {
+      CVideoInfoTag infos;
+      if (videodatabase.GetEpisodeInfo("", infos, collectionItem.idMedia,
+                                       RequiresAdditionalDetails(MediaTypeEpisode,
+                                                                 parameterObject)) &&
+          infos.m_iDbId > 0)
+      {
+        HandleFileItem("episodeid", true, "itemdetails", std::make_shared<CFileItem>(infos),
+                       parameterObject, parameterObject["properties"], itemDetails, false);
+      }
+    }
+
+    if (itemDetails.isMember("itemdetails") && itemDetails["itemdetails"].isObject())
+    {
+      for (CVariant::const_iterator_map it = itemDetails["itemdetails"].begin_map();
+           it != itemDetails["itemdetails"].end_map(); ++it)
+      {
+        item[it->first] = it->second;
+      }
+    }
+
+    itemArray.append(item);
+  }
+
+  result = CVariant{CVariant::VariantTypeObject};
+  result["collectionitems"] = itemArray;
+  return OK;
+}
+
+JSONRPC_STATUS CVideoLibrary::GetCollectionsForItem(const std::string& method,
+                                                    ITransportLayer* transport,
+                                                    IClient* client,
+                                                    const CVariant& parameterObject,
+                                                    CVariant& result)
+{
+  const std::string mediaType = parameterObject["mediatype"].asString();
+  const int idMedia = parameterObject["idmedia"].asInteger();
+
+  CVideoDatabase videodatabase;
+  if (!videodatabase.Open())
+    return InternalError;
+
+  std::vector<CVideoDatabase::CCollection> collections;
+  if (!videodatabase.GetCollectionsForMedia(mediaType, idMedia, collections))
+    return InvalidParams;
+
+  CVariant collectionArray{CVariant::VariantTypeArray};
+  for (const auto& collection : collections)
+  {
+    CVariant item{CVariant::VariantTypeObject};
+    item["idcollection"] = collection.idCollection;
+    item["name"] = collection.name;
+    item["type"] = collection.type;
+    item["description"] = collection.description;
+    item["sorttype"] = collection.sortType;
+    collectionArray.append(item);
+  }
+
+  result = CVariant{CVariant::VariantTypeObject};
+  result["collections"] = collectionArray;
+  return OK;
+}
+
 JSONRPC_STATUS CVideoLibrary::GetTVShows(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result)
 {
   CVideoDatabase videodatabase;

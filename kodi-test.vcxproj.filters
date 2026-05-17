@@ -1,0 +1,465 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\xbmc-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\platform\win32\test\TestCharsetConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\video\test\TestVideoUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\video\test\TestVideoInfoTag.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\video\test\TestVideoFileItemClassify.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\video\test\TestVideoDbUrl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\video\test\TestStacks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestBluray.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestXMLUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestXBMCTinyXML2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestXBMCTinyXML.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestVariant.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestUrlParsing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestUrlOptions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestURIUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestSystemInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestStringUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestStreamUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestStreamDetails.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestStopwatch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestSortUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestSet.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestScraperUrl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestScraperParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestRssReader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestRingBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestRegExp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestPOUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestMp4ChplReader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestMime.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestMathUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestMap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\Testlog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestLocale.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestLangCodeExpander.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestLabelFormatter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestJSONVariantWriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestJSONVariantParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestJobManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestHttpResponse.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestHttpRangeUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestHttpParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestHttpHeader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestHTMLUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestGPUInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestGlobalsHandling.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestFileUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestFileOperationJob.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestExecString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestEndianSwap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestDigest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestDatabaseUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestCrc32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestComponentContainer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestCPUInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestCharsetConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestBitstreamStats.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestBase64.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestArtUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestArchive.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestAliasShortcutUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestAlarmClock.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\Bcp47Registry\test\TestSubTagsCollection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\Bcp47Registry\test\TestSubTagRegistryTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\Bcp47Registry\test\TestSubTagRegistryManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\Bcp47Registry\test\TestSubTagRegistryFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\Bcp47Registry\test\TestSubTagLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestI18nUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestIso639_2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestIso639_1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestIso3166_1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestBcp47Parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestBcp47Formatter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestBcp47.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\threads\test\TestEndTime.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\threads\test\TestSharedSection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\threads\test\TestEvent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestURL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestMediaSource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestLangInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestFileItem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestEpisodeUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestDateTimeSpan.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestDateTime.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestCueDocument.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestBasicEnvironment.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\test\TestAutoSwitch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\settings\test\TestMediaSourceSettings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\pvr\channels\test\TestPVRChannelsPath.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListXSPF.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListXML.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListWPL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListFileItemClassify.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListFactory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListB4S.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\playlists\test\TestPlayListASX.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\pictures\metadata\test\TestMetadataExtraction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\network\test\TestWebServer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\network\test\TestNetworkFileItemClassify.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\network\test\TestNetwork.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\music\test\TestMusicFileItemClassify.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\music\tags\test\TestTagLoaderTagLib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\interfaces\python\test\TestSwig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\input\keyboard\test\TestKeyboardTranslator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\imagefiles\test\TestImageFileURL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\guilib\test\TestGamesGUIInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\guilib\test\TestGUIControlFactory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\dialogs\disc\test\TestDiscManagerSortUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\test\TestControllerTreeXML.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\test\TestControllerDigest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\input\test\TestPortNodeInput.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\input\test\TestDefaultMouseTranslator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\input\test\TestDefaultKeyboardTranslator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\input\test\TestControllerState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\controllers\input\test\TestControllerActivity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\addons\input\test\TestGameClientTopology.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\addons\disc\test\TestGameClientDiscXML.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\addons\disc\test\TestGameClientDiscModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\addons\disc\test\TestGameClientDiscMergeUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\games\addons\disc\test\TestGameClientDiscM3U.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\VideoDatabaseDirectory\test\TestNodeTitleMovies.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\VideoDatabaseDirectory\test\TestNodeRecentlyAddedMovies.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\VideoDatabaseDirectory\test\TestNodeMovieAssetTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\VideoDatabaseDirectory\test\TestNodeMovieAssets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestNfsFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestHTTPDirectory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestZipManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestZipFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestFileFactory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestDirectoryCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\filesystem\test\TestDirectory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\dbwrappers\test\TestVPrepare.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\cores\VideoPlayer\VideoRenderers\VideoShaders\test\TestConversionMatrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\cores\VideoPlayer\Edl\test\TestEdl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\cores\VideoPlayer\DVDDemuxers\test\TestDVDDemuxUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\addons\test\TestAddonVersion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\addons\test\TestAddonInfoBuilder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\addons\test\TestAddonDatabase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\addons\test\TestAddonBuilder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="F:\work\Kodi\Multi Collections\xbmc\addons\gui\skin\test\TestSkinTimers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="F:\work\Kodi\Multi Collections\xbmc\utils\test\TestGlobalsHandlingPattern1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="F:\work\Kodi\Multi Collections\xbmc\utils\i18n\test\TestI18nUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="F:\work\Kodi\Multi Collections\xbmc\threads\test\TestHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="F:\work\Kodi\Multi Collections\xbmc\test\TestUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="F:\work\Kodi\Multi Collections\xbmc\test\TestBasicEnvironment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="F:\work\Kodi\Multi Collections\project\BuildDependencies\x64\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{F656FD64-A2F9-3339-AF59-03C73ADC4A37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{B664C496-05D6-3429-9101-4A8335876D14}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

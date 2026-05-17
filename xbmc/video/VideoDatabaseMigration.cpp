@@ -1150,9 +1150,35 @@ void CVideoDatabase::UpdateTables(int iVersion)
 
   if (iVersion < 144)
     m_pDS->exec("ALTER TABLE streamdetails ADD strHdrDetail text");
+
+  if (iVersion < 145)
+  {
+    // Add unified collections tables.
+    m_pDS->exec("CREATE TABLE collection ( idCollection integer primary key, "
+                "name text not null, type text not null default 'franchise', "
+                "description text, sortType text not null default 'custom', artwork text, "
+                "dateAdded text, dateModified text)");
+    m_pDS->exec("CREATE TABLE collection_item ( idCollection integer not null, "
+                "mediaType text not null, idMedia integer not null, "
+                "sortOrder integer not null default 0, groupName text, "
+                "PRIMARY KEY (idCollection, mediaType, idMedia))");
+
+    // Seed legacy movie sets into collections for v1 compatibility.
+    m_pDS->exec("INSERT INTO collection "
+                "(idCollection, name, type, description, sortType, artwork, dateAdded, "
+                "dateModified) "
+                "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL "
+                "FROM `sets`");
+
+    m_pDS->exec("INSERT INTO collection_item "
+                "(idCollection, mediaType, idMedia, sortOrder, groupName) "
+                "SELECT m.idSet, 'movie', m.idMovie, 0, NULL "
+                "FROM movie m "
+                "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 144;
+  return 145;
 }

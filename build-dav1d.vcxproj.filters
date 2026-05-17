@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\79ddc0a81e8c591f451f2557736df6e4\build-dav1d-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\0fa48bf93024919b138e6bed0915e793\build-dav1d-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeFiles\edebb8b1973b15aec4b443e64ea354c7\build-dav1d.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="F:\work\Kodi\Multi Collections\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="F:\work\Kodi\Multi Collections\CMakeFiles\build-dav1d" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{03C21BB1-0D15-38B5-BB5A-DF974767CE53}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -716,7 +716,7 @@
 							<label>$LOCALIZE[20457]</label>
 							<icon>icons/infodialogs/set.png</icon>
 							<onclick>Dialog.Close(all,true)</onclick>
-							<onclick>ActivateWindow(Videos,videodb://movies/sets/$INFO[ListItem.SetId]/?setid=$INFO[ListItem.SetId])</onclick>
+							<onclick>ActivateWindow(10026,videodb://collections/$INFO[ListItem.SetId]/)</onclick>
 							<visible>!String.IsEmpty(ListItem.SetID)</visible>
 						</item>
 						<item>

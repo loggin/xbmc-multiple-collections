@@ -162,6 +162,18 @@ void CVideoDatabaseDDL::CreateTables(CDatabase& db)
   db.ExecuteQuery("CREATE TABLE `sets` ( idSet integer primary key, strSet text, strOverview text, "
                   "strOriginalSet text)");
 
+  CLog::Log(LOGINFO, "create collection table");
+  db.ExecuteQuery("CREATE TABLE collection ( idCollection integer primary key, "
+                  "name text not null, type text not null default 'franchise', "
+                  "description text, sortType text not null default 'custom', artwork text, "
+                  "dateAdded text, dateModified text)");
+
+  CLog::Log(LOGINFO, "create collection_item table");
+  db.ExecuteQuery("CREATE TABLE collection_item ( idCollection integer not null, "
+                  "mediaType text not null, idMedia integer not null, "
+                  "sortOrder integer not null default 0, groupName text, "
+                  "PRIMARY KEY (idCollection, mediaType, idMedia))");
+
   CLog::Log(LOGINFO, "create seasons table");
   db.ExecuteQuery("CREATE TABLE seasons ( idSeason integer primary key, idShow integer, season "
                   "integer, name text, userrating integer, plot TEXT)");
@@ -282,6 +294,11 @@ void CVideoDatabaseDDL::CreateIndices(CDatabase& db)
 
   db.ExecuteQuery("CREATE INDEX ix_uniqueid1 ON uniqueid(media_id, media_type(20), type(20))");
   db.ExecuteQuery("CREATE INDEX ix_uniqueid2 ON uniqueid(media_type(20), value(20))");
+
+  db.ExecuteQuery("CREATE INDEX idx_collection_type ON collection(type(32))");
+  db.ExecuteQuery("CREATE INDEX idx_collection_item_collection ON collection_item(idCollection)");
+  db.ExecuteQuery(
+      "CREATE INDEX idx_collection_item_media ON collection_item(mediaType(20), idMedia)");
 
   db.ExecuteQuery("CREATE UNIQUE INDEX ix_actor_1 ON actor (name(255))");
   db.ExecuteQuery("CREATE UNIQUE INDEX ix_actor_link_1 ON "

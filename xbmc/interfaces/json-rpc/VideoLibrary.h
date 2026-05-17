@@ -31,6 +31,21 @@ namespace JSONRPC
     static JSONRPC_STATUS GetMovieDetails(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result);
     static JSONRPC_STATUS GetMovieSets(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result);
     static JSONRPC_STATUS GetMovieSetDetails(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result);
+    static JSONRPC_STATUS GetCollections(const std::string& method,
+                       ITransportLayer* transport,
+                       IClient* client,
+                       const CVariant& parameterObject,
+                       CVariant& result);
+    static JSONRPC_STATUS GetCollectionItems(const std::string& method,
+                         ITransportLayer* transport,
+                         IClient* client,
+                         const CVariant& parameterObject,
+                         CVariant& result);
+    static JSONRPC_STATUS GetCollectionsForItem(const std::string& method,
+                          ITransportLayer* transport,
+                          IClient* client,
+                          const CVariant& parameterObject,
+                          CVariant& result);
 
     static JSONRPC_STATUS GetTVShows(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result);
     static JSONRPC_STATUS GetTVShowDetails(const std::string &method, ITransportLayer *transport, IClient *client, const CVariant &parameterObject, CVariant &result);

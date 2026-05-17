@@ -18,6 +18,7 @@
 #include "video/VideoFileItemClassify.h"
 #include "video/VideoLibraryQueue.h"
 #include "video/dialogs/GUIDialogVideoInfo.h"
+#include "utils/StringUtils.h"
 
 using namespace KODI;
 
@@ -55,9 +56,20 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
   if (item && item->HasVideoInfoTag() && item->IsFolder())
   {
     const std::string& type = item->GetVideoInfoTag()->m_type;
-    if (type == MediaTypeTvShow || type == MediaTypeSeason)
+    if (type == MediaTypeTvShow)
     {
-      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, item->GetPath());
+      const std::string navPath = StringUtils::Format("videodb://tvshows/titles/{}/",
+                                                       item->GetVideoInfoTag()->m_iDbId);
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, navPath);
+      return true;
+    }
+    else if (type == MediaTypeSeason)
+    {
+      const std::string navPath =
+          StringUtils::Format("videodb://tvshows/titles/{}/{}/",
+                              item->GetVideoInfoTag()->m_iIdShow,
+                              item->GetVideoInfoTag()->m_iSeason);
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, navPath);
       return true;
     }
   }
