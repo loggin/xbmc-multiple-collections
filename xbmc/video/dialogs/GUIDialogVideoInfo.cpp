@@ -1593,19 +1593,24 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   std::vector<CVideoDatabase::CCollection> currentCollections;
   videodb.GetCollectionsForMedia(mediaType, idMedia, currentCollections);
 
-  // Build collection ids set for quick lookup
-  std::unordered_set<int> currentIds;
+  // originalIds = true memberships at session start — never modified.
+  // Used after the loop to compute which collections to add/remove.
+  std::unordered_set<int> originalIds;
   for (const auto& c : currentCollections)
-    currentIds.insert(c.idCollection);
+    originalIds.insert(c.idCollection);
 
-  // For movies, also include the legacy idSet for pre-selection
+  // For movies, also include the legacy idSet
   // (GetCollectionsForMedia reads only collection_item, not movie.idSet)
   if (mediaType == MediaTypeMovie)
   {
     const int legacySetId = item->GetVideoInfoTag()->m_set.GetID();
     if (legacySetId > 0)
-      currentIds.insert(legacySetId);
+      originalIds.insert(legacySetId);
   }
+
+  // preSelectIds = what to pre-select when the dialog opens/re-opens.
+  // Updated as the user checks/unchecks items and creates new sets.
+  std::unordered_set<int> preSelectIds = originalIds;
 
   CGUIDialogSelect* dialog =
       CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogSelect>(
@@ -1632,12 +1637,12 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
       }
     }
 
-    // Pre-select current collections (or user's pending selections if looping)
+    // Pre-select based on preSelectIds (preserved across dialog re-opens)
     std::vector<int> preSelected;
     for (int i = 0; i < listItems.Size(); ++i)
     {
       const int id = listItems.Get(i)->GetVideoInfoTag()->m_iDbId;
-      if (currentIds.count(id))
+      if (preSelectIds.count(id))
         preSelected.push_back(i);
     }
 
@@ -1653,9 +1658,10 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
 
     if (dialog->IsButton2Pressed())
     {
-      // User pressed "New set..." — save current selections and ask for name
+      // User pressed "New set..." — capture current selections so they survive the re-open
+      preSelectIds.clear();
       for (int idx : dialog->GetSelectedItems())
-        currentIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
+        preSelectIds.insert(listItems.Get(idx)->GetVideoInfoTag()->m_iDbId);
       std::string newSetTitle;
       if (!CGUIKeyboardFactory::ShowAndGetInput(
               newSetTitle,
@@ -1666,7 +1672,7 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
       {
         const int idNew = videodb.AddSet(newSetTitle);
         if (idNew >= 0)
-          currentIds.insert(idNew); // pre-select the new collection on re-open
+          preSelectIds.insert(idNew); // auto-select the new collection on re-open
       }
       continue; // re-open dialog
     }
@@ -1685,10 +1691,10 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
 
   bool changed = false;
 
-  // Add newly selected
+  // Add newly selected (any id in selectedIds that wasn't in originalIds)
   for (int id : selectedIds)
   {
-    if (!currentIds.count(id))
+    if (!originalIds.count(id))
     {
       CVideoDatabase::CCollectionItem ci;
       ci.idCollection = id;
@@ -1700,8 +1706,8 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
     }
   }
 
-  // Remove deselected
-  for (int id : currentIds)
+  // Remove deselected (any id in originalIds that isn't in selectedIds)
+  for (int id : originalIds)
   {
     if (!selectedIds.count(id))
     {
