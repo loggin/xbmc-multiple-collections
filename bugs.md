@@ -107,5 +107,6 @@ newly created set no longer listed in in main lirbrary movies view, still appear
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-18 | Root cause: currentIds was used both for pre-selection and as the add/remove baseline. When "New set..." was pressed, the new set's ID was inserted into currentIds for pre-selection — which caused the add-delta loop to treat it as already-existing and skip AddOrUpdateCollectionItem and UpdateMovieSetId entirely. Fixed by splitting into originalIds (immutable, true memberships at session open) and preSelectIds (mutable, dialog pre-selection state). All three sub-issues (new set not in library, TV show, episode) resolved by same fix. | GitHub Copilot |
+| 2026-05-18 19:32 | The ability to add colection to tv shows has returned but newly created sets/collection are not appearing in the main library lists for navigation (either in movies or tv shows), also still unable to select set collection for a tv show episode | User |
 
-Status: Resolved
+Status: Failed testing
