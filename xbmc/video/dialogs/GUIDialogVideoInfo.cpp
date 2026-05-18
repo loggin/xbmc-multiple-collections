@@ -1736,21 +1736,14 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   // Never call SetMovieSet(-1) here — it nukes all collection_item rows for the movie.
   if (changed && mediaType == MediaTypeMovie)
   {
-    const int oldLegacySetId = item->GetVideoInfoTag()->m_set.GetID();
-    CLog::LogF(LOGDEBUG, "ManageMediaCollections: movie oldLegacySetId={}", oldLegacySetId);
-    if (!selectedIds.count(oldLegacySetId))
-    {
-      // Primary set was deselected; pick first remaining or clear
-      const int newIdSet = selectedIds.empty() ? -1 : *selectedIds.begin();
-      CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId idMovie={} newIdSet={}", idMedia, newIdSet);
-      videodb.UpdateMovieSetId(idMedia, newIdSet);
-    }
-    else if (oldLegacySetId <= 0 && !selectedIds.empty())
-    {
-      // No legacy set but now has collections; set idSet to first one
-      CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId (no legacy) idMovie={} newIdSet={}", idMedia, *selectedIds.begin());
-      videodb.UpdateMovieSetId(idMedia, *selectedIds.begin());
-    }
+    // Always update idSet to reflect the current selection. Pick the highest-ID
+    // selected collection as primary — highest ID = most recently created, so a
+    // newly added collection becomes the set that appears in the movie titles view.
+    const int newIdSet = selectedIds.empty()
+        ? -1
+        : *std::max_element(selectedIds.begin(), selectedIds.end());
+    CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId idMovie={} newIdSet={}", idMedia, newIdSet);
+    videodb.UpdateMovieSetId(idMedia, newIdSet);
   }
 
   return changed;
