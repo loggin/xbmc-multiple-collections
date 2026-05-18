@@ -90,6 +90,7 @@ bool CDirectoryNodeOverview::GetContent(CFileItemList& items) const
   bool hasMovies = database.HasContent(VideoDbContentType::MOVIES);
   bool hasTvShows = database.HasContent(VideoDbContentType::TVSHOWS);
   bool hasMusicVideos = database.HasContent(VideoDbContentType::MUSICVIDEOS);
+  bool hasCollections = database.HasCollections();
   std::vector<std::pair<const char*, int> > vec;
   if (hasMovies)
   {
@@ -123,6 +124,8 @@ bool CDirectoryNodeOverview::GetContent(CFileItemList& items) const
     if (hasMusicVideos)
       vec.emplace_back("recentlyaddedmusicvideos", 20390); // Recently Added Music Videos
   }
+  if (hasCollections)
+    vec.emplace_back("collections", 40803); // Collections
   std::string path = BuildPath();
   for (unsigned int i = 0; i < vec.size(); ++i)
   {
