@@ -40,6 +40,8 @@
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "NfoFile.h"
+#include "addons/AddonManager.h"
 #include "tags/SetInfoTagLoaderFactory.h"
 #include "tags/VideoInfoTagLoaderFactory.h"
 #include "utils/ArtUtils.h"
@@ -236,6 +238,11 @@ CVideoInfoScanner::~CVideoInfoScanner()
       // using Interrupt() while scanning as it could
       // result in unexpected behaviour.
       m_bCanInterrupt = false;
+
+      // First pass: import all collection/set NFOs from the Movie Set Info Folder
+      // before scanning movies, so every set already has art when a movie
+      // references it during the main scan.
+      ScanMovieSetInfoFolder();
 
       bool bCancelled = false;
       while (!bCancelled && !m_pathsToScan.empty())
@@ -975,8 +982,11 @@ CVideoInfoScanner::~CVideoInfoScanner()
         if (movieId < 0)
           return InfoRet::INFO_ERROR;
 
-        // Deal with set
-        if (UpdateSetInTag(*pItem->GetVideoInfoTag()))
+        // Deal with set: always call AddSet when the movie has a set, so that
+        // MSIF local images gathered by UpdateSetInTag are stored even when
+        // there is no set NFO file (UpdateSetInTag returns false in that case).
+        UpdateSetInTag(*pItem->GetVideoInfoTag());
+        if (pItem->GetVideoInfoTag()->m_set.HasTitle())
           if (!AddSet(pItem->GetVideoInfoTag()->m_set))
             return InfoRet::INFO_ERROR;
       }
@@ -1496,6 +1506,99 @@ CVideoInfoScanner::~CVideoInfoScanner()
     }
 
     return false;
+  }
+
+  void CVideoInfoScanner::ScanMovieSetInfoFolder()
+  {
+    const std::string msifRoot =
+        CServiceBroker::GetSettingsComponent()->GetSettings()->GetString(
+            CSettings::SETTING_VIDEOLIBRARY_MOVIESETSFOLDER);
+    if (msifRoot.empty())
+      return;
+
+    CLog::Log(LOGINFO, "VideoInfoScanner: Pre-scanning movie set info folder '{}'",
+              CURL::GetRedacted(msifRoot));
+
+    // Recursively search for collection.nfo and set.nfo under the MSIF root
+    CFileItemList allNfos;
+    CUtil::GetRecursiveListing(msifRoot, allNfos, ".nfo");
+
+    // Keep only canonical set NFO filenames
+    std::vector<std::shared_ptr<CFileItem>> setNfos;
+    for (int i = 0; i < allNfos.Size(); ++i)
+    {
+      const std::string fname = URIUtils::GetFileName(allNfos[i]->GetPath());
+      if (StringUtils::EqualsNoCase(fname, "collection.nfo") ||
+          StringUtils::EqualsNoCase(fname, "set.nfo"))
+        setNfos.push_back(allNfos[i]);
+    }
+
+    if (setNfos.empty())
+    {
+      CLog::Log(LOGDEBUG,
+                "VideoInfoScanner: No collection.nfo / set.nfo found under '{}'",
+                CURL::GetRedacted(msifRoot));
+      return;
+    }
+
+    CLog::Log(LOGINFO, "VideoInfoScanner: Pre-scanning {} set NFO file(s)", setNfos.size());
+
+    const std::vector<std::string> artTypes =
+        CVideoThumbLoader::GetArtTypes(MediaTypeVideoCollection);
+
+    AddonPtr addon;
+    CServiceBroker::GetAddonMgr().GetAddon("metadata.local", addon, OnlyEnabled::CHOICE_YES);
+    const ScraperPtr scraper = std::dynamic_pointer_cast<CScraper>(addon);
+
+    for (const auto& nfoItem : setNfos)
+    {
+      if (m_bStop)
+        break;
+
+      const std::string& nfoPath = nfoItem->GetPath();
+      // Directory containing this NFO — sibling art lives here
+      const std::string nfoDir = URIUtils::GetDirectory(nfoPath);
+      // Derive a fallback title from the containing folder name
+      std::string parentDir = nfoDir;
+      URIUtils::RemoveSlashAtEnd(parentDir);
+      const std::string folderName = URIUtils::GetFileName(parentDir);
+
+      // Load set metadata from the NFO
+      CSetInfoTag setTag;
+      setTag.SetTitle(folderName); // overridden below if NFO has a title
+      CNfoFile nfoReader;
+      const InfoType result = nfoReader.Create(nfoPath, scraper);
+      if (result == InfoType::FULL || result == InfoType::COMBINED)
+      {
+        nfoReader.GetDetails(setTag, nullptr);
+        if (setTag.GetTitle().empty())
+          setTag.SetTitle(folderName);
+      }
+
+      if (setTag.GetTitle().empty())
+      {
+        CLog::Log(LOGWARNING,
+                  "VideoInfoScanner: Skipping set NFO with no resolvable title: '{}'",
+                  CURL::GetRedacted(nfoPath));
+        continue;
+      }
+
+      // Find sibling artwork: title-prefixed first (lower priority), plain names second
+      ART::Artwork art;
+      const std::string titleBase = URIUtils::AddFileToFolder(nfoDir, setTag.GetTitle());
+      AddLocalItemArtwork(art, artTypes, titleBase, false, true, false);
+      AddLocalItemArtwork(art, artTypes, nfoDir, true, false, false);
+
+      if (!art.empty())
+        setTag.SetArt(art);
+
+      CLog::Log(LOGDEBUG, "VideoInfoScanner: Pre-scanning set '{}' with {} art item(s)",
+                setTag.GetTitle(), art.size());
+
+      if (!AddSet(setTag))
+        CLog::Log(LOGWARNING, "VideoInfoScanner: Failed to store set '{}' from pre-scan",
+                  setTag.GetTitle());
+    }
   }
 
   bool CVideoInfoScanner::AddSet(const CSetInfoTag& set)

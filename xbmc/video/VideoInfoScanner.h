@@ -112,6 +112,14 @@ namespace KODI::VIDEO
     static void ApplyThumbToFolder(const std::string &folder, const std::string &imdbThumb);
     static bool DownloadFailed(CGUIDialogProgress* pDlgProgress);
 
+    /*! \brief Pre-scan the Movie Set Info Folder before the main library scan.
+     Recursively searches for collection.nfo and set.nfo files under the
+     configured Movie Set Info Folder, loads each one, finds sibling artwork,
+     and stores everything in the database so sets already exist with art
+     when movies reference them during the main scan.
+     */
+    void ScanMovieSetInfoFolder();
+
     /*! \brief Update the set information from a SET.NFO in the Movie Set Information Folder
      Gets set details from the VideoInfoTag of a movie
      \param tag     info tag
