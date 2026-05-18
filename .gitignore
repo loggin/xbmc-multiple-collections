@@ -95,6 +95,10 @@ cmake_install.cmake
 /*.vcxproj
 /*.vcxproj.filters
 
+# CMake-generated root-level .dir build directories (in-source build artefacts)
+/*.dir/
+/x64/
+
 # Eclipse project files. Not needed as they are generated in two clicks if needed.
 .settings
 .project
