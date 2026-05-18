@@ -31,6 +31,7 @@ Node MovieChildren[] = {
                         { NodeType::COUNTRY,      "countries",        20451 },
                         { NodeType::TAGS,         "tags",             20459 },
                         { NodeType::VIDEOVERSIONS,"videoversions",    40000 },
+                        { NodeType::COLLECTIONS,  "collections",      40803 },
                        };
 // clang-format on
 
@@ -70,6 +71,12 @@ bool CDirectoryNodeMoviesOverview::GetContent(CFileItemList& items) const
     {
       CVideoDatabase db;
       if (db.Open() && !db.HasSets())
+        continue;
+    }
+    if (MovieChildren[i].node == NodeType::COLLECTIONS)
+    {
+      CVideoDatabase db;
+      if (db.Open() && !db.HasCollections())
         continue;
     }
 

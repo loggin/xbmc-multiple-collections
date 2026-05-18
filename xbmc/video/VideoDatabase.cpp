@@ -8354,6 +8354,27 @@ bool CVideoDatabase::HasSets() const
   return false;
 }
 
+bool CVideoDatabase::HasCollections() const
+{
+  try
+  {
+    if (nullptr == m_pDB)
+      return false;
+    if (nullptr == m_pDS)
+      return false;
+
+    m_pDS->query("SELECT 1 FROM collection LIMIT 1");
+    bool bResult = (m_pDS->num_rows() > 0);
+    m_pDS->close();
+    return bResult;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "failed");
+  }
+  return false;
+}
+
 int CVideoDatabase::GetTvShowForEpisode(int idEpisode) const
 {
   try

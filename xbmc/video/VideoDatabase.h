@@ -740,6 +740,7 @@ public:
   bool HasContent();
   bool HasContent(VideoDbContentType type);
   bool HasSets() const;
+  bool HasCollections() const;
 
   void CleanDatabase(CGUIDialogProgressBarHandle* handle = nullptr,
                      const std::set<int>& paths = std::set<int>(),
