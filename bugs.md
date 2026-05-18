@@ -68,7 +68,7 @@ I'm seeing the additional metadata files and folders within the tv show folders,
 | 2026-05-18 13:48 | Still happening and going back to the home screen from the episode list, needs to go back up to the season list | User |
 | 2026-05-18 | Root cause: CGUIMediaWindow::OnBack only calls GoParentFolder() for ACTION_NAV_BACK. ACTION_PREVIOUS_MENU (Escape key) bypasses GoParentFolder and falls through to CGUIWindow::OnBack → PreviousWindow() → Home. Fix: CGUIWindowVideoNav::OnBack now intercepts both actions at ALL levels when m_collectionReturnUrl is set — at m_startDirectory it returns to the collection, at deeper levels it calls GoParentFolder() explicitly. | GitHub Copilot |
 
-Status: Fix committed — awaiting user verification
+Status: Resolved
 
 ## importing is not detecting collection imagery
 
@@ -94,4 +94,8 @@ Status: Fix committed — awaiting user verification
 
 The project and repo have become polluted with what appear to be incorrectly placed files, excluding our own build script, spec.md and bugs.md the root of the project should more closley match what is listed at https://github.com/xbmc/xbmc (https://github.com/xbmc/xbmc.git) for the root folder structure.
 
-Status: Unresolved
+| Date\Time | Description | Author |
+|-----------|-------------|--------|
+| 2026-05-18 | Removed 96 root-level cmake-generated *.vcxproj / *.vcxproj.filters files from git tracking via `git rm --cached`. Added `/*.vcxproj`, `/*.vcxproj.filters`, `/*.dir/`, and `/x64/` to .gitignore. Restored tools/depends/native/TexturePacker/src/Win32/TexturePacker.vcxproj which is a source-controlled file. Files remain on disk for building. | GitHub Copilot |
+
+Status: Resolved
