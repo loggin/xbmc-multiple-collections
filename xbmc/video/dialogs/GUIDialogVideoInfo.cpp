@@ -47,6 +47,7 @@
 #include "storage/MediaManager.h"
 #include "threads/IRunnable.h"
 #include "utils/Artwork.h"
+#include "utils/log.h"
 #include "utils/FileUtils.h"
 #include "utils/Map.h"
 #include "utils/SortUtils.h"
@@ -1053,7 +1054,14 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
 {
   if (item == nullptr || !VIDEO::IsVideoDb(*item) || !item->HasVideoInfoTag() ||
       item->GetVideoInfoTag()->m_iDbId < 0)
+  {
+    CLog::LogF(LOGDEBUG, "ManageVideoItem: rejected item={} isVideoDb={} hasTag={} dbId={}",
+               item ? item->GetPath() : "(null)",
+               item ? VIDEO::IsVideoDb(*item) : false,
+               item && item->HasVideoInfoTag(),
+               (item && item->HasVideoInfoTag()) ? item->GetVideoInfoTag()->m_iDbId : -999);
     return -1;
+  }
 
   CVideoDatabase database;
   if (!database.Open())
@@ -1691,11 +1699,15 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
 
   bool changed = false;
 
+  CLog::LogF(LOGDEBUG, "ManageMediaCollections: mediaType={} idMedia={} selectedIds.size={} originalIds.size={}",
+             mediaType, idMedia, selectedIds.size(), originalIds.size());
+
   // Add newly selected (any id in selectedIds that wasn't in originalIds)
   for (int id : selectedIds)
   {
     if (!originalIds.count(id))
     {
+      CLog::LogF(LOGDEBUG, "ManageMediaCollections: adding idCollection={} for {}/{}", id, mediaType, idMedia);
       CVideoDatabase::CCollectionItem ci;
       ci.idCollection = id;
       ci.mediaType = mediaType;
@@ -1703,6 +1715,8 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
       ci.sortOrder = 0;
       if (videodb.AddOrUpdateCollectionItem(ci))
         changed = true;
+      else
+        CLog::LogF(LOGERROR, "ManageMediaCollections: AddOrUpdateCollectionItem FAILED for idCollection={} mediaType={} idMedia={}", id, mediaType, idMedia);
     }
   }
 
@@ -1716,20 +1730,25 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
     }
   }
 
+  CLog::LogF(LOGDEBUG, "ManageMediaCollections: changed={} mediaType={}", changed, mediaType);
+
   // For movies: update legacy movie.idSet for backward compat.
   // Never call SetMovieSet(-1) here — it nukes all collection_item rows for the movie.
   if (changed && mediaType == MediaTypeMovie)
   {
     const int oldLegacySetId = item->GetVideoInfoTag()->m_set.GetID();
+    CLog::LogF(LOGDEBUG, "ManageMediaCollections: movie oldLegacySetId={}", oldLegacySetId);
     if (!selectedIds.count(oldLegacySetId))
     {
       // Primary set was deselected; pick first remaining or clear
       const int newIdSet = selectedIds.empty() ? -1 : *selectedIds.begin();
+      CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId idMovie={} newIdSet={}", idMedia, newIdSet);
       videodb.UpdateMovieSetId(idMedia, newIdSet);
     }
     else if (oldLegacySetId <= 0 && !selectedIds.empty())
     {
       // No legacy set but now has collections; set idSet to first one
+      CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId (no legacy) idMovie={} newIdSet={}", idMedia, *selectedIds.begin());
       videodb.UpdateMovieSetId(idMedia, *selectedIds.begin());
     }
   }
