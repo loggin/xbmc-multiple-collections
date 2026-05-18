@@ -73,13 +73,6 @@ bool CDirectoryNodeMoviesOverview::GetContent(CFileItemList& items) const
       if (db.Open() && !db.HasSets())
         continue;
     }
-    if (MovieChildren[i].node == NodeType::COLLECTIONS)
-    {
-      CVideoDatabase db;
-      if (db.Open() && !db.HasCollections())
-        continue;
-    }
-
     CVideoDbUrl itemUrl = videoUrl;
     std::string strDir = StringUtils::Format("{}/", MovieChildren[i].id);
     itemUrl.AppendPath(strDir);
