@@ -106,21 +106,38 @@ bool CGUIWindowVideoNav::OnAction(const CAction &action)
 bool CGUIWindowVideoNav::OnBack(int actionID)
 {
   // When this window was activated from GUIWindowVideoCollection (e.g. to browse a tvshow
-  // or season), and we are back at the root level, navigate explicitly back to the collection.
+  // or season), handle all back actions explicitly to avoid falling through to
+  // CGUIWindow::OnBack (PreviousWindow → Home) for ACTION_PREVIOUS_MENU.
   //
-  // We cannot rely on the standard window history here: CGUIWindowManager::AddToWindowHistory
-  // de-duplicates window IDs, so when WINDOW_VIDEO_NAV is already in history (from the main
-  // library view) and the collection activates it again for a tvshow, the history is truncated
-  // to remove WINDOW_VIDEO_COLLECTION, causing a spurious jump to Home on Back.
+  // Background: CGUIWindowManager::AddToWindowHistory de-duplicates window IDs, so when
+  // WINDOW_VIDEO_NAV is already in history and the collection activates it again for a
+  // tvshow, WINDOW_VIDEO_COLLECTION is stripped from history.  We therefore manage the
+  // return ourselves via m_collectionReturnUrl.
+  //
+  // Additionally, CGUIMediaWindow::OnBack only calls GoParentFolder() for ACTION_NAV_BACK.
+  // ACTION_PREVIOUS_MENU (Escape, Backspace in some contexts) bypasses GoParentFolder and
+  // would jump straight to Home.  We intercept it at all sub-root levels here.
   if (!m_collectionReturnUrl.empty() &&
-      (actionID == ACTION_NAV_BACK || actionID == ACTION_PREVIOUS_MENU) &&
-      URIUtils::PathEquals(m_vecItems->GetPath(), m_startDirectory, true))
+      (actionID == ACTION_NAV_BACK || actionID == ACTION_PREVIOUS_MENU))
   {
-    const std::string returnUrl = m_collectionReturnUrl;
-    m_collectionReturnUrl.clear();
-    CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_COLLECTION,
-                                                                returnUrl);
-    return true;
+    if (URIUtils::PathEquals(m_vecItems->GetPath(), m_startDirectory, true))
+    {
+      // At the root level — return to the collection that launched us.
+      const std::string returnUrl = m_collectionReturnUrl;
+      m_collectionReturnUrl.clear();
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_COLLECTION,
+                                                                  returnUrl);
+      return true;
+    }
+    // Deeper than the root (e.g. episode list when tvshow was activated from the
+    // collection).  Navigate up one level within this window regardless of which
+    // back action was used.
+    if (!m_vecItems->IsVirtualDirectoryRoot() &&
+        !URIUtils::PathEquals(m_vecItems->GetPath(), GetRootPath(), true))
+    {
+      if (GoParentFolder())
+        return true;
+    }
   }
   return CGUIWindowVideoBase::OnBack(actionID);
 }
