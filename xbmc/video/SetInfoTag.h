@@ -67,6 +67,7 @@ public:
   std::string m_overview; // Overview/description of the movie set
   KODI::ART::Artwork m_art; // Art information
   int m_id{-1}; // ID of movie set in database
+  std::string m_strPath; // Home folder path where collection.nfo was found (inline or MSIF)
 
 private:
   bool m_updateSetOverview{false}; // If overview has been set

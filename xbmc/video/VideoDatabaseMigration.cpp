@@ -1176,9 +1176,19 @@ void CVideoDatabase::UpdateTables(int iVersion)
                 "FROM movie m "
                 "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
   }
+
+  if (iVersion < 146)
+  {
+    // Add home path columns for inline collection.nfo tracking.
+    m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT");
+    // collection table may not exist on fresh installs upgrading straight to 146+
+    // so guard with a try/catch; the DDL creates it with the column already.
+    try { m_pDS->exec("ALTER TABLE collection ADD homePath TEXT"); }
+    catch (...) {}
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 145;
+  return 146;
 }

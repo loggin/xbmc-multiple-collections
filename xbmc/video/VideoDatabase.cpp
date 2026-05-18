@@ -1442,7 +1442,8 @@ int CVideoDatabase::AddUniqueIDs(int mediaId, const char *mediaType, const CVide
 int CVideoDatabase::AddSet(const std::string& strSet,
                            const std::string& strOverview /* = "" */,
                            const std::string& strOriginalSet /* = "" */,
-                           const bool updateOverview /* = true */)
+                           const bool updateOverview /* = true */,
+                           const std::string& strPath /* = "" */)
 {
   if (strSet.empty())
     return -1;
@@ -1459,10 +1460,11 @@ int CVideoDatabase::AddSet(const std::string& strSet,
     if (m_pDS->num_rows() == 0)
     {
       m_pDS->close();
-      strSQL = PrepareSQL("INSERT INTO `sets` (idSet, strSet, strOverview, strOriginalSet) "
-                          "VALUES(NULL, '%s', '%s', '%s')",
+      strSQL = PrepareSQL("INSERT INTO `sets` (idSet, strSet, strOverview, strOriginalSet, strPath) "
+                          "VALUES(NULL, '%s', '%s', '%s', '%s')",
                           strSet.c_str(), strOverview.c_str(),
-                          strOriginalSet.empty() ? strSet.c_str() : strOriginalSet.c_str());
+                          strOriginalSet.empty() ? strSet.c_str() : strOriginalSet.c_str(),
+                          strPath.c_str());
       m_pDS->exec(strSQL);
       const int id = static_cast<int>(m_pDS->lastinsertid());
 
@@ -1472,6 +1474,7 @@ int CVideoDatabase::AddSet(const std::string& strSet,
       collection.type = "set";
       collection.description = strOverview;
       collection.sortType = "custom";
+      collection.homePath = strPath;
       AddOrUpdateCollection(collection);
 
       return id;
@@ -1483,10 +1486,15 @@ int CVideoDatabase::AddSet(const std::string& strSet,
 
       // update set data
       if (updateOverview)
-        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strOverview = '%s' WHERE idSet = %i",
-                            strSet.c_str(), strOverview.c_str(), id);
+        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strOverview = '%s'%s WHERE idSet = %i",
+                            strSet.c_str(), strOverview.c_str(),
+                            strPath.empty() ? "" : PrepareSQL(", strPath = '%s'", strPath.c_str()).c_str(),
+                            id);
       else
-        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s' WHERE idSet = %i", strSet.c_str(), id);
+        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s'%s WHERE idSet = %i",
+                            strSet.c_str(),
+                            strPath.empty() ? "" : PrepareSQL(", strPath = '%s'", strPath.c_str()).c_str(),
+                            id);
 
       m_pDS->exec(strSQL);
 
@@ -1496,6 +1504,7 @@ int CVideoDatabase::AddSet(const std::string& strSet,
       collection.type = "set";
       collection.description = strOverview;
       collection.sortType = "custom";
+      collection.homePath = strPath;
       AddOrUpdateCollection(collection);
 
       return id;
@@ -8872,23 +8881,30 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
     {
       if (collectionExistsById)
       {
-        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s' WHERE idCollection=%i",
+        // Only overwrite homePath when the new value is non-empty (inline path wins over dedicated;
+        // never clear an existing home path with an empty one).
+        const std::string homePathClause = collection.homePath.empty()
+            ? ""
+            : PrepareSQL(", homePath='%s'", collection.homePath.c_str());
+        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'%s WHERE idCollection=%i",
                          collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
-                         normalizedSortType.c_str(), collection.artwork.c_str(), idCollection);
+                         normalizedSortType.c_str(), collection.artwork.c_str(),
+                         homePathClause.c_str(), idCollection);
       }
       else
       {
-        sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork) VALUES(%i, '%s', '%s', '%s', '%s', '%s')",
+        sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork, homePath) VALUES(%i, '%s', '%s', '%s', '%s', '%s', '%s')",
                          idCollection, collection.name.c_str(), normalizedType.c_str(),
                          collection.description.c_str(), normalizedSortType.c_str(),
-                         collection.artwork.c_str());
+                         collection.artwork.c_str(), collection.homePath.c_str());
       }
     }
     else
     {
-      sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork) VALUES(NULL, '%s', '%s', '%s', '%s', '%s')",
+      sql = PrepareSQL("INSERT INTO collection (idCollection, name, type, description, sortType, artwork, homePath) VALUES(NULL, '%s', '%s', '%s', '%s', '%s', '%s')",
                        collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
-                       normalizedSortType.c_str(), collection.artwork.c_str());
+                       normalizedSortType.c_str(), collection.artwork.c_str(),
+                       collection.homePath.c_str());
     }
 
     m_pDS->exec(sql);

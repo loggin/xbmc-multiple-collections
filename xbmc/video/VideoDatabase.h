@@ -197,6 +197,7 @@ public:
     std::string description;
     std::string sortType;
     std::string artwork;
+    std::string homePath; // Folder where collection.nfo was found (inline path); empty if none
   };
 
   struct CCollectionItem
@@ -946,7 +947,8 @@ public:
   int AddSet(const std::string& strSet,
              const std::string& strOverview = "",
              const std::string& strOriginalSet = "",
-             const bool updateOverview = true);
+             const bool updateOverview = true,
+             const std::string& strPath = "");
   void ClearMovieSet(int idMovie);
   void SetMovieSet(int idMovie, int idSet);
   void UpdateMovieSetId(int idMovie, int idSet);

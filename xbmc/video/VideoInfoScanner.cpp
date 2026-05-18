@@ -403,6 +403,17 @@ CVideoInfoScanner::~CVideoInfoScanner()
       return true;
     }
 
+    // Inline collection.nfo check (spec 12.4.2): before processing media files, import any
+    // collection definition found directly in this directory so that sets exist with art when
+    // movies reference them.
+    if (content == ContentType::MOVIES && !URIUtils::IsPlugin(strDirectory))
+    {
+      AddonPtr addon;
+      CServiceBroker::GetAddonMgr().GetAddon("metadata.local", addon, OnlyEnabled::CHOICE_YES);
+      const ScraperPtr localScraper = std::dynamic_pointer_cast<CScraper>(addon);
+      ScanCollectionNfoInDir(strDirectory, localScraper);
+    }
+
     std::string hash, dbHash;
     if (content == ContentType::MOVIES || content == ContentType::MUSICVIDEOS)
     {
@@ -1592,6 +1603,9 @@ CVideoInfoScanner::~CVideoInfoScanner()
       if (!art.empty())
         setTag.SetArt(art);
 
+      // Record the folder as the home path for this collection
+      setTag.m_strPath = nfoDir;
+
       CLog::Log(LOGDEBUG, "VideoInfoScanner: Pre-scanning set '{}' with {} art item(s)",
                 setTag.GetTitle(), art.size());
 
@@ -1599,6 +1613,63 @@ CVideoInfoScanner::~CVideoInfoScanner()
         CLog::Log(LOGWARNING, "VideoInfoScanner: Failed to store set '{}' from pre-scan",
                   setTag.GetTitle());
     }
+  }
+
+  void CVideoInfoScanner::ScanCollectionNfoInDir(const std::string& directory,
+                                                  const ScraperPtr& scraper)
+  {
+    // Check for collection.nfo or set.nfo directly inside this directory
+    const std::string collectionNfo = URIUtils::AddFileToFolder(directory, "collection.nfo");
+    const std::string setNfo = URIUtils::AddFileToFolder(directory, "set.nfo");
+    std::string nfoPath;
+    if (CFile::Exists(collectionNfo))
+      nfoPath = collectionNfo;
+    else if (CFile::Exists(setNfo))
+      nfoPath = setNfo;
+    else
+      return;
+
+    // Derive fallback title from folder name
+    std::string dirNoSlash = directory;
+    URIUtils::RemoveSlashAtEnd(dirNoSlash);
+    const std::string folderName = URIUtils::GetFileName(dirNoSlash);
+
+    CSetInfoTag setTag;
+    setTag.SetTitle(folderName);
+    CNfoFile nfoReader;
+    const InfoType result = nfoReader.Create(nfoPath, scraper);
+    if (result == InfoType::FULL || result == InfoType::COMBINED)
+    {
+      nfoReader.GetDetails(setTag, nullptr);
+      if (setTag.GetTitle().empty())
+        setTag.SetTitle(folderName);
+    }
+
+    if (setTag.GetTitle().empty())
+    {
+      CLog::Log(LOGWARNING, "VideoInfoScanner: Inline collection NFO has no resolvable title: '{}'",
+                CURL::GetRedacted(nfoPath));
+      return;
+    }
+
+    const std::vector<std::string> artTypes =
+        CVideoThumbLoader::GetArtTypes(MediaTypeVideoCollection);
+    ART::Artwork art;
+    const std::string titleBase = URIUtils::AddFileToFolder(directory, setTag.GetTitle());
+    AddLocalItemArtwork(art, artTypes, titleBase, false, true, false);
+    AddLocalItemArtwork(art, artTypes, directory, true, false, false);
+    if (!art.empty())
+      setTag.SetArt(art);
+
+    setTag.m_strPath = directory;
+
+    CLog::Log(LOGDEBUG,
+              "VideoInfoScanner: Inline collection.nfo '{}' → set '{}', {} art item(s)",
+              CURL::GetRedacted(nfoPath), setTag.GetTitle(), art.size());
+
+    if (!AddSet(setTag))
+      CLog::Log(LOGWARNING, "VideoInfoScanner: Failed to store inline collection '{}'",
+                setTag.GetTitle());
   }
 
   bool CVideoInfoScanner::AddSet(const CSetInfoTag& set)
@@ -1609,8 +1680,9 @@ CVideoInfoScanner::~CVideoInfoScanner()
 
     CLog::LogF(LOGDEBUG, "Adding new set {}", set.GetTitle());
 
-    // Create set
-    const int idSet{m_database.AddSet(set.GetTitle(), set.GetOverview(), set.GetOriginalTitle())};
+    // Create set, recording the home path where its collection.nfo was found
+    const int idSet{m_database.AddSet(set.GetTitle(), set.GetOverview(), set.GetOriginalTitle(),
+                                      true, set.m_strPath)};
 
     // Assume art in set
     if (idSet > 0)

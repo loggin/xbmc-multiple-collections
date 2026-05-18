@@ -120,6 +120,15 @@ namespace KODI::VIDEO
      */
     void ScanMovieSetInfoFolder();
 
+    /*! \brief Check a single directory for an inline collection.nfo or set.nfo and import it.
+     Called by DoScan() for every directory descended into during a movie library scan so that
+     collection definitions co-located with media are imported before the media files themselves
+     are processed.  The containing folder path is recorded as the collection's home path.
+     \param directory  absolute path of the folder to inspect.
+     \param scraper    metadata.local scraper instance (reused across calls).
+     */
+    void ScanCollectionNfoInDir(const std::string& directory, const ADDON::ScraperPtr& scraper);
+
     /*! \brief Update the set information from a SET.NFO in the Movie Set Information Folder
      Gets set details from the VideoInfoTag of a movie
      \param tag     info tag
