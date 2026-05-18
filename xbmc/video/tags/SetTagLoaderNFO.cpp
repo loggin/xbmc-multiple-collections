@@ -29,7 +29,14 @@ CSetTagLoaderNFO::CSetTagLoaderNFO(const std::string& title) : ISetInfoTagLoader
   if (!title.empty() && !KODI::VIDEO::CVideoInfoScanner::GetMovieSetInfoFolder(title).empty())
   {
     const std::string msif{KODI::VIDEO::CVideoInfoScanner::GetMovieSetInfoFolder(title)};
-    m_path = URIUtils::AddFileToFolder(msif, "set.nfo");
+    // collection.nfo is the canonical name per spec 12.2; set.nfo is also recognised
+    // because many third-party media managers write set.nfo instead.
+    const std::string collectionNfo{URIUtils::AddFileToFolder(msif, "collection.nfo")};
+    const std::string setNfo{URIUtils::AddFileToFolder(msif, "set.nfo")};
+    if (CFileUtils::Exists(collectionNfo))
+      m_path = collectionNfo;
+    else
+      m_path = setNfo; // HasInfo() will confirm existence before use
   }
 }
 

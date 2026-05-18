@@ -601,6 +601,12 @@ CVideoInfoScanner::~CVideoInfoScanner()
       // Look for local art files first
       const std::vector<std::string> movieSetArtTypes =
           CVideoThumbLoader::GetArtTypes(MediaTypeVideoCollection);
+      // Per spec 12.2: also search for <title>-poster/fanart pattern used by some tools.
+      // Do this first so that plain poster/fanart (searched next) take precedence.
+      const std::string titleBase =
+          URIUtils::AddFileToFolder(movieSetInfoPath, tag.m_set.GetTitle());
+      AddLocalItemArtwork(movieSetArt, movieSetArtTypes, titleBase, false, true, false);
+      // Plain poster/fanart filenames (higher priority — overwrites title-prefixed results)
       AddLocalItemArtwork(movieSetArt, movieSetArtTypes, movieSetInfoPath, true, false, true);
 
       // If art specified in set.nfo use that next

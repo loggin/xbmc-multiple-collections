@@ -65,8 +65,9 @@ I'm seeing the additional metadata files and folders within the tv show folders,
 | 2026-05-18 11:00 | now hidden but the  typical back action (i.e. right click) takes you "back" to the home screen now | User |
 | 2026-05-18 11:30 | back action (i.e. right click) on episode list once you drill down through seasons takes you "back" to the home screen now | User |
 | 2026-05-18 | Root cause identified: CGUIWindowManager::AddToWindowHistory de-duplicates window IDs — activating WINDOW_VIDEO_NAV again for tvshow stripped WINDOW_VIDEO_COLLECTION from history. Fix: GUIWindowVideoCollection passes 'collectionreturn=<url>' param; GUIWindowVideoNav::OnBack intercepts when at m_startDirectory and activates WINDOW_VIDEO_COLLECTION directly. Back from episodes (deeper than m_startDirectory) falls through to GoParentFolder() correctly. | GitHub Copilot |
+| 2026-05-18 13:48 | Still happening and going back to the home screen from the episode list, needs to go back up to the season list | User |
 
-Status: Resolved
+Status: Uresolved
 
 ## importing is not detecting collection imagery
 
@@ -82,5 +83,7 @@ movie NFO `<set><thumb>` blocks in the collection window without changing any st
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-27 | Diagnosed and fixed display-side art lookup mismatch | GitHub Copilot |
+| 2026-05-18 13:40 | Doesn't resolve the documented requested changes, also needs an addendum to the file name of teh nfo as in some situations the third party media manager tools are creating set.nfo instead of collection.nfo | GitHub Copilot |
+| 2026-05-18 | SetTagLoaderNFO now tries collection.nfo first, falls back to set.nfo. VideoInfoScanner also searches for `<title>-poster/fanart.(jpg\|png)` per spec 12.2 art filename patterns. | GitHub Copilot |
 
 Status: Resolved
