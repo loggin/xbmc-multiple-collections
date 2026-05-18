@@ -103,6 +103,28 @@ bool CGUIWindowVideoNav::OnAction(const CAction &action)
   return CGUIWindowVideoBase::OnAction(action);
 }
 
+bool CGUIWindowVideoNav::OnBack(int actionID)
+{
+  // When this window was activated from GUIWindowVideoCollection (e.g. to browse a tvshow
+  // or season), and we are back at the root level, navigate explicitly back to the collection.
+  //
+  // We cannot rely on the standard window history here: CGUIWindowManager::AddToWindowHistory
+  // de-duplicates window IDs, so when WINDOW_VIDEO_NAV is already in history (from the main
+  // library view) and the collection activates it again for a tvshow, the history is truncated
+  // to remove WINDOW_VIDEO_COLLECTION, causing a spurious jump to Home on Back.
+  if (!m_collectionReturnUrl.empty() &&
+      (actionID == ACTION_NAV_BACK || actionID == ACTION_PREVIOUS_MENU) &&
+      URIUtils::PathEquals(m_vecItems->GetPath(), m_startDirectory, true))
+  {
+    const std::string returnUrl = m_collectionReturnUrl;
+    m_collectionReturnUrl.clear();
+    CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_COLLECTION,
+                                                                returnUrl);
+    return true;
+  }
+  return CGUIWindowVideoBase::OnBack(actionID);
+}
+
 bool CGUIWindowVideoNav::OnMessage(CGUIMessage& message)
 {
   switch (message.GetMessage())
@@ -118,6 +140,22 @@ bool CGUIWindowVideoNav::OnMessage(CGUIMessage& message)
     {
       /* We don't want to show Autosourced items (ie removable pendrives, memorycards) in Library mode */
       m_rootDir.AllowNonLocalSources(false);
+
+      // Extract "collectionreturn=<url>" from the activation params (if any). This is set
+      // when GUIWindowVideoCollection activates us for tvshow/season browsing, allowing us
+      // to navigate back to the collection explicitly in OnBack (since AddToWindowHistory
+      // de-dupes window IDs and would otherwise strip WINDOW_VIDEO_COLLECTION from history).
+      m_collectionReturnUrl.clear();
+      for (int i = 0; i < message.GetNumStringParams(); ++i)
+      {
+        const std::string& p = message.GetStringParam(i);
+        static const std::string kPrefix = "collectionreturn=";
+        if (StringUtils::StartsWith(p, kPrefix))
+        {
+          m_collectionReturnUrl = p.substr(kPrefix.size());
+          break;
+        }
+      }
 
       SetProperty("flattened", CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(CSettings::SETTING_MYVIDEOS_FLATTEN));
       if (message.GetNumStringParams() && StringUtils::EqualsNoCase(message.GetStringParam(0), "Files") &&

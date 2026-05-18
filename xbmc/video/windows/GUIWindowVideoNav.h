@@ -36,6 +36,7 @@ public:
 
   bool OnAction(const CAction &action) override;
   bool OnMessage(CGUIMessage& message) override;
+  bool OnBack(int actionID) override;
 
 protected:
   bool ApplyWatchedFilter(CFileItemList &items);
@@ -60,6 +61,11 @@ protected:
   std::vector<CMediaSource> m_shares;
 
 private:
+  // When activated from GUIWindowVideoCollection, stores the collection URL so that OnBack
+  // can navigate directly back to the collection, bypassing the window history de-duplication
+  // in CGUIWindowManager::AddToWindowHistory which would otherwise strip WINDOW_VIDEO_COLLECTION.
+  std::string m_collectionReturnUrl;
+
   virtual SelectFirstUnwatchedItem GetSettingSelectFirstUnwatchedItem();
   virtual IncludeAllSeasonsAndSpecials GetSettingIncludeAllSeasonsAndSpecials();
   virtual int GetFirstUnwatchedItemIndex(bool includeAllSeasons, bool includeSpecials);
