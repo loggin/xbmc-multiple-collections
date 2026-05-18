@@ -1732,20 +1732,6 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
 
   CLog::LogF(LOGDEBUG, "ManageMediaCollections: changed={} mediaType={}", changed, mediaType);
 
-  // For movies: update legacy movie.idSet for backward compat.
-  // Never call SetMovieSet(-1) here — it nukes all collection_item rows for the movie.
-  if (changed && mediaType == MediaTypeMovie)
-  {
-    // Always update idSet to reflect the current selection. Pick the highest-ID
-    // selected collection as primary — highest ID = most recently created, so a
-    // newly added collection becomes the set that appears in the movie titles view.
-    const int newIdSet = selectedIds.empty()
-        ? -1
-        : *std::max_element(selectedIds.begin(), selectedIds.end());
-    CLog::LogF(LOGDEBUG, "ManageMediaCollections: UpdateMovieSetId idMovie={} newIdSet={}", idMedia, newIdSet);
-    videodb.UpdateMovieSetId(idMedia, newIdSet);
-  }
-
   return changed;
 }
 

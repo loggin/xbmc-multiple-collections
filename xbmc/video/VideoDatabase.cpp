@@ -6717,10 +6717,10 @@ bool CVideoDatabase::GetSetsByWhere(const std::string& strBaseDir, const Filter 
       return false;
 
     Filter setFilter = filter;
-    setFilter.join += " JOIN `sets` ON movie_view.idSet = `sets`.idSet";
+    setFilter.join += " JOIN collection ON movie_view.idSet = collection.idCollection";
     if (!setFilter.order.empty())
       setFilter.order += ",";
-    setFilter.order += "`sets`.idSet";
+    setFilter.order += "collection.idCollection";
 
     if (!GetMoviesByWhere(strBaseDir, setFilter, items))
       return false;
@@ -8328,22 +8328,11 @@ bool CVideoDatabase::HasSets() const
     if (nullptr == m_pDS)
       return false;
 
-    m_pDS->query("SELECT ci.idCollection, COUNT(1) AS c FROM collection_item ci "
-                 "JOIN collection c ON c.idCollection = ci.idCollection "
-                 "WHERE c.type='set' AND ci.mediaType='movie' "
-                 "GROUP BY ci.idCollection HAVING c>1");
+    // Any collection with 2+ movies means grouping is meaningful.
+    m_pDS->query("SELECT idCollection FROM collection_item "
+                 "WHERE mediaType='movie' GROUP BY idCollection HAVING COUNT(1) > 1 LIMIT 1");
 
     bool bResult = (m_pDS->num_rows() > 0);
-    m_pDS->close();
-
-    if (!bResult)
-    {
-      m_pDS->query("SELECT movie_view.idSet,COUNT(1) AS c FROM movie_view "
-                   "JOIN `sets` ON `sets`.idSet = movie_view.idSet "
-                   "GROUP BY movie_view.idSet HAVING c>1");
-      bResult = (m_pDS->num_rows() > 0);
-    }
-
     m_pDS->close();
     return bResult;
   }
@@ -12029,8 +12018,13 @@ bool CVideoDatabase::GetFilter(CDbUrl &videoUrl, Filter &filter, SortDescription
 
     option = options.find("setid");
     if (option != options.end())
+      // Use collection_item directly so ALL members of a collection are shown,
+      // regardless of which collection is their view-derived primary.
       filter.AppendWhere(
-          PrepareSQL("movie_view.idSet = %i", static_cast<int>(option->second.asInteger())));
+          PrepareSQL("movie_view.idMovie IN ("
+                     "SELECT idMedia FROM collection_item "
+                     "WHERE mediaType='movie' AND idCollection=%i)",
+                     static_cast<int>(option->second.asInteger())));
 
     option = options.find("set");
     if (option != options.end())

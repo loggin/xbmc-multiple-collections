@@ -579,12 +579,25 @@ void CVideoDatabaseDDL::CreateViews(CDatabase& db)
 
   CLog::Log(LOGINFO, "create movie_view");
 
+  // movie_view: idSet and strSet are derived from collection_item/collection so that
+  // all views are driven by the new collection model. movie.idSet is legacy-only (NFO import).
+  // Column order MUST match VIDEODB_DETAILS_MOVIE_* indices in VideoDatabaseColumns.h.
   const std::string movieview = db.PrepareSQL(
       "CREATE VIEW movie_view AS SELECT"
-      "  movie.*,"
-      "  `sets`.`strSet` AS strSet,"
-      "  `sets`.`strOverview` AS strSetOverview,"
-      "  `sets`.`strOriginalSet` as strOriginalSet,"
+      "  movie.idMovie,"
+      "  movie.idFile,"
+      "  movie.c00, movie.c01, movie.c02, movie.c03, movie.c04,"
+      "  movie.c05, movie.c06, movie.c07, movie.c08, movie.c09,"
+      "  movie.c10, movie.c11, movie.c12, movie.c13, movie.c14,"
+      "  movie.c15, movie.c16, movie.c17, movie.c18, movie.c19,"
+      "  movie.c20, movie.c21, movie.c22, movie.c23,"
+      "  COALESCE(ci_primary.idCollection, -1) AS idSet,"
+      "  movie.userrating,"
+      "  movie.premiered,"
+      "  movie.originalLanguage,"
+      "  col.name AS strSet,"
+      "  COALESCE(col.description, '') AS strSetOverview,"
+      "  col.name AS strOriginalSet,"
       "  files.strFileName AS strFileName,"
       "  path.strPath AS strPath,"
       "  files.playCount AS playCount,"
@@ -622,8 +635,13 @@ void CVideoDatabaseDDL::CreateViews(CDatabase& db)
       "  vvt.name AS videoVersionTypeName,"
       "  vvt.itemType AS videoVersionTypeItemType "
       "FROM movie"
-      "  LEFT JOIN `sets` ON"
-      "    `sets`.idSet = movie.idSet"
+      "  LEFT JOIN ("
+      "    SELECT idMedia, MAX(idCollection) AS idCollection"
+      "    FROM collection_item"
+      "    WHERE mediaType = 'movie'"
+      "    GROUP BY idMedia"
+      "  ) ci_primary ON ci_primary.idMedia = movie.idMovie"
+      "  LEFT JOIN collection col ON col.idCollection = ci_primary.idCollection"
       "  LEFT JOIN rating ON"
       "    rating.rating_id = movie.c%02d"
       "  LEFT JOIN uniqueid ON"
