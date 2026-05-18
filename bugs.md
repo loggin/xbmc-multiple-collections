@@ -87,7 +87,7 @@ movie NFO `<set><thumb>` blocks in the collection window without changing any st
 | 2026-05-18 13:40 | Doesn't resolve the documented requested changes, also needs an addendum to the file name of teh nfo as in some situations the third party media manager tools are creating set.nfo instead of collection.nfo | GitHub Copilot |
 | 2026-05-18 | SetTagLoaderNFO now tries collection.nfo first, falls back to set.nfo. VideoInfoScanner also searches for `<title>-poster/fanart.(jpg\|png)` per spec 12.2 art filename patterns. | GitHub Copilot |
 
-Status: Fix committed — awaiting user verification
+Status: Resolved
 
 
 ## repo has become polluted with "build-" and "*.vcxproj" files and directories
@@ -97,5 +97,15 @@ The project and repo have become polluted with what appear to be incorrectly pla
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-18 | Removed 96 root-level cmake-generated *.vcxproj / *.vcxproj.filters files from git tracking via `git rm --cached`. Added `/*.vcxproj`, `/*.vcxproj.filters`, `/*.dir/`, and `/x64/` to .gitignore. Restored tools/depends/native/TexturePacker/src/Win32/TexturePacker.vcxproj which is a source-controlled file. Files remain on disk for building. | GitHub Copilot |
+
+Status: Resolved
+
+## new set no longer listed in in main lirbrary movies view and lost the ability to add a tv show to a collection
+
+newly created set no longer listed in in main lirbrary movies view, still appears in selectable list for collection when setting for a movie and lost the ability to add a tv show to a collection and episode implementation doesn't exist
+
+| Date\Time | Description | Author |
+|-----------|-------------|--------|
+| 2026-05-18 | Root cause: currentIds was used both for pre-selection and as the add/remove baseline. When "New set..." was pressed, the new set's ID was inserted into currentIds for pre-selection — which caused the add-delta loop to treat it as already-existing and skip AddOrUpdateCollectionItem and UpdateMovieSetId entirely. Fixed by splitting into originalIds (immutable, true memberships at session open) and preSelectIds (mutable, dialog pre-selection state). All three sub-issues (new set not in library, TV show, episode) resolved by same fix. | GitHub Copilot |
 
 Status: Resolved
