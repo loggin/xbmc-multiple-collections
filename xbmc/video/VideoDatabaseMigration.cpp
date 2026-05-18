@@ -1153,42 +1153,37 @@ void CVideoDatabase::UpdateTables(int iVersion)
 
   if (iVersion < 145)
   {
-    // Add unified collections tables.
+    // Add unified collections tables, inline set path tracking, and seed legacy sets.
+    // homePath and strPath included from the start so no further ALTER steps are needed.
     m_pDS->exec("CREATE TABLE collection ( idCollection integer primary key, "
                 "name text not null, type text not null default 'franchise', "
                 "description text, sortType text not null default 'custom', artwork text, "
-                "dateAdded text, dateModified text)");
+                "homePath text, dateAdded text, dateModified text)");
     m_pDS->exec("CREATE TABLE collection_item ( idCollection integer not null, "
                 "mediaType text not null, idMedia integer not null, "
                 "sortOrder integer not null default 0, groupName text, "
                 "PRIMARY KEY (idCollection, mediaType, idMedia))");
 
-    // Seed legacy movie sets into collections for v1 compatibility.
+    m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT");
+
+    // Seed legacy movie sets into collection table for v1 compatibility.
     m_pDS->exec("INSERT INTO collection "
-                "(idCollection, name, type, description, sortType, artwork, dateAdded, "
-                "dateModified) "
-                "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL "
+                "(idCollection, name, type, description, sortType, artwork, homePath, "
+                "dateAdded, dateModified) "
+                "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL, NULL "
                 "FROM `sets`");
 
-    m_pDS->exec("INSERT INTO collection_item "
+    // Seed collection_item from movie.idSet so movie_view grouping works for all
+    // legacy sets. INSERT OR IGNORE is safe if rows already exist (e.g. partial prior run).
+    m_pDS->exec("INSERT OR IGNORE INTO collection_item "
                 "(idCollection, mediaType, idMedia, sortOrder, groupName) "
                 "SELECT m.idSet, 'movie', m.idMovie, 0, NULL "
                 "FROM movie m "
                 "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
   }
-
-  if (iVersion < 146)
-  {
-    // Add home path columns for inline collection.nfo tracking.
-    m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT");
-    // collection table may not exist on fresh installs upgrading straight to 146+
-    // so guard with a try/catch; the DDL creates it with the column already.
-    try { m_pDS->exec("ALTER TABLE collection ADD homePath TEXT"); }
-    catch (...) {}
-  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 147;
+  return 145;
 }
