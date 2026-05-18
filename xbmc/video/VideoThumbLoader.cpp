@@ -466,6 +466,14 @@ bool CVideoThumbLoader::FillLibraryArt(CFileItem &item)
     {
       item.AppendArt(artwork);
     }
+    else if (tag.m_type == "videocollection" &&
+             m_videoDatabase->GetArtForItem(tag.m_iDbId, MediaTypeVideoCollection, artwork) &&
+             !artwork.empty())
+    {
+      // Legacy sets store art under MediaTypeVideoCollection ("set"); fall back to that type
+      // so collection items created by DirectoryNodeCollections show art imported via movie sets.
+      item.AppendArt(artwork);
+    }
     else if (tag.m_type == "actor" && !tag.m_artist.empty() &&
              item.GetProperty("musicvideomediatype") != MediaTypeArtist)
     {

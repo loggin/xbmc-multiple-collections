@@ -6,6 +6,7 @@ There's back panel/button within the collection view, clicking/selecting this ta
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | Still navigates to an empty parent node | User |
 | 2026-05-26 | HideParentDirItems() added to CGUIViewStateWindowVideoCollection — `..` item suppressed in collection window; CGUIWindowVideoNav::GetRootPath() returns m_startDirectory when set so `..` is also suppressed in sub-windows opened with "return" flag | GitHub Copilot |
+| 2026-05-18 10:00 | This is currently not hidden, typical back action (i.e. right click) does navigate back to the main myvideonav list | User |
 
 
 Status: Resolved
@@ -29,7 +30,7 @@ When managing an items set, choosing to add a new set removes the item from the 
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | Can't comment as the ability to add via this mechanism has disapeared for now due to the changes made for the following item | User |
 
-Status: Unresolved
+Status: resolved
 
 ## Managing an items movie set only allows for a single selection
 
@@ -40,8 +41,9 @@ You can only select one movie set within the interface, this needs to be changed
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | This change is working but we have lost the add new set button on the right hand pane of the dialog, can you re add the button to this view before the OK, Cancel buttons | User |
 | 2026-05-26 | Switched from EnableButton/IsButtonPressed to EnableButton2/IsButton2Pressed — in multi-select mode OnInitWindow() calls EnableButton(186) which overwrites button 5; button2 (id 8) is unaffected | GitHub Copilot |
+| 2026-05-26 10:00 | Still no option to add a new set when selecting existing sets within the dialog | User |
 
-Status: Resolved
+Status: resolved
 
 ## View type is not persisting
 
@@ -59,9 +61,26 @@ I'm seeing the additional metadata files and folders within the tv show folders,
 | 2026-05-18 00:30 | Still happening | User |
 | 2026-05-18 00:30 | It now opens a tv show view, but the in list back item (like bug #1) takes you back to the main tv show list rather than the colleciton view | User |
 | 2026-05-26 | ActivateWindow now passes {navPath, "return"} for both tvshow and season; CGUIWindowVideoNav::GetRootPath() returns m_startDirectory so `..` is suppressed and Back pops to collection | GitHub Copilot |
+| 2026-05-18 10:00 | Still happening, also typical back action (i.e. right click) takes you "back" to the main tv show list view | User |
+| 2026-05-18 11:00 | now hidden but the  typical back action (i.e. right click) takes you "back" to the home screen now | User |
+| 2026-05-18 11:30 | back action (i.e. right click) on episode list once you drill down through seasons takes you "back" to the home screen now | User |
+| 2026-05-18 | Root cause identified: CGUIWindowManager::AddToWindowHistory de-duplicates window IDs — activating WINDOW_VIDEO_NAV again for tvshow stripped WINDOW_VIDEO_COLLECTION from history. Fix: GUIWindowVideoCollection passes 'collectionreturn=<url>' param; GUIWindowVideoNav::OnBack intercepts when at m_startDirectory and activates WINDOW_VIDEO_COLLECTION directly. Back from episodes (deeper than m_startDirectory) falls through to GoParentFolder() correctly. | GitHub Copilot |
 
 Status: Resolved
 
 ## importing is not detecting collection imagery
 
-Status: Pending investigation — artwork loader and NFO scanner changes needed in VideoThumbLoader and VideoInfoScanner
+Root cause: `DirectoryNodeCollections` sets `m_type = "videocollection"` on collection file items.
+`FillLibraryArt` called `GetArtForItem(idCollection, "videocollection")` but legacy set art is stored
+under `media_type = "set"` (MediaTypeVideoCollection) in the `art` table — both share the same ID
+since `AddSet` uses the same integer for both `sets` and `collection` rows.
+
+Fix: Added fallback in `FillLibraryArt` (VideoThumbLoader.cpp) — when `m_type == "videocollection"`
+and no art found, retry with `MediaTypeVideoCollection` ("set"). This surfaces art imported via
+movie NFO `<set><thumb>` blocks in the collection window without changing any storage or import code.
+
+| Date\Time | Description | Author |
+|-----------|-------------|--------|
+| 2026-05-27 | Diagnosed and fixed display-side art lookup mismatch | GitHub Copilot |
+
+Status: Resolved
