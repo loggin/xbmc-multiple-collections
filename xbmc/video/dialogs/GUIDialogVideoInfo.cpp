@@ -1647,10 +1647,11 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
         CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40804)});
     dialog->SetItems(listItems);
     dialog->SetSelected(preSelected);
-    dialog->EnableButton(true, 20468); // "New set..."
+    dialog->EnableButton2(true, 20468); // "New set..." — uses button2 (id 8) so it isn't
+                                        // overwritten when multi-select injects EnableButton(186)
     dialog->Open();
 
-    if (dialog->IsButtonPressed())
+    if (dialog->IsButton2Pressed())
     {
       // User pressed "New set..." — save current selections and ask for name
       for (int idx : dialog->GetSelectedItems())

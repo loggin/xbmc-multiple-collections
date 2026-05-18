@@ -55,6 +55,7 @@ protected:
   bool OnAddMediaSource() override;
   bool OnClick(int iItem, const std::string &player = "") override;
   std::string GetStartFolder(const std::string &dir) override;
+  std::string GetRootPath() override;
 
   std::vector<CMediaSource> m_shares;
 

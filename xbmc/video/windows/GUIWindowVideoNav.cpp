@@ -1072,6 +1072,16 @@ bool CGUIWindowVideoNav::OnClick(int iItem, const std::string &player)
   return CGUIWindowVideoBase::OnClick(iItem, player);
 }
 
+std::string CGUIWindowVideoNav::GetRootPath()
+{
+  // When activated with a specific start directory (e.g. from GUIWindowVideoCollection
+  // via the "return" flag), treat that directory as the root so the in-list ".." item
+  // is suppressed at that level and Back pops back to the calling window correctly.
+  if (!m_startDirectory.empty())
+    return m_startDirectory;
+  return CGUIWindowVideoBase::GetRootPath();
+}
+
 std::string CGUIWindowVideoNav::GetStartFolder(const std::string &dir)
 {
   static const auto map = std::map<std::string, std::string>{

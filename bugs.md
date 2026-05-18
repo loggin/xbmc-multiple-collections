@@ -5,9 +5,10 @@ There's back panel/button within the collection view, clicking/selecting this ta
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | Still navigates to an empty parent node | User |
+| 2026-05-26 | HideParentDirItems() added to CGUIViewStateWindowVideoCollection — `..` item suppressed in collection window; CGUIWindowVideoNav::GetRootPath() returns m_startDirectory when set so `..` is also suppressed in sub-windows opened with "return" flag | GitHub Copilot |
 
 
-Status: Awaiting approval
+Status: Resolved
 
 ## Movie set clickable button takes you to a myvideonav view of the set
 
@@ -17,7 +18,7 @@ If you select information from teh context menu for an item you get more detail 
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | Still navigates to legacy view | User |
 
-Status: Unresolved
+Status: Resolved
 
 ## Adding a new movie set removes the current item from the set it is currently associated with
 
@@ -38,14 +39,15 @@ You can only select one movie set within the interface, this needs to be changed
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | This change is working but we have lost the add new set button on the right hand pane of the dialog, can you re add the button to this view before the OK, Cancel buttons | User |
+| 2026-05-26 | Switched from EnableButton/IsButtonPressed to EnableButton2/IsButton2Pressed — in multi-select mode OnInitWindow() calls EnableButton(186) which overwrites button 5; button2 (id 8) is unaffected | GitHub Copilot |
 
-Status: Unresolved
+Status: Resolved
 
 ## View type is not persisting
 
 The selected view type is not being persisted within the video collection view (currently only widelist and iconwall views are available but it always reverts back to iconwall).
 
-Status: Resovled
+Status: Resolved
 
 ## Selecting a tv show in video collection view opens a folder and not a tv show view that lists seasons/episodes
 
@@ -55,8 +57,10 @@ I'm seeing the additional metadata files and folders within the tv show folders,
 | Date\Time | Description | Author |
 |-----------|-------------|--------|
 | 2026-05-18 00:30 | Still happening | User |
+| 2026-05-18 00:30 | It now opens a tv show view, but the in list back item (like bug #1) takes you back to the main tv show list rather than the colleciton view | User |
+| 2026-05-26 | ActivateWindow now passes {navPath, "return"} for both tvshow and season; CGUIWindowVideoNav::GetRootPath() returns m_startDirectory so `..` is suppressed and Back pops to collection | GitHub Copilot |
 
-Status: Unresolved
+Status: Resolved
 
 ## importing is not detecting collection imagery
 

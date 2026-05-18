@@ -60,7 +60,8 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
     {
       const std::string navPath = StringUtils::Format("videodb://tvshows/titles/{}/",
                                                        item->GetVideoInfoTag()->m_iDbId);
-      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, navPath);
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV,
+                                                                  {navPath, "return"});
       return true;
     }
     else if (type == MediaTypeSeason)
@@ -69,7 +70,8 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
           StringUtils::Format("videodb://tvshows/titles/{}/{}/",
                               item->GetVideoInfoTag()->m_iIdShow,
                               item->GetVideoInfoTag()->m_iSeason);
-      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV, navPath);
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_VIDEO_NAV,
+                                                                  {navPath, "return"});
       return true;
     }
   }
