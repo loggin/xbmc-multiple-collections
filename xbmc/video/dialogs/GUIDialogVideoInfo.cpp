@@ -1088,9 +1088,9 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
     buttons.Add(CONTEXT_BUTTON_SET_MOVIESET, 20465);
   }
 
-  if (type == MediaTypeTvShow)
+  if (type == MediaTypeTvShow || type == MediaTypeEpisode || type == MediaTypeSeason)
   {
-    // add/remove this TV show from a collection
+    // add/remove this TV show, season, or episode from a collection
     buttons.Add(CONTEXT_BUTTON_SET_COLLECTION, 40804);
   }
 
@@ -1584,9 +1584,9 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   if (!videodb.Open())
     return false;
 
-  // Fetch all available collections
+  // Fetch all available collections (may be empty — user can still create a new one)
   std::vector<CVideoDatabase::CCollection> allCollections;
-  if (!videodb.GetCollections(allCollections) || allCollections.empty())
+  if (!videodb.GetCollections(allCollections))
     return false;
 
   // Fetch current membership for this item
