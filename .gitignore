@@ -91,6 +91,10 @@ CMakeScripts
 CTestTestfile.cmake
 cmake_install.cmake
 
+# CMake-generated root-level Visual Studio project files (in-source build artefacts)
+/*.vcxproj
+/*.vcxproj.filters
+
 # Eclipse project files. Not needed as they are generated in two clicks if needed.
 .settings
 .project
