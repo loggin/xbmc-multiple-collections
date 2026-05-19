@@ -28,6 +28,13 @@ NodeType CDirectoryNodeCollectionItems::GetChildType() const
   return NodeType::NONE;
 }
 
+// The base GetChilds() creates a child node with GetChildType() and calls GetContent on that.
+// Since our child type is NONE (we are the leaf), we call GetContent on ourselves directly.
+bool CDirectoryNodeCollectionItems::GetChilds(CFileItemList& items)
+{
+  return GetContent(items);
+}
+
 bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
 {
   CQueryParams params;

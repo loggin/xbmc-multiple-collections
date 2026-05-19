@@ -70,7 +70,7 @@ namespace XFILE
 
       NodeType GetType() const;
 
-      bool GetChilds(CFileItemList& items);
+      virtual bool GetChilds(CFileItemList& items);
       virtual NodeType GetChildType() const;
       virtual std::string GetLocalizedName() const;
       void CollectQueryParams(CQueryParams& params) const;

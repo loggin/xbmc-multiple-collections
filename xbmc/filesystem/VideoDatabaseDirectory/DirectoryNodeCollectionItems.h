@@ -21,6 +21,7 @@ namespace XFILE
 
     protected:
       NodeType GetChildType() const override;
+      bool GetChilds(CFileItemList& items) override;
       bool GetContent(CFileItemList& items) const override;
     };
   }
