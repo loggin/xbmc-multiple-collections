@@ -93,6 +93,9 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       CVideoInfoTag details;
       if (db.GetMovieInfo("", details, ci.idMedia, -1, -1, VideoDbDetailsAll) && details.m_iDbId > 0)
       {
+        // In a collection listing each movie is a discrete entry, not a versions
+        // container — suppress the collapsed-versions folder appearance.
+        details.SetHasVideoVersions(false);
         item = std::make_shared<CFileItem>(details);
         item->SetPath(StringUtils::Format("videodb://movies/titles/{}/", details.m_iDbId));
       }
