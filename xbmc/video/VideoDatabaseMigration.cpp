@@ -17,6 +17,7 @@
 #include "ServiceBroker.h"
 #include "URL.h"
 #include "VideoDatabase.h"
+#include "VideoDatabaseDDL.h"
 #include "dbwrappers/dataset.h"
 #include "filesystem/MultiPathDirectory.h"
 #include "resources/LocalizeStrings.h"
@@ -1181,9 +1182,25 @@ void CVideoDatabase::UpdateTables(int iVersion)
                 "FROM movie m "
                 "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
   }
+
+  if (iVersion < 146)
+  {
+    // Recreate all views: tvshow_view now includes idSet/strSet/strSetOverview from
+    // collection_item (mediaType='tvshow'), and movie_view uses the correlated
+    // subquery that picks the largest collection as primary set.
+    // Drop views in dependency order, then recreate via DDL.
+    m_pDS->exec("DROP VIEW IF EXISTS season_view");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshow_view");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshowlinkpath_minview");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshowcounts");
+    m_pDS->exec("DROP VIEW IF EXISTS episode_view");
+    m_pDS->exec("DROP VIEW IF EXISTS movie_view");
+    m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
+    KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 145;
+  return 146;
 }

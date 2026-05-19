@@ -32,6 +32,14 @@ public:
    */
   static void CreateAnalytics(CDatabase& db);
 
+  /*!
+   * \brief Create or recreate only the SQL views of the video database.
+   *        Called by CreateAnalytics and also directly by migrations that
+   *        need to rebuild views without touching indices or triggers.
+   * \param[in] db the database
+   */
+  static void CreateViews(CDatabase& db);
+
 private:
   static void CreateLinkIndex(CDatabase& db, const std::string& table);
   static void CreateForeignLinkIndex(CDatabase& db,
@@ -39,7 +47,6 @@ private:
                                      const std::string& foreignkey);
   static void CreateIndices(CDatabase& db);
   static void CreateTriggers(CDatabase& db);
-  static void CreateViews(CDatabase& db);
   static void InitializeVideoVersionTypeTable(CDatabase& db);
 };
 } // namespace KODI::DATABASE
