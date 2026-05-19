@@ -2376,12 +2376,31 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
                      details.m_set.GetOriginalTitle(), details.GetUpdateSetOverview());
       details.m_set.SetID(idSet);
       // Populate collection_item so the movie is discoverable via collection browsing.
+      // Resolve the canonical (primary) movie ID: if idMovie is a non-default version
+      // file row, the videoversion table will point us to the actual primary idMedia.
       if (idSet > 0 && idMovie > 0)
       {
+        int idPrimaryMovie = idMovie;
+        try
+        {
+          auto pDS2 = m_pDB->CreateDataset();
+          std::string vvSql = PrepareSQL(
+              "SELECT idMedia FROM videoversion WHERE idFile=%i AND media_type='movie'", idMovie);
+          if (pDS2->query(vvSql) && !pDS2->eof())
+          {
+            int resolvedId = pDS2->fv(0).get_asInt();
+            if (resolvedId > 0)
+              idPrimaryMovie = resolvedId;
+          }
+          pDS2->close();
+        }
+        catch (...)
+        {
+        }
         CCollectionItem ci;
         ci.idCollection = idSet;
         ci.mediaType = MediaTypeMovie;
-        ci.idMedia = idMovie;
+        ci.idMedia = idPrimaryMovie;
         ci.sortOrder = 0;
         AddOrUpdateCollectionItem(ci);
       }
