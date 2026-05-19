@@ -40,9 +40,11 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
   if (!db.Open())
     return false;
 
+  CLog::LogF(LOGDEBUG, "Fetching items for collection {}", idCollection);
   std::vector<CVideoDatabase::CCollectionItem> collectionItems;
   if (!db.GetCollectionItems(idCollection, collectionItems))
     return false;
+  CLog::LogF(LOGDEBUG, "Collection {} has {} items", idCollection, collectionItems.size());
 
   std::string collectionName;
   {

@@ -2375,6 +2375,16 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
       idSet = AddSet(details.m_set.GetTitle(), details.m_set.GetOverview(),
                      details.m_set.GetOriginalTitle(), details.GetUpdateSetOverview());
       details.m_set.SetID(idSet);
+      // Populate collection_item so the movie is discoverable via collection browsing.
+      if (idSet > 0 && idMovie > 0)
+      {
+        CCollectionItem ci;
+        ci.idCollection = idSet;
+        ci.mediaType = MediaTypeMovie;
+        ci.idMedia = idMovie;
+        ci.sortOrder = 0;
+        AddOrUpdateCollectionItem(ci);
+      }
       // add art if not available
       if (!HasArtForItem(idSet, MediaTypeVideoCollection))
       {
@@ -2489,6 +2499,15 @@ int CVideoDatabase::UpdateDetailsForMovie(int idMovie,
       if (details.m_set.HasTitle())
       {
         idSet = AddSet(details.m_set.GetTitle(), details.m_set.GetOverview());
+        if (idSet > 0 && idMovie > 0)
+        {
+          CCollectionItem ci;
+          ci.idCollection = idSet;
+          ci.mediaType = MediaTypeMovie;
+          ci.idMedia = idMovie;
+          ci.sortOrder = 0;
+          AddOrUpdateCollectionItem(ci);
+        }
       }
     }
 
@@ -8763,6 +8782,8 @@ bool CVideoDatabase::GetCollectionItems(int idCollection,
 
     // Compatibility path for legacy movie sets populated only through movie.idSet.
     // Fresh scans may not materialize collection_item rows yet, so merge set members from movie.
+    CLog::LogF(LOGDEBUG, "GetCollectionItems({}) collectionType='{}' hasLegacySet={} directItems={}",
+               idCollection, collectionType, hasLegacySet, outItems.size());
     if (collectionType == "set" || hasLegacySet)
     {
       std::unordered_set<int> existingMovieIds;
