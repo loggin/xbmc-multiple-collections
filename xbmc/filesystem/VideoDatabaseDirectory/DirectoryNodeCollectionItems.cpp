@@ -106,9 +106,12 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       CFileItem dbItem;
       if (db.GetTvShowInfo("", details, ci.idMedia, &dbItem, VideoDbDetailsAll) && details.m_iDbId > 0)
       {
-        item = std::make_shared<CFileItem>(
-            StringUtils::Format("videodb://tvshows/titles/{}/", details.m_iDbId), true);
-        item->SetFromVideoInfoTag(details);
+        // Use the same pattern as movies/episodes: create from tag, then override
+        // the path to a videodb:// URL so that VIDEO::IsVideoDb() returns true
+        // (SetFromVideoInfoTag would otherwise set the filesystem path).
+        item = std::make_shared<CFileItem>(details);
+        item->SetPath(StringUtils::Format("videodb://tvshows/titles/{}/", details.m_iDbId));
+        item->SetFolder(true);
       }
     }
     else if (mediaType == "season")
@@ -116,11 +119,10 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       CVideoInfoTag details;
       if (db.GetSeasonInfo(ci.idMedia, details) && details.m_iDbId > 0 && details.m_iIdShow > 0)
       {
-        item = std::make_shared<CFileItem>(
-            StringUtils::Format("videodb://tvshows/titles/{}/{}/", details.m_iIdShow,
-                                details.m_iSeason),
-            true);
-        item->SetFromVideoInfoTag(details);
+        item = std::make_shared<CFileItem>(details);
+        item->SetPath(StringUtils::Format("videodb://tvshows/titles/{}/{}/",
+                                          details.m_iIdShow, details.m_iSeason));
+        item->SetFolder(true);
       }
     }
     else if (mediaType == "episode" || mediaType == "special")
