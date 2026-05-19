@@ -1205,6 +1205,19 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
         items.Append(groupedItems);
       }
     }
+    else if (items.GetContent() == "tvshows" && params.GetSetId() <= 0 &&
+             nodeType == NodeType::TITLE_TVSHOWS &&
+             (settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPMOVIESETS) ||
+              (StringUtils::EqualsNoCase(group, "sets") && mixed)))
+    {
+      CFileItemList groupedItems;
+      GroupAttribute groupAttributes = settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS) ? GroupAttributeNone : GroupAttributeIgnoreSingleItems;
+      if (GroupUtils::GroupAndMix(GroupBySet, m_strFilterPath, items, groupedItems, groupAttributes))
+      {
+        items.ClearItems();
+        items.Append(groupedItems);
+      }
+    }
   }
 
   // reload thumbs after filtering and grouping

@@ -4806,6 +4806,10 @@ CVideoInfoTag CVideoDatabase::GetDetailsForTvShow(const dbiplus::sql_record* con
   //! -- Currently not needed; having it available as item prop seems sufficient for skinning
   const int inProgressEpisodes = record->at(VIDEODB_DETAILS_TVSHOW_NUM_INPROGRESS).get_asInt();
 
+  details.m_set.SetID(record->at(VIDEODB_DETAILS_TVSHOW_SET_ID).get_asInt());
+  details.m_set.SetTitle(record->at(VIDEODB_DETAILS_TVSHOW_SET_NAME).get_asString());
+  details.m_set.SetOverview(record->at(VIDEODB_DETAILS_TVSHOW_SET_OVERVIEW).get_asString());
+
   if (getDetails)
   {
     if (getDetails & VideoDbDetailsCast)

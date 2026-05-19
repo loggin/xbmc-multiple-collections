@@ -490,7 +490,10 @@ void CVideoDatabaseDDL::CreateViews(CDatabase& db)
                     "  rating.rating_type AS rating_type, "
                     "  uniqueid.value AS uniqueid_value, "
                     "  uniqueid.type AS uniqueid_type, "
-                    "  tvshowcounts.inProgressCount AS inProgressCount "
+                    "  tvshowcounts.inProgressCount AS inProgressCount,"
+                    "  COALESCE(ts_primary.idCollection, -1) AS idSet,"
+                    "  tscol.name AS strSet,"
+                    "  COALESCE(tscol.description, '') AS strSetOverview "
                     "FROM tvshow"
                     "  LEFT JOIN tvshowlinkpath_minview ON "
                     "    tvshowlinkpath_minview.idShow=tvshow.idShow"
@@ -501,7 +504,25 @@ void CVideoDatabaseDDL::CreateViews(CDatabase& db)
                     "  LEFT JOIN rating ON"
                     "    rating.rating_id=tvshow.c%02d "
                     "  LEFT JOIN uniqueid ON"
-                    "    uniqueid.uniqueid_id=tvshow.c%02d ",
+                    "    uniqueid.uniqueid_id=tvshow.c%02d "
+                    "  LEFT JOIN ("
+                    "    SELECT DISTINCT ci_outer.idMedia,"
+                    "      (SELECT ci2.idCollection"
+                    "       FROM collection_item ci2"
+                    "       INNER JOIN ("
+                    "         SELECT idCollection, COUNT(*) AS cnt"
+                    "         FROM collection_item"
+                    "         WHERE mediaType = 'tvshow'"
+                    "         GROUP BY idCollection"
+                    "       ) cc ON cc.idCollection = ci2.idCollection"
+                    "       WHERE ci2.idMedia = ci_outer.idMedia AND ci2.mediaType = 'tvshow'"
+                    "       ORDER BY cc.cnt DESC, ci2.idCollection ASC"
+                    "       LIMIT 1"
+                    "      ) AS idCollection"
+                    "    FROM collection_item ci_outer"
+                    "    WHERE ci_outer.mediaType = 'tvshow'"
+                    "  ) ts_primary ON ts_primary.idMedia = tvshow.idShow"
+                    "  LEFT JOIN collection tscol ON tscol.idCollection = ts_primary.idCollection",
                     VIDEODB_ID_TV_RATING_ID, VIDEODB_ID_TV_IDENT_ID);
   db.ExecuteQuery(tvshowview);
 
