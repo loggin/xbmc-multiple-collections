@@ -30,7 +30,7 @@ Node OverviewChildren[] = {
     {NodeType::RECENTLY_ADDED_EPISODES, "recentlyaddedepisodes", 20387},
     {NodeType::RECENTLY_ADDED_MUSICVIDEOS, "recentlyaddedmusicvideos", 20390},
     {NodeType::INPROGRESS_TVSHOWS, "inprogresstvshows", 626},
-    {NodeType::COLLECTIONS, "collections", 40803},
+    {NodeType::COLLECTION_ITEMS, "collections", 40803},
 };
 
 CDirectoryNodeOverview::CDirectoryNodeOverview(const std::string& strName, CDirectoryNode* pParent)
