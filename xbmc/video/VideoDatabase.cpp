@@ -6755,10 +6755,14 @@ bool CVideoDatabase::GetSetsByWhere(const std::string& strBaseDir, const Filter 
       return false;
 
     Filter setFilter = filter;
-    setFilter.join += " JOIN collection ON movie_view.idSet = collection.idCollection";
+    // movie_view already exposes idSet and strSet via its own LEFT JOINs to
+    // collection_item / collection.  We must NOT add an INNER JOIN here — that
+    // would silently drop every movie that has no collection_item entry (i.e.
+    // movies not in any set), making them invisible in the listing.
+    // Order by idSet so same-collection movies are adjacent for GroupUtils::Group.
     if (!setFilter.order.empty())
       setFilter.order += ",";
-    setFilter.order += "collection.idCollection";
+    setFilter.order += "movie_view.idSet";
 
     if (!GetMoviesByWhere(strBaseDir, setFilter, items))
       return false;
