@@ -6802,6 +6802,73 @@ bool CVideoDatabase::GetSetsByWhere(const std::string& strBaseDir, const Filter 
   return false;
 }
 
+bool CVideoDatabase::GetTvShowSetsByWhere(const std::string& strBaseDir,
+                                          CFileItemList& items,
+                                          bool ignoreSingleItemSets /* = false */)
+{
+  try
+  {
+    if (!m_pDB || !m_pDS || !m_pDS2)
+      return false;
+
+    // Step 1: Collections that qualify as TV-show groupings.
+    // A collection qualifies if it has 2+ direct tvshow members
+    // OR 2+ direct episode members (e.g. crossover episode collections).
+    std::string colSQL =
+        "SELECT c.idCollection, c.name, COALESCE(c.description,'') "
+        "FROM collection c "
+        "WHERE ("
+        "  SELECT COUNT(*) FROM collection_item "
+        "  WHERE idCollection=c.idCollection AND mediaType='tvshow'"
+        ") >= 2 "
+        "   OR ("
+        "  SELECT COUNT(*) FROM collection_item "
+        "  WHERE idCollection=c.idCollection AND mediaType='episode'"
+        ") >= 2 "
+        "ORDER BY c.name";
+
+    m_pDS->query(colSQL);
+    while (!m_pDS->eof())
+    {
+      int         colId = m_pDS->fv(0).get_asInt();
+      std::string name  = m_pDS->fv(1).get_asString();
+      std::string desc  = m_pDS->fv(2).get_asString();
+
+      auto pItem = std::make_shared<CFileItem>(name);
+      pItem->GetVideoInfoTag()->m_iDbId    = colId;
+      pItem->GetVideoInfoTag()->m_type     = MediaTypeVideoCollection;
+      pItem->GetVideoInfoTag()->m_strTitle = name;
+      pItem->GetVideoInfoTag()->m_strPlot  = desc;
+      pItem->SetPath(StringUtils::Format("videodb://collections/{}/", colId));
+      pItem->SetFolder(true);
+
+      items.Add(pItem);
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    // Step 2: Standalone TV shows – shows that have no direct collection_item entry
+    // with mediaType='tvshow'. (Shows only referenced via episode membership are
+    // NOT hidden – they remain here at the root level.)
+    Filter standaloneFilter;
+    standaloneFilter.AppendWhere(
+        "tvshow_view.idShow NOT IN "
+        "(SELECT idMedia FROM collection_item WHERE mediaType='tvshow')");
+
+    CFileItemList standaloneShows;
+    if (!GetTvShowsByWhere(strBaseDir, standaloneFilter, standaloneShows))
+      return false;
+
+    items.Append(standaloneShows);
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "failed");
+  }
+  return false;
+}
+
 bool CVideoDatabase::GetMusicVideoAlbumsNav(const std::string& strBaseDir, CFileItemList& items, int idArtist /* = -1 */, const Filter &filter /* = Filter() */, bool countOnly /* = false */)
 {
   try

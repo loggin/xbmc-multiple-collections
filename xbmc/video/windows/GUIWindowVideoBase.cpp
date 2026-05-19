@@ -1210,12 +1210,16 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
              (settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPMOVIESETS) ||
               (StringUtils::EqualsNoCase(group, "sets") && mixed)))
     {
-      CFileItemList groupedItems;
-      GroupAttribute groupAttributes = settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS) ? GroupAttributeNone : GroupAttributeIgnoreSingleItems;
-      if (GroupUtils::GroupAndMix(GroupBySet, m_strFilterPath, items, groupedItems, groupAttributes))
+      CVideoDatabase db;
+      if (db.Open())
       {
-        items.ClearItems();
-        items.Append(groupedItems);
+        CFileItemList collectionItems;
+        if (db.GetTvShowSetsByWhere(m_strFilterPath, collectionItems))
+        {
+          items.ClearItems();
+          items.Append(collectionItems);
+        }
+        db.Close();
       }
     }
   }
