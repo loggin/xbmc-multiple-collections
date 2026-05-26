@@ -30,22 +30,33 @@
 				<control type="grouplist" id="9000">
 					<top>50</top>
 					<include>MediaMenuListCommon</include>
-					<control type="button" id="3">
+					<control type="button" id="10">
+						<description>Watched Toggle</description>
 						<include>MediaMenuItemsCommon</include>
-						<label>$LOCALIZE[103]</label>
+						<label>$LOCALIZE[20367]</label>
+						<label2>[B]$INFO[Container.NumItems][/B]</label2>
+						<visible>Container.Content(mixed)</visible>
 					</control>
-					<control type="togglebutton" id="2">
+					<control type="label" id="203">
+						<include>MediaMenuLabelCommon</include>
+						<label>$LOCALIZE[31020]</label>
+					</control>
+					<control type="togglebutton" id="619">
+						<description>Update library</description>
 						<include>MediaMenuItemsCommon</include>
-						<label>$LOCALIZE[31153]</label>
+						<label>$LOCALIZE[653]</label>
+						<onclick>UpdateLibrary(video)</onclick>
+						<altlabel>$LOCALIZE[13353]</altlabel>
+						<usealttexture>library.isscanningvideo</usealttexture>
 					</control>
-					<control type="button" id="4">
+					<control type="button" id="612">
+						<description>Go to playlist</description>
 						<include>MediaMenuItemsCommon</include>
-						<label>$LOCALIZE[31022]</label>
+						<label>$LOCALIZE[31056]</label>
+						<onclick>ActivateWindow(videoplaylist)</onclick>
+						<visible>Integer.IsGreater(Playlist.Length(video),0)</visible>
 					</control>
-					<control type="button" id="8">
-						<include>MediaMenuItemsCommon</include>
-						<label>$LOCALIZE[137]</label>
-					</control>
+					<include>MediaMenuNowPlaying</include>
 				</control>
 			</control>
 		</control>

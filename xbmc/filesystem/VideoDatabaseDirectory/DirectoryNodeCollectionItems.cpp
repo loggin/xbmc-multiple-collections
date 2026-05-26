@@ -157,6 +157,7 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
     items.Add(item);
   }
 
+  items.SetContent("mixed");
   items.SetProperty("collection.name", collectionName);
   return true;
 }
