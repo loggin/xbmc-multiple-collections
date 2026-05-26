@@ -65,5 +65,6 @@ bool CDirectoryNodeCollections::GetContent(CFileItemList& items) const
     items.Add(item);
   }
 
+  items.SetContent("sets");
   return true;
 }
