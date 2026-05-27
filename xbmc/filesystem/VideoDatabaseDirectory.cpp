@@ -36,7 +36,14 @@ namespace
 {
 std::string GetChildContentType(const std::unique_ptr<CDirectoryNode>& node)
 {
-  switch (node->GetChildType())
+  NodeType childType = node->GetChildType();
+  if (childType == NodeType::NONE)
+  {
+    if (node->GetType() == NodeType::COLLECTION_ITEMS)
+      return "mixed";
+  }
+
+  switch (childType)
   {
     case NodeType::EPISODES:
     case NodeType::RECENTLY_ADDED_EPISODES:
