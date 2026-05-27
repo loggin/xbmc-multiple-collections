@@ -13,14 +13,24 @@
 			<height>760</height>
 			<visible>Control.IsVisible(54) + !String.IsEmpty(Window.Property(CollectionName))</visible>
 			<control type="image">
+				<width>340</width>
+				<height>740</height>
+				<texture>dialogs/dialog-bg-nobo.png</texture>
+				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
+				<bordersize>20</bordersize>
+			</control>
+			<control type="image">
+				<left>10</left>
+				<top>10</top>
 				<width>320</width>
 				<height>470</height>
-				<texture fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
-				<aspectratio>keep</aspectratio>
+				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
+				<aspectratio>scale</aspectratio>
 				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
 				<bordersize>20</bordersize>
 			</control>
 			<control type="label">
+				<left>10</left>
 				<top>500</top>
 				<width>320</width>
 				<height>44</height>
@@ -30,6 +40,7 @@
 				<label>$INFO[Window.Property(CollectionName)]</label>
 			</control>
 			<control type="textbox">
+				<left>10</left>
 				<top>548</top>
 				<width>320</width>
 				<height>180</height>
