@@ -34,6 +34,22 @@ if (-not $lMapped) {
 }
 
 # ── Step 2: Kill stale mspdbsrv.exe (prevents C1902 PDB mismatch errors) ────
+# Also ensure Kodi is not running, as rebuilding while kodi.exe is active can
+# keep files locked and produce misleading build/link failures.
+$kodiProcesses = Get-Process -Name "kodi" -ErrorAction SilentlyContinue
+while ($kodiProcesses)
+{
+    Write-Host "Kodi is currently running (PID(s): $($kodiProcesses.Id -join ', '))." -ForegroundColor Yellow
+    $choice = Read-Host "Please close Kodi, then press Enter to continue (or type Q to cancel build)"
+    if ($choice -match '^(q|Q)$')
+    {
+        Write-Host "Build canceled by user because Kodi is still running." -ForegroundColor Red
+        exit 1
+    }
+
+    $kodiProcesses = Get-Process -Name "kodi" -ErrorAction SilentlyContinue
+}
+
 Stop-Process -Name "mspdbsrv" -Force -ErrorAction SilentlyContinue
 
 # ── Step 3: Find MSBuild (VS 2022 required — toolset v143) ───────────────────
