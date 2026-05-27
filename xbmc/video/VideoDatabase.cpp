@@ -3873,6 +3873,13 @@ bool CVideoDatabase::DeleteMovie(int idMovie,
     const std::string strSQL{PrepareSQL("DELETE FROM movie WHERE idMovie=%i", idMovie)};
     m_pDS->exec(strSQL);
 
+    // Keep collection memberships in sync with movie lifecycle.
+    // Source removal and other delete paths call DeleteMovie(), so prune all
+    // collection_item links for this movie immediately instead of relying on a
+    // later full CleanDatabase pass.
+    m_pDS->exec(
+      PrepareSQL("DELETE FROM collection_item WHERE mediaType='movie' AND idMedia=%i", idMovie));
+
     if (ca == DeleteMovieCascadeAction::ALL_ASSETS ||
         ca == DeleteMovieCascadeAction::ALL_ASSETS_NOT_STREAMDETAILS)
     {
