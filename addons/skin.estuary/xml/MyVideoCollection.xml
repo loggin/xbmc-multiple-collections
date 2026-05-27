@@ -8,7 +8,7 @@
 		<include>DefaultBackground</include>
 		<control type="group">
 			<left>90</left>
-			<top>180</top>
+			<top>110</top>
 			<width>360</width>
 			<height>760</height>
 			<visible>Control.IsVisible(54) + !String.IsEmpty(Window.Property(CollectionName))</visible>
@@ -21,7 +21,7 @@
 			</control>
 			<control type="image">
 				<left>10</left>
-				<top>10</top>
+				<top>0</top>
 				<width>320</width>
 				<height>470</height>
 				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
