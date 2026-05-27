@@ -3906,6 +3906,18 @@ bool CVideoDatabase::DeleteMovie(int idMovie,
       pDS->close();
     }
 
+    // Remove now-orphaned file row for this media file.
+    if (idFile > 0)
+    {
+      m_pDS->exec(PrepareSQL(
+          "DELETE FROM files WHERE idFile=%i "
+          "AND NOT EXISTS (SELECT 1 FROM movie WHERE idFile=%i) "
+          "AND NOT EXISTS (SELECT 1 FROM episode WHERE idFile=%i) "
+          "AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE idFile=%i) "
+          "AND NOT EXISTS (SELECT 1 FROM videoversion WHERE idFile=%i)",
+          idFile, idFile, idFile, idFile, idFile));
+    }
+
     //! @todo move this below CommitTransaction() once UPnP doesn't rely on this anymore
     AnnounceRemove(MediaTypeMovie, idMovie);
 
@@ -3964,6 +3976,11 @@ void CVideoDatabase::DeleteTvShow(int idTvShow, bool bKeepId /* = false */)
     if (!bKeepId)
     {
       strSQL=PrepareSQL("delete from tvshow where idShow=%i", idTvShow);
+      m_pDS->exec(strSQL);
+
+      // Keep collection memberships synchronized when deleting a tvshow.
+      strSQL = PrepareSQL("delete from collection_item where mediaType='tvshow' and idMedia=%i",
+                          idTvShow);
       m_pDS->exec(strSQL);
 
       for (const auto &i : paths)
@@ -4050,6 +4067,23 @@ void CVideoDatabase::DeleteEpisode(int idEpisode, bool bKeepId /* = false */)
 
       std::string strSQL = PrepareSQL("delete from episode where idEpisode=%i", idEpisode);
       m_pDS->exec(strSQL);
+
+      // Keep collection memberships synchronized when deleting an episode.
+      strSQL = PrepareSQL("delete from collection_item where mediaType='episode' and idMedia=%i",
+                          idEpisode);
+      m_pDS->exec(strSQL);
+
+      // Remove now-orphaned file row for this media file.
+      if (idFile > 0)
+      {
+        m_pDS->exec(PrepareSQL(
+            "DELETE FROM files WHERE idFile=%i "
+            "AND NOT EXISTS (SELECT 1 FROM movie WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM episode WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM videoversion WHERE idFile=%i)",
+            idFile, idFile, idFile, idFile, idFile));
+      }
     }
 
   }
@@ -4086,6 +4120,23 @@ void CVideoDatabase::DeleteMusicVideo(int idMVideo, bool bKeepId /* = false */)
 
       std::string strSQL = PrepareSQL("delete from musicvideo where idMVideo=%i", idMVideo);
       m_pDS->exec(strSQL);
+
+      // Keep collection memberships synchronized when deleting a music video.
+      strSQL = PrepareSQL("delete from collection_item where mediaType='musicvideo' and idMedia=%i",
+                          idMVideo);
+      m_pDS->exec(strSQL);
+
+      // Remove now-orphaned file row for this media file.
+      if (idFile > 0)
+      {
+        m_pDS->exec(PrepareSQL(
+            "DELETE FROM files WHERE idFile=%i "
+            "AND NOT EXISTS (SELECT 1 FROM movie WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM episode WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE idFile=%i) "
+            "AND NOT EXISTS (SELECT 1 FROM videoversion WHERE idFile=%i)",
+            idFile, idFile, idFile, idFile, idFile));
+      }
     }
 
     //! @todo move this below CommitTransaction() once UPnP doesn't rely on this anymore
@@ -5964,6 +6015,36 @@ void CVideoDatabase::RemoveContentForPath(const std::string& strPath,
                        pathId));
       }
     }
+
+      // Source-removal cleanup: prune stale collection links and empty collections immediately.
+      m_pDS->exec("DELETE FROM collection_item "
+            "WHERE (mediaType = 'movie'      AND NOT EXISTS (SELECT 1 FROM movie      WHERE movie.idMovie      = collection_item.idMedia)) "
+            "OR    (mediaType = 'tvshow'     AND NOT EXISTS (SELECT 1 FROM tvshow     WHERE tvshow.idShow      = collection_item.idMedia)) "
+            "OR    (mediaType = 'episode'    AND NOT EXISTS (SELECT 1 FROM episode    WHERE episode.idEpisode  = collection_item.idMedia)) "
+            "OR    (mediaType = 'musicvideo' AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE musicvideo.idMVideo = collection_item.idMedia))");
+
+      m_pDS->exec("DELETE FROM collection "
+            "WHERE NOT EXISTS (SELECT 1 FROM collection_item WHERE collection_item.idCollection = collection.idCollection)");
+
+      // Remove orphaned file rows under this source subtree.
+      m_pDS->exec(PrepareSQL(
+        "DELETE FROM files WHERE idPath IN (SELECT idPath FROM path WHERE strPath LIKE '%s%%') "
+        "AND NOT EXISTS (SELECT 1 FROM movie WHERE movie.idFile=files.idFile) "
+        "AND NOT EXISTS (SELECT 1 FROM episode WHERE episode.idFile=files.idFile) "
+        "AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE musicvideo.idFile=files.idFile) "
+        "AND NOT EXISTS (SELECT 1 FROM videoversion WHERE videoversion.idFile=files.idFile)",
+        strPath.c_str()));
+
+      // Remove now-empty path rows under this source subtree.
+      m_pDS->exec(PrepareSQL(
+        "DELETE FROM path WHERE strPath LIKE '%s%%' "
+        "AND (strContent IS NULL OR strContent='') "
+        "AND (strSettings IS NULL OR strSettings='') "
+        "AND (strHash IS NULL OR strHash='') "
+        "AND (exclude IS NULL OR exclude != 1) "
+        "AND NOT EXISTS (SELECT 1 FROM files WHERE files.idPath = path.idPath) "
+        "AND NOT EXISTS (SELECT 1 FROM tvshowlinkpath WHERE tvshowlinkpath.idPath = path.idPath)",
+        strPath.c_str()));
   }
   catch (...)
   {
