@@ -38,7 +38,12 @@ bool CGUIWindowVideoCollection::GetDirectory(const std::string& strDirectory, CF
   // Propagate the collection name (set by DirectoryNodeCollectionItems) to the window property
   // so the skin can display it in the header.
   const std::string collectionName = items.GetProperty("collection.name").asString();
+  const std::string collectionDescription =
+      items.GetProperty("collection.description").asString();
+  const std::string collectionArtwork = items.GetProperty("collection.artwork").asString();
   SetProperty("CollectionName", collectionName);
+  SetProperty("CollectionDescription", collectionDescription);
+  SetProperty("CollectionPoster", collectionArtwork);
 
   return true;
 }

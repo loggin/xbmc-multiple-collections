@@ -54,11 +54,17 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
   CLog::LogF(LOGDEBUG, "Collection {} has {} items", idCollection, collectionItems.size());
 
   std::string collectionName;
+  std::string collectionDescription;
+  std::string collectionArtwork;
   {
     std::vector<CVideoDatabase::CCollection> cols;
     if (db.GetCollections(cols, "", db.PrepareSQL("idCollection=%i", idCollection)) &&
         !cols.empty())
+    {
       collectionName = cols.front().name;
+      collectionDescription = cols.front().description;
+      collectionArtwork = cols.front().artwork;
+    }
   }
   if (collectionName.empty())
     collectionName = db.GetSetById(idCollection);
@@ -79,6 +85,20 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       groupHeader->SetProperty("collection.isgroupheader", true);
       groupHeader->SetProperty("collection.mediatype", "group");
       groupHeader->SetProperty("mediatype", "group");
+      if (!collectionName.empty())
+      {
+        groupHeader->SetProperty("collection.name", collectionName);
+        groupHeader->SetLabel(collectionName);
+      }
+      if (!collectionDescription.empty())
+        groupHeader->SetProperty("plot", collectionDescription);
+      if (!collectionArtwork.empty())
+      {
+        groupHeader->SetArt("poster", collectionArtwork);
+        groupHeader->SetArt("thumb", collectionArtwork);
+        groupHeader->SetArt("icon", collectionArtwork);
+        groupHeader->SetProperty("collection.artwork", collectionArtwork);
+      }
       items.Add(groupHeader);
       previousGroup = ci.groupName;
     }
@@ -151,6 +171,10 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
     item->SetProperty("mediatype", mediaType);
     if (!collectionName.empty())
       item->SetProperty("collection.name", collectionName);
+    if (!collectionDescription.empty())
+      item->SetProperty("collection.description", collectionDescription);
+    if (!collectionArtwork.empty())
+      item->SetProperty("collection.artwork", collectionArtwork);
     if (!ci.groupName.empty())
       item->SetProperty("collection.groupname", ci.groupName);
     item->SetLabelPreformatted(true);
@@ -159,5 +183,7 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
 
   items.SetContent("mixed");
   items.SetProperty("collection.name", collectionName);
+  items.SetProperty("collection.description", collectionDescription);
+  items.SetProperty("collection.artwork", collectionArtwork);
   return true;
 }

@@ -7,6 +7,39 @@
 	<controls>
 		<include>DefaultBackground</include>
 		<control type="group">
+			<left>90</left>
+			<top>180</top>
+			<width>360</width>
+			<height>760</height>
+			<visible>Control.IsVisible(54) + !String.IsEmpty(Window.Property(CollectionName))</visible>
+			<control type="image">
+				<width>320</width>
+				<height>470</height>
+				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
+				<aspectratio>scale</aspectratio>
+				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
+				<bordersize>20</bordersize>
+			</control>
+			<control type="label">
+				<top>500</top>
+				<width>320</width>
+				<height>44</height>
+				<font>font24_title</font>
+				<textcolor>white</textcolor>
+				<scroll>true</scroll>
+				<label>$INFO[Window.Property(CollectionName)]</label>
+			</control>
+			<control type="textbox">
+				<top>548</top>
+				<width>320</width>
+				<height>180</height>
+				<font>font12</font>
+				<textcolor>grey</textcolor>
+				<label>$INFO[Window.Property(CollectionDescription)]</label>
+				<autoscroll delay="3000" time="1000" repeat="9000">Control.HasFocus(54)</autoscroll>
+			</control>
+		</control>
+		<control type="group">
 			<include>View_50_List</include>
 			<include>View_51_Poster</include>
 			<include>View_52_IconWall</include>
