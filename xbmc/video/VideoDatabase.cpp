@@ -10551,6 +10551,19 @@ void CVideoDatabase::CleanDatabase(CGUIDialogProgressBarHandle* handle,
             "WHERE NOT EXISTS (SELECT 1 FROM movie WHERE movie.idSet = `sets`.idSet)";
       m_pDS->exec(sql);
 
+      CLog::LogFC(LOGDEBUG, LOGDATABASE, "Cleaning collection_item table");
+      sql = "DELETE FROM collection_item "
+            "WHERE (mediaType = 'movie'      AND NOT EXISTS (SELECT 1 FROM movie      WHERE movie.idMovie      = collection_item.idMedia)) "
+            "OR    (mediaType = 'tvshow'     AND NOT EXISTS (SELECT 1 FROM tvshow     WHERE tvshow.idShow      = collection_item.idMedia)) "
+            "OR    (mediaType = 'episode'    AND NOT EXISTS (SELECT 1 FROM episode    WHERE episode.idEpisode  = collection_item.idMedia)) "
+            "OR    (mediaType = 'musicvideo' AND NOT EXISTS (SELECT 1 FROM musicvideo WHERE musicvideo.idMVideo = collection_item.idMedia))";
+      m_pDS->exec(sql);
+
+      CLog::LogFC(LOGDEBUG, LOGDATABASE, "Cleaning empty collection rows");
+      sql = "DELETE FROM collection "
+            "WHERE NOT EXISTS (SELECT 1 FROM collection_item WHERE collection_item.idCollection = collection.idCollection)";
+      m_pDS->exec(sql);
+
       CommitTransaction();
 
       if (handle)
