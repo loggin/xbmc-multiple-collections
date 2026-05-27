@@ -2385,31 +2385,15 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
                      details.m_set.GetOriginalTitle(), details.GetUpdateSetOverview());
       details.m_set.SetID(idSet);
       // Populate collection_item so the movie is discoverable via collection browsing.
-      // Resolve the canonical (primary) movie ID: if idMovie is a non-default version
-      // file row, the videoversion table will point us to the actual primary idMedia.
+      // idMovie in this scope is always the movie media id (idMedia), not an idFile.
+      // Using it in a videoversion idFile lookup can resolve to unrelated rows and
+      // cause cross-linking of movies into the wrong collection.
       if (idSet > 0 && idMovie > 0)
       {
-        int idPrimaryMovie = idMovie;
-        try
-        {
-          auto pDS2 = m_pDB->CreateDataset();
-          std::string vvSql = PrepareSQL(
-              "SELECT idMedia FROM videoversion WHERE idFile=%i AND media_type='movie'", idMovie);
-          if (pDS2->query(vvSql) && !pDS2->eof())
-          {
-            int resolvedId = pDS2->fv(0).get_asInt();
-            if (resolvedId > 0)
-              idPrimaryMovie = resolvedId;
-          }
-          pDS2->close();
-        }
-        catch (...)
-        {
-        }
         CCollectionItem ci;
         ci.idCollection = idSet;
         ci.mediaType = MediaTypeMovie;
-        ci.idMedia = idPrimaryMovie;
+        ci.idMedia = idMovie;
         ci.sortOrder = 0;
         AddOrUpdateCollectionItem(ci);
       }
@@ -9015,15 +8999,18 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
     {
       if (collectionExistsById)
       {
-        // Only overwrite homePath when the new value is non-empty (inline path wins over dedicated;
-        // never clear an existing home path with an empty one).
+        // Build the UPDATE statement. homePathClause is a fully-prepared SQL fragment (already
+        // has its own quotes from PrepareSQL), so it must be string-concatenated rather than
+        // passed as a %s arg to another PrepareSQL call — doing so would double-escape the
+        // inner single quotes and produce invalid SQL like homePath=''V:\...''.
         const std::string homePathClause = collection.homePath.empty()
             ? ""
             : PrepareSQL(", homePath='%s'", collection.homePath.c_str());
-        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'%s WHERE idCollection=%i",
+        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'",
                          collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
-                         normalizedSortType.c_str(), collection.artwork.c_str(),
-                         homePathClause.c_str(), idCollection);
+                         normalizedSortType.c_str(), collection.artwork.c_str());
+        sql += homePathClause;
+        sql += PrepareSQL(" WHERE idCollection=%i", idCollection);
       }
       else
       {
