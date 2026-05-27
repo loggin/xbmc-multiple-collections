@@ -1486,15 +1486,24 @@ int CVideoDatabase::AddSet(const std::string& strSet,
 
       // update set data
       if (updateOverview)
-        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strOverview = '%s'%s WHERE idSet = %i",
-                            strSet.c_str(), strOverview.c_str(),
-                            strPath.empty() ? "" : PrepareSQL(", strPath = '%s'", strPath.c_str()).c_str(),
-                            id);
+      {
+        if (strPath.empty())
+          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strOverview = '%s' WHERE idSet = %i",
+                              strSet.c_str(), strOverview.c_str(), id);
+        else
+          strSQL = PrepareSQL(
+              "UPDATE `sets` SET strSet = '%s', strOverview = '%s', strPath = '%s' WHERE idSet = %i",
+              strSet.c_str(), strOverview.c_str(), strPath.c_str(), id);
+      }
       else
-        strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s'%s WHERE idSet = %i",
-                            strSet.c_str(),
-                            strPath.empty() ? "" : PrepareSQL(", strPath = '%s'", strPath.c_str()).c_str(),
-                            id);
+      {
+        if (strPath.empty())
+          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s' WHERE idSet = %i",
+                              strSet.c_str(), id);
+        else
+          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strPath = '%s' WHERE idSet = %i",
+                              strSet.c_str(), strPath.c_str(), id);
+      }
 
       m_pDS->exec(strSQL);
 
