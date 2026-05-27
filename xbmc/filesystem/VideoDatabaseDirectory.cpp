@@ -76,6 +76,10 @@ std::string GetChildContentType(const std::unique_ptr<CDirectoryNode>& node)
       return "albums";
     case NodeType::SETS:
       return "sets";
+    case NodeType::COLLECTIONS:
+      return "sets";
+    case NodeType::COLLECTION_ITEMS:
+      return "mixed";
     case NodeType::TAGS:
       return "tags";
     case NodeType::VIDEOVERSIONS:
