@@ -15,8 +15,8 @@
 			<control type="image">
 				<width>320</width>
 				<height>470</height>
-				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
-				<aspectratio>scale</aspectratio>
+				<texture fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
+				<aspectratio>keep</aspectratio>
 				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
 				<bordersize>20</bordersize>
 			</control>
