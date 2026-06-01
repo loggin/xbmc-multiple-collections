@@ -7,21 +7,19 @@
 	<controls>
 		<include>DefaultBackground</include>
 		<control type="group">
-			<left>90</left>
-			<top>110</top>
-			<width>360</width>
-			<height>760</height>
 			<visible>Control.IsVisible(54) + !String.IsEmpty(Window.Property(CollectionName))</visible>
 			<control type="image">
-				<width>340</width>
-				<height>740</height>
-				<texture>dialogs/dialog-bg-nobo.png</texture>
+				<left>-40</left>
+				<top>-10%</top>
+				<width>656</width>
+				<height>120%</height>
+				<texture colordiffuse="EDFFFFFF">lists/panel.png</texture>
 				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
 				<bordersize>20</bordersize>
 			</control>
 			<control type="image">
-				<left>10</left>
-				<top>0</top>
+				<left>148</left>
+				<top>110</top>
 				<width>320</width>
 				<height>470</height>
 				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
@@ -29,23 +27,20 @@
 				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
 				<bordersize>20</bordersize>
 			</control>
-			<control type="label">
-				<left>10</left>
-				<top>500</top>
-				<width>320</width>
-				<height>44</height>
-				<font>font24_title</font>
-				<textcolor>white</textcolor>
-				<scroll>true</scroll>
+			<control type="textbox">
+				<left>30</left>
+				<top>590</top>
+				<width>550</width>
+				<height>110</height>
+				<aligny>center</aligny>
+				<font>font36_title</font>
 				<label>$INFO[Window.Property(CollectionName)]</label>
 			</control>
 			<control type="textbox">
-				<left>10</left>
-				<top>548</top>
-				<width>320</width>
-				<height>180</height>
-				<font>font12</font>
-				<textcolor>grey</textcolor>
+				<left>30</left>
+				<top>710</top>
+				<width>550</width>
+				<bottom>60</bottom>
 				<label>$INFO[Window.Property(CollectionDescription)]</label>
 				<autoscroll delay="3000" time="1000" repeat="9000">Control.HasFocus(54)</autoscroll>
 			</control>

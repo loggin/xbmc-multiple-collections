@@ -48,12 +48,30 @@ bool CGUIWindowVideoCollection::GetDirectory(const std::string& strDirectory, CF
   return true;
 }
 
+bool CGUIWindowVideoCollection::OnBack(int actionID)
+{
+  // This window operates at a single directory level (the collection items path).
+  // Navigating to the parent URL within this window would produce an empty/broken
+  // view, so always close back to the previous window on any back action.
+  CServiceBroker::GetGUI()->GetWindowManager().PreviousWindow();
+  return true;
+}
+
 bool CGUIWindowVideoCollection::OnSelect(int iItem)
 {
   if (iItem < 0 || iItem >= m_vecItems->Size())
     return false;
 
   const CFileItemPtr item = m_vecItems->Get(iItem);
+
+  // The ".." parent folder item must close this window rather than trying to
+  // Update() the parent URL, since this window only handles the items sub-path.
+  if (item && item->IsParentFolder())
+  {
+    CServiceBroker::GetGUI()->GetWindowManager().PreviousWindow();
+    return true;
+  }
+
   if (item && item->GetProperty("collection.isgroupheader").asBoolean())
     return true;
 

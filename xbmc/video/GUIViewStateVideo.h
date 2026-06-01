@@ -94,6 +94,5 @@ public:
   explicit CGUIViewStateWindowVideoCollection(const CFileItemList& items);
 protected:
   void SaveViewState() override;
-  bool HideParentDirItems() override { return true; }
 };
 

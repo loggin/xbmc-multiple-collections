@@ -20,6 +20,7 @@ public:
 
 protected:
   bool GetDirectory(const std::string& strDirectory, CFileItemList& items) override;
+  bool OnBack(int actionID) override;
   bool OnSelect(int iItem) override;
   void GetContextButtons(int itemNumber, CContextButtons& buttons) override;
   bool OnContextButton(int itemNumber, CONTEXT_BUTTON button) override;
