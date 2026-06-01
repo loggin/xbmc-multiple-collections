@@ -7,45 +7,6 @@
 	<controls>
 		<include>DefaultBackground</include>
 		<control type="group">
-			<visible>Control.IsVisible(54) + !String.IsEmpty(Window.Property(CollectionName))</visible>
-			<control type="image">
-				<left>-40</left>
-				<top>-10%</top>
-				<width>656</width>
-				<height>120%</height>
-				<texture colordiffuse="EDFFFFFF">lists/panel.png</texture>
-				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
-				<bordersize>20</bordersize>
-			</control>
-			<control type="image">
-				<left>148</left>
-				<top>110</top>
-				<width>320</width>
-				<height>470</height>
-				<texture background="true" fallback="DefaultVideo.png">$INFO[Window.Property(CollectionPoster)]</texture>
-				<aspectratio>scale</aspectratio>
-				<bordertexture border="21" infill="false">overlays/shadow.png</bordertexture>
-				<bordersize>20</bordersize>
-			</control>
-			<control type="textbox">
-				<left>30</left>
-				<top>590</top>
-				<width>550</width>
-				<height>110</height>
-				<aligny>center</aligny>
-				<font>font36_title</font>
-				<label>$INFO[Window.Property(CollectionName)]</label>
-			</control>
-			<control type="textbox">
-				<left>30</left>
-				<top>710</top>
-				<width>550</width>
-				<bottom>60</bottom>
-				<label>$INFO[Window.Property(CollectionDescription)]</label>
-				<autoscroll delay="3000" time="1000" repeat="9000">Control.HasFocus(54)</autoscroll>
-			</control>
-		</control>
-		<control type="group">
 			<include>View_50_List</include>
 			<include>View_51_Poster</include>
 			<include>View_52_IconWall</include>
@@ -56,6 +17,57 @@
 			<include>View_501_Banner</include>
 			<include>View_502_FanArt</include>
 			<include>View_504_MediaList</include>
+			<control type="group">
+				<depth>DepthContentPanel</depth>
+				<include>OpenClose_Left</include>
+				<visible>Control.IsVisible(55) | Control.IsVisible(504)</visible>
+				<include>Visible_Left</include>
+				<include content="ListThumbInfoPanel">
+					<param name="fallback_image" value="DefaultVideo.png" />
+				</include>
+			</control>
+			<control type="group">
+				<depth>DepthContentPanel</depth>
+				<include>OpenClose_Left</include>
+				<visible>Control.IsVisible(50) | Control.IsVisible(54) | [Control.IsVisible(501) + String.IsEqual(Skin.AspectRatio,21:9)]</visible>
+				<include>Visible_Left</include>
+				<include content="ContentPanel">
+					<param name="width" value="656" />
+				</include>
+				<control type="group">
+					<width>550</width>
+					<control type="textbox">
+						<top>120</top>
+						<left>30</left>
+						<width>550</width>
+						<aligny>center</aligny>
+						<height>110</height>
+						<font>font36_title</font>
+						<label>$INFO[ListItem.Label]</label>
+					</control>
+					<control type="textbox">
+						<left>30</left>
+						<top>240</top>
+						<width>525</width>
+						<bottom>100</bottom>
+						<visible>![String.IsEmpty(ListItem.Plot) + String.IsEmpty(ListItem.Tagline)]</visible>
+						<label>$VAR[VideoInfoPlotVar]</label>
+						<autoscroll delay="10000" time="3000" repeat="10000">Skin.HasSetting(autoscroll)</autoscroll>
+					</control>
+					<control type="textbox">
+						<left>30</left>
+						<top>360</top>
+						<width>530</width>
+						<height>413</height>
+						<align>center</align>
+						<aligny>center</aligny>
+						<font>font27</font>
+						<textcolor>80FFFFFF</textcolor>
+						<label>$LOCALIZE[19055]</label>
+						<visible>String.IsEmpty(ListItem.Plot) + String.IsEmpty(ListItem.Tagline) + !ListItem.IsParentFolder</visible>
+					</control>
+				</control>
+			</control>
 			<include>CommonScrollbars</include>
 			<include content="TopBar">
 				<param name="breadcrumbs_label" value="$VAR[BreadcrumbsCollectionVar]" />
