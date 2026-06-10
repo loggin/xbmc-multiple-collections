@@ -689,8 +689,12 @@ describes a single collection from its own perspective:
 Artwork (poster, fanart) is resolved by looking for the following filenames
 in the same folder as the collection.nfo, in order of preference:
 
-- poster.jpg, poster.png
-- fanart.jpg, fanart.png
+- poster.jpg, poster.png, <MOVIESET>-poster.(jpg|png)
+- fanart.jpg, fanart.png, <MOVIESET>-fanart.(jpg|png)
+
+collection.nfo can also be named set.nfo in some instances depending upon the third party media manager tool used, so this file name should also be supported.
+
+<MOVIESET> is an expression for where the name/folder matches this part of teh image filename.
 
 12.4 Import / Scan Behaviour
 

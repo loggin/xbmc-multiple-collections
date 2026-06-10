@@ -797,8 +797,14 @@ CGUIViewStateWindowVideoCollection::CGUIViewStateWindowVideoCollection(
     const CFileItemList& items)
   : CGUIViewStateWindowVideo(items)
 {
-  AddSortMethod(SortBy::LABEL, 551, LABEL_MASKS("%L", "", "%L", ""));
-  AddSortMethod(SortBy::NONE, 551, LABEL_MASKS("%L", "", "%L", ""));
+  SortAttribute sortAttributes = SortAttributeNone;
+  if (CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
+          CSettings::SETTING_FILELISTS_IGNORETHEWHENSORTING))
+    sortAttributes = SortAttributeIgnoreArticle;
+
+  AddSortMethod(SortBy::LABEL, sortAttributes, 551, LABEL_MASKS("%L", "", "%L", ""));
+  AddSortMethod(SortBy::DATE, 552, LABEL_MASKS("%L", "%J", "%L", "%J")); // Label, Release Date
+  AddSortMethod(SortBy::NONE, 40806, LABEL_MASKS("%L", "", "%L", "")); // Timeline order (DB sortOrder)
 
   const CViewState* viewState = CViewStateSettings::GetInstance().Get("videocollection");
   if (viewState)

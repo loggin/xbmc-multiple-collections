@@ -4,9 +4,9 @@
 
 Unicode True
 
-!define PRODUCT_NAME      "Kodi Multi Collections"
-!define PRODUCT_PUBLISHER "GitHub Copilot / Team Kodi"
-!define INSTALL_DIR       "Kodi Multi Collections"
+!define PRODUCT_NAME      "Kodi (Multi Collections Mod)"
+!define PRODUCT_PUBLISHER "Mark McNally / Team Kodi"
+!define INSTALL_DIR       "Kodi"
 !define UNINSTALL_KEY     "Software\Microsoft\Windows\CurrentVersion\Uninstall\${INSTALL_DIR}"
 ; VERSION_MAJOR, VERSION_MINOR, VERSION_TAG, VERSION_CODE are passed via /D on the makensis command line
 

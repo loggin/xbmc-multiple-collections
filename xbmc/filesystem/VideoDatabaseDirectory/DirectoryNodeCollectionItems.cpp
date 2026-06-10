@@ -11,9 +11,11 @@
 #include "FileItem.h"
 #include "FileItemList.h"
 #include "QueryParams.h"
+#include "media/MediaType.h"
 #include "utils/StringUtils.h"
 #include "utils/log.h"
 #include "video/VideoDatabase.h"
+#include "video/VideoManagerTypes.h"
 
 using namespace XFILE::VIDEODATABASEDIRECTORY;
 
@@ -69,6 +71,15 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
   if (collectionName.empty())
     collectionName = db.GetSetById(idCollection);
 
+  if (collectionArtwork.empty())
+  {
+    collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "poster");
+    if (collectionArtwork.empty())
+      collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "thumb");
+    if (collectionArtwork.empty())
+      collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "icon");
+  }
+
   std::string previousGroup;
   for (const auto& ci : collectionItems)
   {
@@ -113,11 +124,19 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       CVideoInfoTag details;
       if (db.GetMovieInfo("", details, ci.idMedia, -1, -1, VideoDbDetailsAll) && details.m_iDbId > 0)
       {
-        // In a collection listing each movie is a discrete entry, not a versions
-        // container — suppress the collapsed-versions folder appearance.
-        details.SetHasVideoVersions(false);
         item = std::make_shared<CFileItem>(details);
-        item->SetPath(StringUtils::Format("videodb://movies/titles/{}/", details.m_iDbId));
+        if (details.HasVideoVersions() || details.HasVideoExtras())
+        {
+          item->SetPath(StringUtils::Format(
+              "videodb://movies/titles/{}/{}/", details.m_iDbId,
+              static_cast<int>(VideoAssetType::VERSIONSANDEXTRASFOLDER)));
+          item->SetFolder(true);
+          item->SetProperty("IsHybridFolder", true);
+        }
+        else
+        {
+          item->SetPath(StringUtils::Format("videodb://movies/titles/{}/", details.m_iDbId));
+        }
       }
     }
     else if (mediaType == "tvshow")

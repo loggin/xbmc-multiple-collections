@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window>
+	<include>Animation_DialogPopupOpenClose</include>
+	<controls>
+		<control type="group">
+			<centertop>50%</centertop>
+			<centerleft>50%</centerleft>
+			<width>1760</width>
+			<height>780</height>
+			<include>Animation_DialogPopupVisible</include>
+			<include content="DialogBackgroundCommons">
+				<param name="width" value="1760" />
+				<param name="height" value="780" />
+				<param name="header_id" value="2" />
+			</include>
+			<control type="group" id="100">
+				<top>80</top>
+				<left>20</left>
+				<control type="image">
+					<left>0</left>
+					<top>0</top>
+					<width>1400</width>
+					<height>665</height>
+					<texture border="40">buttons/dialogbutton-nofo.png</texture>
+				</control>
+				<control type="list" id="50">
+					<description>Timeline item list</description>
+					<top>20</top>
+					<left>20</left>
+					<height>625</height>
+					<width>1360</width>
+					<onup>50</onup>
+					<ondown>50</ondown>
+					<onleft>9001</onleft>
+					<onright>5</onright>
+					<pagecontrol>60</pagecontrol>
+					<scrolltime>200</scrolltime>
+					<include>MediaInfoListLayout</include>
+				</control>
+				<control type="scrollbar" id="60">
+					<left>1380</left>
+					<top>20</top>
+					<width>12</width>
+					<height>625</height>
+					<onleft>50</onleft>
+					<onright>5</onright>
+					<orientation>vertical</orientation>
+				</control>
+			</control>
+			<control type="grouplist" id="101">
+				<left>1460</left>
+				<top>80</top>
+				<width>300</width>
+				<height>565</height>
+				<onleft condition="Integer.IsGreater(Container(50).NumItems,0)">100</onleft>
+				<itemgap>dialogbuttons_itemgap</itemgap>
+				<scrolltime tween="quadratic">200</scrolltime>
+				<include content="DefaultDialogButton">
+					<param name="id" value="5" />
+					<param name="label" value="$LOCALIZE[13332]" />
+					<param name="enable">Integer.IsGreater(Container(50).CurrentItem,1)</param>
+				</include>
+				<include content="DefaultDialogButton">
+					<param name="id" value="6" />
+					<param name="label" value="$LOCALIZE[13333]" />
+					<param name="enable">Integer.IsGreater(Container(50).NumItems,Container(50).CurrentItem)</param>
+				</include>
+				<include content="DefaultDialogButton">
+					<param name="id" value="7" />
+					<param name="label" value="$LOCALIZE[186]" />
+				</include>
+			</control>
+		</control>
+	</controls>
+</window>

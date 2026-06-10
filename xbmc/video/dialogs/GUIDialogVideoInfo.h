@@ -55,6 +55,7 @@ public:
   static bool SetMovieSet(const CFileItem *movieItem, const CFileItem *selectedSet);
 
   static bool ManageMediaCollections(const std::shared_ptr<CFileItem>& item);
+  static bool ManageCollectionTimeline(const std::shared_ptr<CFileItem>& item);
 
   static void ManageVideoVersions(const std::shared_ptr<CFileItem>& item);
 

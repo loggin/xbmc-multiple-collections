@@ -24925,3 +24925,15 @@ msgstr ""
 msgctxt "#40804"
 msgid "Set collection"
 msgstr ""
+
+#. Context menu item — set the saga timeline order for a collection
+#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+msgctxt "#40805"
+msgid "Set timeline order"
+msgstr ""
+
+#. Sort method label — sort collection items by custom timeline order
+#: xbmc/video/GUIViewStateVideo.cpp
+msgctxt "#40806"
+msgid "Timeline order"
+msgstr ""

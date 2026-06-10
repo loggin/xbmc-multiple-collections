@@ -1197,12 +1197,21 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
         (settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPMOVIESETS) ||
          (StringUtils::EqualsNoCase(group, "sets") && mixed)))
     {
-      CFileItemList groupedItems;
-      GroupAttribute groupAttributes = settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS) ? GroupAttributeNone : GroupAttributeIgnoreSingleItems;
-      if (GroupUtils::GroupAndMix(GroupBySet, m_strFilterPath, items, groupedItems, groupAttributes))
+      // Replace winner-based grouping with the same collection_item-driven approach
+      // as TV shows: every collection that has movies appears as a folder (no primary-set
+      // race), standalone movies appear individually.
+      CVideoDatabase db;
+      if (db.Open())
       {
-        items.ClearItems();
-        items.Append(groupedItems);
+        const bool ignoreSingleItemSets =
+            !settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS);
+        CFileItemList movieItems;
+        if (db.GetMovieSetsByWhere(m_strFilterPath, movieItems, ignoreSingleItemSets))
+        {
+          items.ClearItems();
+          items.Append(movieItems);
+        }
+        db.Close();
       }
     }
     else if (items.GetContent() == "tvshows" && params.GetSetId() <= 0 &&
@@ -1213,8 +1222,10 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
       CVideoDatabase db;
       if (db.Open())
       {
+        const bool ignoreSingleItemSets =
+            !settings->GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS);
         CFileItemList collectionItems;
-        if (db.GetTvShowSetsByWhere(m_strFilterPath, collectionItems))
+        if (db.GetTvShowSetsByWhere(m_strFilterPath, collectionItems, ignoreSingleItemSets))
         {
           items.ClearItems();
           items.Append(collectionItems);

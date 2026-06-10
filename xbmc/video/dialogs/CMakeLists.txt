@@ -1,4 +1,5 @@
-set(SOURCES GUIDialogAudioSettings.cpp
+set(SOURCES GUIDialogCollectionTimeline.cpp
+            GUIDialogAudioSettings.cpp
             GUIDialogFullScreenInfo.cpp
             GUIDialogSubtitles.cpp
             GUIDialogSubtitleSettings.cpp
@@ -11,7 +12,8 @@ set(SOURCES GUIDialogAudioSettings.cpp
             GUIDialogVideoOSD.cpp
             GUIDialogVideoSettings.cpp)
 
-set(HEADERS GUIDialogAudioSettings.h
+set(HEADERS GUIDialogCollectionTimeline.h
+            GUIDialogAudioSettings.h
             GUIDialogFullScreenInfo.h
             GUIDialogSubtitles.h
             GUIDialogSubtitleSettings.h

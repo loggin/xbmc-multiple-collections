@@ -6,6 +6,7 @@
  *  See LICENSES/README.md for more information.
  */
 
+#include "GUIDialogCollectionTimeline.h"
 #include "GUIDialogVideoInfo.h"
 
 #include "ContextMenuManager.h"
@@ -1113,6 +1114,7 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
   if (item->IsFolder() && type == MediaTypeVideoCollection)
   {
     buttons.Add(CONTEXT_BUTTON_MOVIESET_ADD_REMOVE_ITEMS, 20465);
+    buttons.Add(CONTEXT_BUTTON_SET_TIMELINE_ORDER, 40805); // "Set timeline order"
   }
 
   // tags
@@ -1190,6 +1192,10 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
 
       case CONTEXT_BUTTON_MOVIESET_ADD_REMOVE_ITEMS:
         result = ManageMovieSets(item);
+        break;
+
+      case CONTEXT_BUTTON_SET_TIMELINE_ORDER:
+        result = ManageCollectionTimeline(item);
         break;
 
       case CONTEXT_BUTTON_TAGS_ADD_ITEMS:
@@ -1499,6 +1505,46 @@ bool CGUIDialogVideoInfo::ManageMovieSets(const std::shared_ptr<CFileItem>& item
   }
 
   return refreshNeeded;
+}
+
+bool CGUIDialogVideoInfo::ManageCollectionTimeline(const std::shared_ptr<CFileItem>& item)
+{
+  if (!item || !item->HasVideoInfoTag())
+    return false;
+
+  const int idCollection = item->GetVideoInfoTag()->m_iDbId;
+  if (idCollection < 0)
+    return false;
+
+  // Fetch the collection's current ordered items via the directory provider
+  CFileItemList allItems;
+  const std::string path =
+      StringUtils::Format("videodb://collections/{}/items/", idCollection);
+  if (!CDirectory::GetDirectory(path, allItems, "", DIR_FLAG_DEFAULTS) || allItems.Size() == 0)
+    return false;
+
+  // Strip group headers and the back (..) item — pass only real media to the dialog
+  CFileItemList mediaItems;
+  for (int i = 0; i < allItems.Size(); ++i)
+  {
+    const CFileItemPtr& fi = allItems.Get(i);
+    if (!fi || fi->IsParentFolder() || fi->GetProperty("collection.isgroupheader").asBoolean())
+      continue;
+    mediaItems.Add(fi);
+  }
+
+  if (mediaItems.Size() == 0)
+    return false;
+
+  auto* dialog = CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogCollectionTimeline>(
+      WINDOW_DIALOG_COLLECTION_TIMELINE);
+  if (!dialog)
+    return false;
+
+  dialog->SetCollection(idCollection, mediaItems);
+  dialog->Open();
+
+  return dialog->IsConfirmed();
 }
 
 bool CGUIDialogVideoInfo::GetMoviesForSet(const CFileItem *setItem, CFileItemList &originalMovies, CFileItemList &selectedMovies)

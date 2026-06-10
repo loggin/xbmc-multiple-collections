@@ -99,6 +99,17 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
                                                                   {navPath, "return", collectionReturnParam});
       return true;
     }
+    else if (type == MediaTypeMovie)
+    {
+      // Versioned/hybrid movie folder — open the versions list in WINDOW_VIDEO_NAV so that
+      // Back returns here via the collectionreturn mechanism (same pattern as tvshow/season).
+      // Doing a plain Update() within this window would break OnBack (which always calls
+      // PreviousWindow(), designed for the single-level collection items view).
+      const std::string collectionReturnParam = "collectionreturn=" + m_vecItems->GetPath();
+      CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(
+          WINDOW_VIDEO_NAV, {item->GetPath(), "return", collectionReturnParam});
+      return true;
+    }
   }
 
   return CGUIWindowVideoBase::OnSelect(iItem);

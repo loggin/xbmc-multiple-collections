@@ -47,6 +47,7 @@
 #include "utils/URIUtils.h"
 #include "utils/Variant.h"
 #include "utils/log.h"
+#include "video/dialogs/GUIDialogCollectionTimeline.h"
 #include "video/dialogs/GUIDialogVideoInfo.h"
 #include "video/dialogs/GUIDialogVideoManagerExtras.h"
 #include "video/dialogs/GUIDialogVideoManagerVersions.h"
@@ -301,6 +302,7 @@ void CGUIWindowManager::CreateWindows()
   Add(new CGUIDialogVideoInfo);
   Add(new CGUIDialogVideoManagerVersions);
   Add(new CGUIDialogVideoManagerExtras);
+  Add(new CGUIDialogCollectionTimeline);
   Add(new CGUIDialogSelect(WINDOW_DIALOG_SELECT_VIDEO_STREAM));
   Add(new CGUIDialogSelect(WINDOW_DIALOG_SELECT_AUDIO_STREAM));
   Add(new CGUIDialogSelect(WINDOW_DIALOG_SELECT_SUBTITLE_STREAM));
@@ -348,6 +350,7 @@ bool CGUIWindowManager::DestroyWindows()
     DestroyWindow(WINDOW_DIALOG_VIDEO_INFO);
     DestroyWindow(WINDOW_DIALOG_MANAGE_VIDEO_EXTRAS);
     DestroyWindow(WINDOW_DIALOG_MANAGE_VIDEO_VERSIONS);
+    DestroyWindow(WINDOW_DIALOG_COLLECTION_TIMELINE);
     DestroyWindow(WINDOW_VIDEO_PLAYLIST);
     DestroyWindow(WINDOW_VIDEO_COLLECTION);
     DestroyWindow(WINDOW_VIDEO_NAV);
