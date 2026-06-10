@@ -1304,8 +1304,6 @@ int CVideoLibrary::GetDetailsFromJsonParameters(const CVariant& parameterObject)
       details = details | VideoDbDetailsRating;
     else if (propertyValue == "uniqueid")
       details = details | VideoDbDetailsUniqueID;
-    else if (propertyValue == "showlink")
-      details = details | VideoDbDetailsShowLink;
     else if (propertyValue == "streamdetails")
       details = details | VideoDbDetailsStream;
     else if (propertyValue == "tag")
@@ -1528,10 +1526,6 @@ void CVideoLibrary::UpdateVideoTag(const CVariant& parameterObject,
     details.SetSet(parameterObject["set"].asString());
     updatedDetails.insert("set");
   }
-
-  std::vector<std::string> showLink(details.m_showLink);
-  UpdateVideoTagField(parameterObject, "showlink", showLink, updatedDetails);
-  details.SetShowLink(showLink);
 
   std::vector<std::string> tags(details.m_tags);
   UpdateVideoTagField(parameterObject, "tag", tags, updatedDetails);

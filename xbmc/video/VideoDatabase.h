@@ -59,7 +59,6 @@ enum VideoDbDetails
   VideoDbDetailsNone     = 0x00,
   VideoDbDetailsRating   = 0x01,
   VideoDbDetailsTag      = 0x02,
-  VideoDbDetailsShowLink = 0x04,
   VideoDbDetailsStream   = 0x08,
   VideoDbDetailsCast     = 0x10,
   VideoDbDetailsBookmark = 0x20,
@@ -670,10 +669,6 @@ public:
   void GetEpisodesByPlot(const std::string& strSearch, CFileItemList& items);
   void GetMoviesByPlot(const std::string& strSearch, CFileItemList& items);
 
-  bool LinkMovieToTvshow(int idMovie, int idShow, bool bRemove);
-  bool IsLinkedToTvshow(int idMovie);
-  bool GetLinksToTvShow(int idMovie, std::vector<int>& ids);
-
   // general browsing
   bool GetGenresNav(const std::string& strBaseDir,
                     CFileItemList& items,
@@ -817,6 +812,7 @@ public:
   // smart playlists and main retrieval work in these functions
   bool GetMoviesByWhere(const std::string& strBaseDir, const Filter &filter, CFileItemList& items, const SortDescription &sortDescription = SortDescription(), int getDetails = VideoDbDetailsNone);
   bool GetSetsByWhere(const std::string& strBaseDir, const Filter &filter, CFileItemList& items, bool ignoreSingleMovieSets = false);
+  bool GetMovieSetsByWhere(const std::string& strBaseDir, CFileItemList& items, bool ignoreSingleItemSets = false);
   bool GetTvShowSetsByWhere(const std::string& strBaseDir, CFileItemList& items, bool ignoreSingleItemSets = false);
   bool GetTvShowsByWhere(const std::string& strBaseDir, const Filter &filter, CFileItemList& items, const SortDescription &sortDescription = SortDescription(), int getDetails = VideoDbDetailsNone);
   bool GetSeasonsByWhere(const std::string& strBaseDir, const Filter &filter, CFileItemList& items, bool appendFullShowPath = true, const SortDescription &sortDescription = SortDescription());

@@ -102,9 +102,6 @@ protected:
   void PlayTrailer();
 
   static bool UpdateVideoItemSortTitle(const std::shared_ptr<CFileItem>& pItem);
-  static bool LinkMovieToTvShow(const std::shared_ptr<CFileItem>& item,
-                                bool bRemove,
-                                CVideoDatabase& database);
 
   std::shared_ptr<CFileItem> m_movieItem;
   CFileItemList *m_castList;

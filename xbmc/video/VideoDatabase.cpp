@@ -716,92 +716,6 @@ bool CVideoDatabase::SetPathHash(const std::string &path, const std::string &has
   return false;
 }
 
-bool CVideoDatabase::LinkMovieToTvshow(int idMovie, int idShow, bool bRemove)
-{
-   try
-  {
-    if (nullptr == m_pDB)
-      return false;
-    if (nullptr == m_pDS)
-      return false;
-
-    if (bRemove) // delete link
-    {
-      std::string strSQL=PrepareSQL("delete from movielinktvshow where idMovie=%i and idShow=%i", idMovie, idShow);
-      m_pDS->exec(strSQL);
-      return true;
-    }
-
-    std::string strSQL=PrepareSQL("insert into movielinktvshow (idShow,idMovie) values (%i,%i)", idShow,idMovie);
-    m_pDS->exec(strSQL);
-
-    return true;
-  }
-  catch (...)
-  {
-    CLog::LogF(LOGERROR, "({}, {}) failed", idMovie, idShow);
-  }
-
-  return false;
-}
-
-bool CVideoDatabase::IsLinkedToTvshow(int idMovie)
-{
-   try
-  {
-    if (nullptr == m_pDB)
-      return false;
-    if (nullptr == m_pDS)
-      return false;
-
-    std::string strSQL=PrepareSQL("select * from movielinktvshow where idMovie=%i", idMovie);
-    m_pDS->query(strSQL);
-    if (m_pDS->eof())
-    {
-      m_pDS->close();
-      return false;
-    }
-
-    m_pDS->close();
-    return true;
-  }
-  catch (...)
-  {
-    CLog::LogF(LOGERROR, "({}) failed", idMovie);
-  }
-
-  return false;
-}
-
-bool CVideoDatabase::GetLinksToTvShow(int idMovie, std::vector<int>& ids)
-{
-   try
-  {
-    if (nullptr == m_pDB)
-      return false;
-    if (nullptr == m_pDS)
-      return false;
-
-    std::string strSQL=PrepareSQL("select * from movielinktvshow where idMovie=%i", idMovie);
-    m_pDS2->query(strSQL);
-    while (!m_pDS2->eof())
-    {
-      ids.emplace_back(m_pDS2->fv(1).get_asInt());
-      m_pDS2->next();
-    }
-
-    m_pDS2->close();
-    return true;
-  }
-  catch (...)
-  {
-    CLog::LogF(LOGERROR, "({}) failed", idMovie);
-  }
-
-  return false;
-}
-
-
 //********************************************************************************************************************************
 int CVideoDatabase::GetFileId(const std::string& strFilenameAndPath)
 {
@@ -2520,27 +2434,6 @@ int CVideoDatabase::UpdateDetailsForMovie(int idMovie,
           ci.sortOrder = 0;
           AddOrUpdateCollectionItem(ci);
         }
-      }
-    }
-
-    if (updatedDetails.contains("showlink"))
-    {
-      // remove existing links
-      std::vector<int> tvShowIds;
-      GetLinksToTvShow(idMovie, tvShowIds);
-      for (const auto& idTVShow : tvShowIds)
-        LinkMovieToTvshow(idMovie, idTVShow, true);
-
-      // setup links to shows if the linked shows are in the db
-      for (const auto& showLink : details.m_showLink)
-      {
-        CFileItemList items;
-        GetTvShowsByName(showLink, items);
-        if (!items.IsEmpty())
-          LinkMovieToTvshow(idMovie, items[0]->GetVideoInfoTag()->m_iDbId, false);
-        else
-          CLog::LogF(LOGWARNING, "Failed to link movie {} to show {}", details.m_strTitle,
-                     showLink);
       }
     }
 
@@ -4766,21 +4659,7 @@ CVideoInfoTag CVideoDatabase::GetDetailsForMovie(const dbiplus::sql_record* cons
     if (getDetails & VideoDbDetailsUniqueID)
      GetUniqueIDs(details.m_iDbId, MediaTypeMovie, details);
 
-    if (getDetails & VideoDbDetailsShowLink)
-    {
-      // create tvshowlink string
-      std::vector<int> links;
-      GetLinksToTvShow(idMovie, links);
-      for (int link : links)
-      {
-        std::string strSQL =
-            PrepareSQL("select c%02d from tvshow where idShow=%i", VIDEODB_ID_TV_TITLE, link);
-        m_pDS2->query(strSQL);
-        if (!m_pDS2->eof())
-          details.m_showLink.emplace_back(m_pDS2->fv(0).get_asString());
-      }
-      m_pDS2->close();
-    }
+
 
     if (getDetails & VideoDbDetailsStream)
       GetStreamDetails(details);
@@ -6883,6 +6762,66 @@ bool CVideoDatabase::GetSetsByWhere(const std::string& strBaseDir, const Filter 
   return false;
 }
 
+bool CVideoDatabase::GetMovieSetsByWhere(const std::string& strBaseDir,
+                                          CFileItemList& items,
+                                          bool ignoreSingleItemSets /* = false */)
+{
+  try
+  {
+    if (!m_pDB || !m_pDS || !m_pDS2)
+      return false;
+
+    // Step 1: All collections that have movies — no winner race, just alphabetical.
+    const int minCount = ignoreSingleItemSets ? 2 : 1;
+    std::string colSQL = PrepareSQL(
+        "SELECT c.idCollection, c.name, COALESCE(c.description,'') "
+        "FROM collection c "
+        "WHERE ("
+        "  SELECT COUNT(*) FROM collection_item "
+        "  WHERE idCollection=c.idCollection AND mediaType='movie'"
+        ") >= %i "
+        "ORDER BY c.name",
+        minCount);
+
+    m_pDS->query(colSQL);
+    while (!m_pDS->eof())
+    {
+      const int   colId = m_pDS->fv(0).get_asInt();
+      std::string name  = m_pDS->fv(1).get_asString();
+      std::string desc  = m_pDS->fv(2).get_asString();
+
+      auto pItem = std::make_shared<CFileItem>(name);
+      pItem->GetVideoInfoTag()->m_iDbId    = colId;
+      pItem->GetVideoInfoTag()->m_type     = MediaTypeVideoCollection;
+      pItem->GetVideoInfoTag()->m_strTitle = name;
+      pItem->GetVideoInfoTag()->m_strPlot  = desc;
+      pItem->SetPath(StringUtils::Format("videodb://collections/{}/", colId));
+      pItem->SetFolder(true);
+      items.Add(pItem);
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    // Step 2: Standalone movies — movies with no collection_item entry for mediaType='movie'.
+    Filter standaloneFilter;
+    standaloneFilter.AppendWhere(
+        "movie_view.idMovie NOT IN "
+        "(SELECT idMedia FROM collection_item WHERE mediaType='movie')");
+
+    CFileItemList standaloneMovies;
+    if (!GetMoviesByWhere(strBaseDir, standaloneFilter, standaloneMovies))
+      return false;
+
+    items.Append(standaloneMovies);
+    return true;
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "failed");
+  }
+  return false;
+}
+
 bool CVideoDatabase::GetTvShowSetsByWhere(const std::string& strBaseDir,
                                           CFileItemList& items,
                                           bool ignoreSingleItemSets /* = false */)
@@ -6893,19 +6832,19 @@ bool CVideoDatabase::GetTvShowSetsByWhere(const std::string& strBaseDir,
       return false;
 
     // Step 1: Collections that qualify as TV-show groupings.
-    // A collection qualifies if it has 2+ direct tvshow members
-    // OR 2+ direct episode members (e.g. crossover episode collections).
+    // When ignoreSingleItemSets is true, require 2+ members; otherwise 1+ is enough.
+    const int minCount = ignoreSingleItemSets ? 2 : 1;
     std::string colSQL =
         "SELECT c.idCollection, c.name, COALESCE(c.description,'') "
         "FROM collection c "
         "WHERE ("
         "  SELECT COUNT(*) FROM collection_item "
         "  WHERE idCollection=c.idCollection AND mediaType='tvshow'"
-        ") >= 2 "
+        ") >= " + std::to_string(minCount) + " "
         "   OR ("
         "  SELECT COUNT(*) FROM collection_item "
         "  WHERE idCollection=c.idCollection AND mediaType='episode'"
-        ") >= 2 "
+        ") >= " + std::to_string(minCount) + " "
         "ORDER BY c.name";
 
     m_pDS->query(colSQL);
@@ -6928,13 +6867,20 @@ bool CVideoDatabase::GetTvShowSetsByWhere(const std::string& strBaseDir,
     }
     m_pDS->close();
 
-    // Step 2: Standalone TV shows – shows that have no direct collection_item entry
-    // with mediaType='tvshow'. (Shows only referenced via episode membership are
-    // NOT hidden – they remain here at the root level.)
+    // Step 2: Standalone TV shows – shows not grouped into a visible collection folder.
+    // When ignoreSingleItemSets is true, only hide shows that belong to a collection
+    // with 2+ tvshow members (single-show collections fall through individually).
     Filter standaloneFilter;
-    standaloneFilter.AppendWhere(
-        "tvshow_view.idShow NOT IN "
-        "(SELECT idMedia FROM collection_item WHERE mediaType='tvshow')");
+    if (ignoreSingleItemSets)
+      standaloneFilter.AppendWhere(
+          "tvshow_view.idShow NOT IN "
+          "(SELECT ci.idMedia FROM collection_item ci WHERE ci.mediaType='tvshow' "
+          "AND (SELECT COUNT(*) FROM collection_item ci2 "
+          "     WHERE ci2.idCollection=ci.idCollection AND ci2.mediaType='tvshow') >= 2)");
+    else
+      standaloneFilter.AppendWhere(
+          "tvshow_view.idShow NOT IN "
+          "(SELECT idMedia FROM collection_item WHERE mediaType='tvshow')");
 
     CFileItemList standaloneShows;
     if (!GetTvShowsByWhere(strBaseDir, standaloneFilter, standaloneShows))

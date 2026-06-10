@@ -1835,17 +1835,7 @@ CVideoInfoScanner::~CVideoInfoScanner()
       movieDetails.m_iDbId = lResult;
       movieDetails.m_type = MediaTypeMovie;
 
-      // setup links to shows if the linked shows are in the db
-      for (unsigned int i=0; i < movieDetails.m_showLink.size(); ++i)
-      {
-        CFileItemList items;
-        m_database.GetTvShowsByName(movieDetails.m_showLink[i], items);
-        if (items.Size())
-          m_database.LinkMovieToTvshow(lResult, items[0]->GetVideoInfoTag()->m_iDbId, false);
-        else
-          CLog::Log(LOGDEBUG, "VideoInfoScanner: Failed to link movie {} to show {}",
-                    movieDetails.m_strTitle, movieDetails.m_showLink[i]);
-      }
+
     }
     else if (content == ContentType::MOVIE_VERSIONS)
     {

@@ -1084,14 +1084,6 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
 
   if (type == MediaTypeMovie && !VIDEO::IsVideoAssetFile(*item))
   {
-    // only show link/unlink if there are tvshows available
-    if (database.HasContent(VideoDbContentType::TVSHOWS))
-    {
-      buttons.Add(CONTEXT_BUTTON_LINK_MOVIE, 20384);
-      if (database.IsLinkedToTvshow(dbId))
-        buttons.Add(CONTEXT_BUTTON_UNLINK_MOVIE, 20385);
-    }
-
     // set or change movie set the movie belongs to
     buttons.Add(CONTEXT_BUTTON_SET_MOVIESET, 20465);
   }
@@ -1168,14 +1160,6 @@ int CGUIDialogVideoInfo::ManageVideoItem(const std::shared_ptr<CFileItem>& item)
 
       case CONTEXT_BUTTON_EDIT_SORTTITLE:
         result = UpdateVideoItemSortTitle(item);
-        break;
-
-      case CONTEXT_BUTTON_LINK_MOVIE:
-        result = LinkMovieToTvShow(item, false, database);
-        break;
-
-      case CONTEXT_BUTTON_UNLINK_MOVIE:
-        result = LinkMovieToTvShow(item, true, database);
         break;
 
       case CONTEXT_BUTTON_SET_MOVIESET:
@@ -2235,76 +2219,6 @@ bool CGUIDialogVideoInfo::UpdateVideoItemSortTitle(const std::shared_ptr<CFileIt
     return false;
 
   return database.UpdateVideoSortTitle(iDbId, currentTitle, iType);
-}
-
-bool CGUIDialogVideoInfo::LinkMovieToTvShow(const std::shared_ptr<CFileItem>& item,
-                                            bool bRemove,
-                                            CVideoDatabase& database)
-{
-  int dbId = item->GetVideoInfoTag()->m_iDbId;
-
-  CFileItemList list;
-  if (bRemove)
-  {
-    std::vector<int> ids;
-    if (!database.GetLinksToTvShow(dbId, ids))
-      return false;
-
-    for (unsigned int i = 0; i < ids.size(); ++i)
-    {
-      CVideoInfoTag tag;
-      database.GetTvShowInfo("", tag, ids[i], 0 , VideoDbDetailsNone);
-      CFileItemPtr show(new CFileItem(tag));
-      list.Add(show);
-    }
-  }
-  else
-  {
-    database.GetTvShowsNav("videodb://tvshows/titles", list);
-
-    // remove already linked shows
-    std::vector<int> ids;
-    if (!database.GetLinksToTvShow(dbId, ids))
-      return false;
-
-    for (int i = 0; i < list.Size(); )
-    {
-      size_t j;
-      for (j = 0; j < ids.size(); ++j)
-      {
-        if (list[i]->GetVideoInfoTag()->m_iDbId == ids[j])
-          break;
-      }
-      if (j == ids.size())
-        i++;
-      else
-        list.Remove(i);
-    }
-  }
-
-  int iSelectedLabel = 0;
-  if (list.Size() > 1 || (!bRemove && !list.IsEmpty()))
-  {
-    list.Sort(SortBy::LABEL, SortOrder::ASCENDING,
-              CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
-                  CSettings::SETTING_FILELISTS_IGNORETHEWHENSORTING)
-                  ? SortAttributeIgnoreArticle
-                  : SortAttributeNone);
-    CGUIDialogSelect* pDialog = CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogSelect>(WINDOW_DIALOG_SELECT);
-    if (pDialog)
-    {
-      pDialog->Reset();
-      pDialog->SetItems(list);
-      pDialog->SetHeading(CVariant{20356});
-      pDialog->Open();
-      iSelectedLabel = pDialog->GetSelectedItem();
-    }
-  }
-
-  if (iSelectedLabel > -1 && iSelectedLabel < list.Size())
-    return database.LinkMovieToTvshow(dbId, list[iSelectedLabel]->GetVideoInfoTag()->m_iDbId, bRemove);
-
-  return false;
 }
 
 void CGUIDialogVideoInfo::ShowFor(const CFileItem& item)
