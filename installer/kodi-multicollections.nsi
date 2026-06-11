@@ -61,12 +61,23 @@ Section "Kodi Multi Collections" SecMain
   File "${BUILD_DIR}\kodi.exe"
   File /nonfatal "${BUILD_DIR}\*.dll"
 
-  ; Subdirectories (recursive)
-  ; NOTE: portable_data, objs, xbmc are build/runtime dirs — not distributed
-  File /r "${BUILD_DIR}\addons"
-  File /r "${BUILD_DIR}\media"
-  File /r "${BUILD_DIR}\system"
-  File /r "${BUILD_DIR}\userdata"
+  ; Subdirectories — use SetOutPath + \* wildcard so NSIS only scans the specific
+  ; named directory, not the entire BUILD_DIR tree for matching dir names.
+  ; (File /r "basedir\dirname" without wildcard searches all of basedir recursively
+  ; for any path component named dirname, which would pull in portable_data etc.)
+  SetOutPath "$INSTDIR\addons"
+  File /r "${BUILD_DIR}\addons\*"
+
+  SetOutPath "$INSTDIR\media"
+  File /r "${BUILD_DIR}\media\*"
+
+  SetOutPath "$INSTDIR\system"
+  File /r "${BUILD_DIR}\system\*"
+
+  SetOutPath "$INSTDIR\userdata"
+  File /nonfatal /r "${BUILD_DIR}\userdata\*"
+
+  SetOutPath "$INSTDIR"
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
