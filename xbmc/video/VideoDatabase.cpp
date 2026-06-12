@@ -11510,6 +11510,136 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
     }
     pDS2->close();
 
+    // Export all collections with their items. Single-file adds <collection> elements to pMain;
+    // multi-file writes collection.nfo per collection to the moviesets folder.
+    {
+      const std::string colSql =
+          "SELECT idCollection, name, type, description, sortType FROM collection ORDER BY name";
+      m_pDS->query(colSql);
+      while (!m_pDS->eof())
+      {
+        const int idCollection = m_pDS->fv(0).get_asInt();
+        const std::string colName = m_pDS->fv(1).get_asString();
+        const std::string colType = m_pDS->fv(2).get_asString();
+        const std::string colDesc = m_pDS->fv(3).get_asString();
+        const std::string colSortType = m_pDS->fv(4).get_asString();
+
+        if (progress)
+        {
+          progress->SetLine(1, CVariant{colName});
+          progress->Progress();
+          if (progress->IsCanceled())
+          {
+            progress->Close();
+            m_pDS->close();
+            return;
+          }
+        }
+
+        TiXmlElement collectionElement("collection");
+        XMLUtils::SetString(&collectionElement, "title", colName);
+        if (!colType.empty())
+          XMLUtils::SetString(&collectionElement, "type", colType);
+        if (!colDesc.empty())
+          XMLUtils::SetString(&collectionElement, "overview", colDesc);
+        if (!colSortType.empty())
+          XMLUtils::SetString(&collectionElement, "sortType", colSortType);
+
+        // Query items and resolve each to a stable file-system path
+        pDS2->query(PrepareSQL(
+            "SELECT mediaType, idMedia, sortOrder, groupName "
+            "FROM collection_item WHERE idCollection=%i ORDER BY sortOrder",
+            idCollection));
+        if (!pDS2->eof())
+        {
+          TiXmlElement itemsElement("items");
+          while (!pDS2->eof())
+          {
+            const std::string mediaType = pDS2->fv(0).get_asString();
+            const int idMedia = pDS2->fv(1).get_asInt();
+            const int sortOrder = pDS2->fv(2).get_asInt();
+            const std::string groupName = pDS2->fv(3).get_asString();
+
+            std::string itemPath;
+            if (mediaType == MediaTypeMovie)
+              itemPath = GetSingleValue(
+                  PrepareSQL("SELECT strPath || strFilename FROM movie_view "
+                             "WHERE idMovie=%i LIMIT 1",
+                             idMedia),
+                  *pDS);
+            else if (mediaType == MediaTypeTvShow)
+              itemPath = GetSingleValue(
+                  PrepareSQL("SELECT strPath FROM tvshow_view WHERE idShow=%i LIMIT 1", idMedia),
+                  *pDS);
+            else if (mediaType == MediaTypeEpisode || mediaType == "special")
+              itemPath = GetSingleValue(
+                  PrepareSQL("SELECT strPath || strFilename FROM episode_view "
+                             "WHERE idEpisode=%i LIMIT 1",
+                             idMedia),
+                  *pDS);
+
+            if (!itemPath.empty())
+            {
+              TiXmlElement itemElement("item");
+              itemElement.SetAttribute("mediaType", mediaType);
+              itemElement.SetAttribute("path", itemPath);
+              if (sortOrder != 0)
+                itemElement.SetAttribute("sortOrder", sortOrder);
+              if (!groupName.empty())
+                itemElement.SetAttribute("groupName", groupName);
+              itemsElement.InsertEndChild(itemElement);
+            }
+            pDS2->next();
+          }
+          collectionElement.InsertEndChild(itemsElement);
+        }
+        pDS2->close();
+
+        if (singleFile)
+        {
+          pMain->InsertEndChild(collectionElement);
+        }
+        else if (!movieSetsDir.empty())
+        {
+          const std::string colDir = URIUtils::AddFileToFolder(
+              movieSetsDir, CUtil::MakeLegalFileName(colName, LegalPath::WIN32_COMPAT));
+          if (CDirectory::Exists(colDir) || CDirectory::Create(colDir))
+          {
+            xmlDoc.Clear();
+            TiXmlDeclaration decl1("1.0", "UTF-8", "yes");
+            xmlDoc.InsertEndChild(decl1);
+            xmlDoc.InsertEndChild(collectionElement);
+            const std::string nfoFile = URIUtils::AddFileToFolder(colDir, "collection.nfo");
+            if (overwrite || !CFile::Exists(nfoFile, false))
+            {
+              if (!xmlDoc.SaveFile(nfoFile))
+              {
+                CLog::Log(LOGERROR, "Collection nfo export failed! ('{}')", nfoFile);
+                CGUIDialogKaiToast::QueueNotification(
+                    CGUIDialogKaiToast::Error,
+                    CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20302),
+                    CURL::GetRedacted(nfoFile));
+                iFailCount++;
+              }
+            }
+            if (images)
+            {
+              KODI::ART::Artwork aw;
+              GetArtForItem(idCollection, MediaTypeVideoCollection, aw);
+              for (const auto& [arttype, arturl] : aw)
+              {
+                const std::string savedThumb = URIUtils::AddFileToFolder(colDir, arttype);
+                CServiceBroker::GetTextureCache()->Export(arturl, savedThumb, overwrite);
+              }
+            }
+          }
+        }
+
+        m_pDS->next();
+      }
+      m_pDS->close();
+    }
+
     if (!singleFile && progress)
     {
       progress->SetPercentage(100);
@@ -11839,6 +11969,111 @@ void CVideoDatabase::ImportFromXML(const std::string &path)
         info.Load(movie);
         scanner.AddSet(info);
         currentTitle = info.GetTitle();
+        current++;
+      }
+      else if (StringUtils::EqualsNoCase(movie->Value(), "collection"))
+      {
+        // New-format collection export: carries type, sortType, and item memberships.
+        std::string colName, colType, colDesc, colSortType;
+        XMLUtils::GetString(movie, "title", colName);
+        XMLUtils::GetString(movie, "type", colType);
+        XMLUtils::GetString(movie, "overview", colDesc);
+        XMLUtils::GetString(movie, "sortType", colSortType);
+
+        if (!colName.empty())
+        {
+          CCollection coll;
+          coll.name = colName;
+          coll.type = colType;
+          coll.description = colDesc;
+          coll.sortType = colSortType;
+
+          if (AddOrUpdateCollection(coll))
+          {
+            const int idCollection = GetSingleValueInt(PrepareSQL(
+                "SELECT idCollection FROM collection WHERE name='%s' AND type='%s' LIMIT 1",
+                colName.c_str(), NormalizeCollectionType(colType).c_str()));
+
+            if (idCollection > 0)
+            {
+              const TiXmlElement* itemsEl = movie->FirstChildElement("items");
+              if (itemsEl)
+              {
+                for (const TiXmlElement* itemEl = itemsEl->FirstChildElement("item"); itemEl;
+                     itemEl = itemEl->NextSiblingElement("item"))
+                {
+                  const char* mediaTypeAttr = itemEl->Attribute("mediaType");
+                  const char* pathAttr = itemEl->Attribute("path");
+                  if (!mediaTypeAttr || !pathAttr || !*mediaTypeAttr || !*pathAttr)
+                    continue;
+
+                  const std::string mediaType = mediaTypeAttr;
+                  const std::string itemPath = pathAttr;
+                  int sortOrder = 0;
+                  itemEl->QueryIntAttribute("sortOrder", &sortOrder);
+                  const char* groupAttr = itemEl->Attribute("groupName");
+                  const std::string groupName = groupAttr ? groupAttr : "";
+
+                  int idMedia = -1;
+                  if (mediaType == MediaTypeMovie)
+                  {
+                    std::string dirPath, fileName;
+                    SplitPath(itemPath, dirPath, fileName);
+                    idMedia = GetSingleValueInt(PrepareSQL(
+                        "SELECT m.idMovie FROM movie m "
+                        "JOIN files f ON f.idFile=m.idFile "
+                        "JOIN path p ON p.idPath=f.idPath "
+                        "WHERE p.strPath='%s' AND f.strFilename='%s' LIMIT 1",
+                        dirPath.c_str(), fileName.c_str()));
+                  }
+                  else if (mediaType == MediaTypeTvShow)
+                  {
+                    std::string tvPath = itemPath;
+                    URIUtils::AddSlashAtEnd(tvPath);
+                    idMedia = GetSingleValueInt(PrepareSQL(
+                        "SELECT tl.idShow FROM tvshowlinkpath tl "
+                        "JOIN path p ON p.idPath=tl.idPath "
+                        "WHERE p.strPath='%s' LIMIT 1",
+                        tvPath.c_str()));
+                  }
+                  else if (mediaType == MediaTypeEpisode || mediaType == "special")
+                  {
+                    std::string dirPath, fileName;
+                    SplitPath(itemPath, dirPath, fileName);
+                    idMedia = GetSingleValueInt(PrepareSQL(
+                        "SELECT e.idEpisode FROM episode e "
+                        "JOIN files f ON f.idFile=e.idFile "
+                        "JOIN path p ON p.idPath=f.idPath "
+                        "WHERE p.strPath='%s' AND f.strFilename='%s' LIMIT 1",
+                        dirPath.c_str(), fileName.c_str()));
+                  }
+
+                  if (idMedia > 0)
+                  {
+                    CCollectionItem ci;
+                    ci.idCollection = idCollection;
+                    ci.mediaType = mediaType;
+                    ci.idMedia = idMedia;
+                    ci.sortOrder = sortOrder;
+                    ci.groupName = groupName;
+                    AddOrUpdateCollectionItem(ci);
+                  }
+                }
+              }
+            }
+          }
+
+          // For set-type collections also update the legacy sets table for compatibility.
+          if (StringUtils::EqualsNoCase(colType, MediaTypeVideoCollection))
+          {
+            CSetInfoTag setInfo;
+            setInfo.SetTitle(colName);
+            setInfo.SetOverview(colDesc);
+            scanner.AddSet(setInfo);
+          }
+
+          currentTitle = colName;
+        }
         current++;
       }
       movie = movie->NextSiblingElement();
