@@ -9009,6 +9009,7 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
 
     int idCollection = collection.idCollection;
 
+    bool typeMatched = true;
     if (idCollection <= 0)
     {
       std::string query = PrepareSQL("SELECT idCollection FROM collection WHERE name='%s' AND type='%s'",
@@ -9018,16 +9019,19 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
         idCollection = m_pDS->fv(0).get_asInt();
       m_pDS->close();
 
-      // Fallback: if no type-specific row exists, look up by name alone so that re-importing
-      // a collection with a different or missing type merges into the existing row rather than
-      // creating a duplicate entry in the collection table.
+      // Fallback: if no type-specific row exists, look up by name alone to prevent creating a
+      // duplicate entry. When we merge this way the existing row's type is preserved — we only
+      // update metadata fields — so a pre-existing type='set' row is never silently reclassified.
       if (idCollection <= 0)
       {
         query = PrepareSQL("SELECT idCollection FROM collection WHERE name='%s' LIMIT 1",
                            collection.name.c_str());
         m_pDS->query(query);
         if (!m_pDS->eof())
+        {
           idCollection = m_pDS->fv(0).get_asInt();
+          typeMatched = false;
+        }
         m_pDS->close();
       }
     }
@@ -9052,9 +9056,16 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
         const std::string homePathClause = collection.homePath.empty()
             ? ""
             : PrepareSQL(", homePath='%s'", collection.homePath.c_str());
-        sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'",
-                         collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
-                         normalizedSortType.c_str(), collection.artwork.c_str());
+        // When we matched by name only (typeMatched=false) preserve the existing type so that a
+        // pre-existing type='set' row is not silently reclassified by a mismatched import.
+        if (typeMatched)
+          sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'",
+                           collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
+                           normalizedSortType.c_str(), collection.artwork.c_str());
+        else
+          sql = PrepareSQL("UPDATE collection SET name='%s', description='%s', sortType='%s', artwork='%s'",
+                           collection.name.c_str(), collection.description.c_str(),
+                           normalizedSortType.c_str(), collection.artwork.c_str());
         sql += homePathClause;
         sql += PrepareSQL(" WHERE idCollection=%i", idCollection);
       }
