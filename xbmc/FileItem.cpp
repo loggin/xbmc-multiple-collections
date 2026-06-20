@@ -2349,6 +2349,8 @@ VideoDbContentType CFileItem::GetVideoContentType() const
       return MUSICVIDEOS;
     if (tag->m_type == MediaTypeAlbum)
       return MUSICALBUMS;
+    if (tag->m_type == MediaTypeVideoCollection)
+      return MOVIE_SETS;
     if (tag->m_strFileNameAndPath.starts_with("bluray://removable"))
       // cannot tell if a removable bluray is a movie or a tv show
       return UNKNOWN;

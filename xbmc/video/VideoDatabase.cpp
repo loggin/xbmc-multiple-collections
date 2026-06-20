@@ -4077,10 +4077,9 @@ void CVideoDatabase::DeleteSet(int idSet)
     m_pDS->exec(strSQL);
     strSQL = PrepareSQL("update movie set idSet = null where idSet = %i", idSet);
     m_pDS->exec(strSQL);
-    strSQL = PrepareSQL("delete from collection_item where idCollection = %i and mediaType='movie'",
-                        idSet);
+    strSQL = PrepareSQL("delete from collection_item where idCollection = %i", idSet);
     m_pDS->exec(strSQL);
-    strSQL = PrepareSQL("delete from collection where idCollection = %i and type='set'", idSet);
+    strSQL = PrepareSQL("delete from collection where idCollection = %i", idSet);
     m_pDS->exec(strSQL);
   }
   catch (...)
@@ -9018,6 +9017,19 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
       if (!m_pDS->eof())
         idCollection = m_pDS->fv(0).get_asInt();
       m_pDS->close();
+
+      // Fallback: if no type-specific row exists, look up by name alone so that re-importing
+      // a collection with a different or missing type merges into the existing row rather than
+      // creating a duplicate entry in the collection table.
+      if (idCollection <= 0)
+      {
+        query = PrepareSQL("SELECT idCollection FROM collection WHERE name='%s' LIMIT 1",
+                           collection.name.c_str());
+        m_pDS->query(query);
+        if (!m_pDS->eof())
+          idCollection = m_pDS->fv(0).get_asInt();
+        m_pDS->close();
+      }
     }
 
     bool collectionExistsById = false;

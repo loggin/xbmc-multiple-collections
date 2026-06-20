@@ -1305,6 +1305,12 @@ bool CGUIDialogVideoInfo::CanDeleteVideoItem(const std::shared_ptr<CFileItem>& i
   if (item->GetVideoInfoTag()->m_type == "tag")
     return true;
 
+  // Collections use videodb://collections/{id}/ paths that don't encode a setid into the standard
+  // query params, so check m_type and m_iDbId directly.
+  if (item->GetVideoInfoTag()->m_type == MediaTypeVideoCollection &&
+      item->GetVideoInfoTag()->m_iDbId > 0)
+    return true;
+
   CQueryParams params;
   CVideoDatabaseDirectory::GetQueryParams(item->GetPath(), params);
 
