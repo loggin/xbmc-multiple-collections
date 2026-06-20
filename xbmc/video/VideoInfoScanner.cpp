@@ -1684,9 +1684,25 @@ CVideoInfoScanner::~CVideoInfoScanner()
     const int idSet{m_database.AddSet(set.GetTitle(), set.GetOverview(), set.GetOriginalTitle(),
                                       true, set.m_strPath)};
 
-    // Assume art in set
     if (idSet > 0)
-      return m_database.SetArtForItem(idSet, MediaTypeVideoCollection, set.GetArt());
+    {
+      // Only apply art for types that are not already stored — never overwrite existing art.
+      // This lets a re-scan of the movie sets folder fill in missing posters/fanart without
+      // clobbering manually curated artwork.
+      const ART::Artwork& newArt = set.GetArt();
+      if (!newArt.empty())
+      {
+        ART::Artwork existing;
+        m_database.GetArtForItem(idSet, MediaTypeVideoCollection, existing);
+        ART::Artwork toSet;
+        for (const auto& [type, url] : newArt)
+          if (!url.empty() && existing.find(type) == existing.end())
+            toSet[type] = url;
+        if (!toSet.empty())
+          return m_database.SetArtForItem(idSet, MediaTypeVideoCollection, toSet);
+      }
+      return true;
+    }
 
     return false;
   }
