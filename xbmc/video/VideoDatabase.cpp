@@ -11819,7 +11819,7 @@ void CVideoDatabase::ImportFromXML(const std::string &path)
     CVideoInfoScanner scanner;
     // add paths first (so we have scraper settings available)
     TiXmlElement* pathElem = root->FirstChildElement("paths");
-    pathElem = pathElem->FirstChildElement();
+    pathElem = pathElem ? pathElem->FirstChildElement() : nullptr;
     while (pathElem)
     {
       std::string strPath;
