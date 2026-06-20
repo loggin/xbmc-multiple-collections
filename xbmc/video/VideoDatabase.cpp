@@ -2126,7 +2126,9 @@ bool CVideoDatabase::GetSetInfo(int idSet, CVideoInfoTag& details, CFileItem* it
       return false;
 
     Filter filter;
-    filter.where = PrepareSQL("`sets`.`idSet`=%d", idSet);
+    // Use movie_view.idSet (our view alias for collection primary id) rather than
+    // sets.idSet, which is not in scope since our movie_view no longer joins `sets`.
+    filter.where = PrepareSQL("movie_view.idSet=%d", idSet);
     CFileItemList items;
     if (!GetSetsByWhere("videodb://movies/sets/", filter, items) ||
         items.Size() != 1 ||

@@ -1198,9 +1198,54 @@ void CVideoDatabase::UpdateTables(int iVersion)
     m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
     KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
   }
+
+  if (iVersion < 147)
+  {
+    // Safety net for installs upgrading from standard Kodi v146 (which never ran
+    // the v145/v146 blocks because GetSchemaVersion already returned 146).
+    // All statements are idempotent: CREATE IF NOT EXISTS, INSERT OR IGNORE, ALTER
+    // TABLE guarded by try/catch, and DROP IF EXISTS before view recreation.
+
+    // Ensure collection tables exist (no-op if v145 migration already ran).
+    m_pDS->exec("CREATE TABLE IF NOT EXISTS collection ( idCollection integer primary key, "
+                "name text not null, type text not null default 'franchise', "
+                "description text, sortType text not null default 'custom', artwork text, "
+                "homePath text, dateAdded text, dateModified text)");
+    m_pDS->exec("CREATE TABLE IF NOT EXISTS collection_item ( idCollection integer not null, "
+                "mediaType text not null, idMedia integer not null, "
+                "sortOrder integer not null default 0, groupName text, "
+                "PRIMARY KEY (idCollection, mediaType, idMedia))");
+
+    // Add strPath to sets if it doesn't already exist.
+    try { m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT"); } catch (...) {}
+
+    // Seed collection from sets — INSERT OR IGNORE prevents duplicates if already seeded.
+    m_pDS->exec("INSERT OR IGNORE INTO collection "
+                "(idCollection, name, type, description, sortType, artwork, homePath, "
+                "dateAdded, dateModified) "
+                "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL, NULL "
+                "FROM `sets`");
+
+    // Seed collection_item from movie.idSet — idempotent via INSERT OR IGNORE.
+    m_pDS->exec("INSERT OR IGNORE INTO collection_item "
+                "(idCollection, mediaType, idMedia, sortOrder, groupName) "
+                "SELECT m.idSet, 'movie', m.idMovie, 0, NULL "
+                "FROM movie m "
+                "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
+
+    // Recreate all views to ensure movie_view uses collection_item (not sets.idSet).
+    m_pDS->exec("DROP VIEW IF EXISTS season_view");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshow_view");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshowlinkpath_minview");
+    m_pDS->exec("DROP VIEW IF EXISTS tvshowcounts");
+    m_pDS->exec("DROP VIEW IF EXISTS episode_view");
+    m_pDS->exec("DROP VIEW IF EXISTS movie_view");
+    m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
+    KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 146;
+  return 147;
 }
