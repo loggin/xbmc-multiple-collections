@@ -6342,6 +6342,10 @@ void CVideoDatabase::UpdateMovieTitle(int idMovie,
       std::string strSQL = PrepareSQL("UPDATE `sets` SET strSet='%s' WHERE idSet=%i",
                                       strNewMovieTitle.c_str(), idMovie);
       m_pDS->exec(strSQL);
+      // Migration seeds collection with idCollection=idSet, so the same id applies.
+      strSQL = PrepareSQL("UPDATE collection SET name='%s' WHERE idCollection=%i",
+                          strNewMovieTitle.c_str(), idMovie);
+      m_pDS->exec(strSQL);
     }
 
     if (!content.empty())
