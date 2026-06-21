@@ -6803,11 +6803,20 @@ bool CVideoDatabase::GetMovieSetsByWhere(const std::string& strBaseDir,
     }
     m_pDS->close();
 
-    // Step 2: Standalone movies — movies with no collection_item entry for mediaType='movie'.
+    // Step 2: Standalone movies — movies not grouped into a visible collection folder.
+    // When ignoreSingleItemSets is true, only hide movies that belong to a collection
+    // with 2+ movie members (single-movie collections fall through individually).
     Filter standaloneFilter;
-    standaloneFilter.AppendWhere(
-        "movie_view.idMovie NOT IN "
-        "(SELECT idMedia FROM collection_item WHERE mediaType='movie')");
+    if (ignoreSingleItemSets)
+      standaloneFilter.AppendWhere(
+          "movie_view.idMovie NOT IN "
+          "(SELECT ci.idMedia FROM collection_item ci WHERE ci.mediaType='movie' "
+          "AND (SELECT COUNT(*) FROM collection_item ci2 "
+          "     WHERE ci2.idCollection=ci.idCollection AND ci2.mediaType='movie') >= 2)");
+    else
+      standaloneFilter.AppendWhere(
+          "movie_view.idMovie NOT IN "
+          "(SELECT idMedia FROM collection_item WHERE mediaType='movie')");
 
     CFileItemList standaloneMovies;
     if (!GetMoviesByWhere(strBaseDir, standaloneFilter, standaloneMovies))
