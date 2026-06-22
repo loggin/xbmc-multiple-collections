@@ -11155,8 +11155,10 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
           }
         }
 
-        const std::string itemPath = URIUtils::AddFileToFolder(
-            movieSetsDir, CUtil::MakeLegalFileName(title, LegalPath::WIN32_COMPAT));
+        const std::string srcPath = m_pDS->fv("strPath").get_asString();
+        const std::string itemPath = srcPath.empty()
+            ? URIUtils::AddFileToFolder(movieSetsDir, CUtil::MakeLegalFileName(title, LegalPath::WIN32_COMPAT))
+            : srcPath;
         if (CDirectory::Exists(itemPath) || CDirectory::Create(itemPath))
         {
           // get set information and generate .nfo
@@ -11552,7 +11554,7 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
     // multi-file writes collection.nfo per collection to the moviesets folder.
     {
       const std::string colSql =
-          "SELECT idCollection, name, type, description, sortType FROM collection ORDER BY name";
+          "SELECT idCollection, name, type, description, sortType, homePath FROM collection ORDER BY name";
       m_pDS->query(colSql);
       while (!m_pDS->eof())
       {
@@ -11561,6 +11563,7 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
         const std::string colType = m_pDS->fv(2).get_asString();
         const std::string colDesc = m_pDS->fv(3).get_asString();
         const std::string colSortType = m_pDS->fv(4).get_asString();
+        const std::string colHomePath = m_pDS->fv(5).get_asString();
 
         if (progress)
         {
@@ -11637,11 +11640,16 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
         {
           pMain->InsertEndChild(collectionElement);
         }
-        else if (!movieSetsDir.empty())
+        else
         {
-          const std::string colDir = URIUtils::AddFileToFolder(
-              movieSetsDir, CUtil::MakeLegalFileName(colName, LegalPath::WIN32_COMPAT));
-          if (CDirectory::Exists(colDir) || CDirectory::Create(colDir))
+          // Prefer the recorded home path (source location); fall back to the additional
+          // collections folder only when no source path is known.
+          std::string colDir;
+          if (!colHomePath.empty())
+            colDir = colHomePath;
+          else if (!movieSetsDir.empty())
+            colDir = URIUtils::AddFileToFolder(movieSetsDir, CUtil::MakeLegalFileName(colName, LegalPath::WIN32_COMPAT));
+          if (!colDir.empty() && (CDirectory::Exists(colDir) || CDirectory::Create(colDir)))
           {
             xmlDoc.Clear();
             TiXmlDeclaration decl1("1.0", "UTF-8", "yes");
