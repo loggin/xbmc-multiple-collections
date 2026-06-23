@@ -8883,11 +8883,6 @@ bool CVideoDatabase::GetCollectionItems(int idCollection,
 
     outItems.clear();
 
-    const std::string collectionType = NormalizeCollectionType(
-      GetSingleValue("collection", "type", PrepareSQL("idCollection=%i", idCollection)));
-    const bool hasLegacySet =
-      !GetSingleValue("sets", "idSet", PrepareSQL("idSet=%i", idCollection)).empty();
-
     std::string sql = PrepareSQL(
         "SELECT ci.idCollection, ci.mediaType, ci.idMedia, ci.sortOrder, ci.groupName "
         "FROM collection_item ci "
@@ -8914,41 +8909,6 @@ bool CVideoDatabase::GetCollectionItems(int idCollection,
       m_pDS->next();
     }
     m_pDS->close();
-
-    // Compatibility path for legacy movie sets populated only through movie.idSet.
-    // Fresh scans may not materialize collection_item rows yet, so merge set members from movie.
-    CLog::LogF(LOGDEBUG, "GetCollectionItems({}) collectionType='{}' hasLegacySet={} directItems={}",
-               idCollection, collectionType, hasLegacySet, outItems.size());
-    if (collectionType == "set" || hasLegacySet)
-    {
-      std::unordered_set<int> existingMovieIds;
-      for (const auto& item : outItems)
-      {
-        if (item.mediaType == "movie")
-          existingMovieIds.insert(item.idMedia);
-      }
-
-      std::string legacySetSql =
-          PrepareSQL("SELECT idMovie FROM movie WHERE idSet=%i", idCollection);
-      if (!m_pDS->query(legacySetSql))
-        return false;
-
-      while (!m_pDS->eof())
-      {
-        const int idMovie = m_pDS->fv(0).get_asInt();
-        if (existingMovieIds.insert(idMovie).second)
-        {
-          CCollectionItem legacyItem;
-          legacyItem.idCollection = idCollection;
-          legacyItem.mediaType = "movie";
-          legacyItem.idMedia = idMovie;
-          legacyItem.sortOrder = 0;
-          outItems.emplace_back(std::move(legacyItem));
-        }
-        m_pDS->next();
-      }
-      m_pDS->close();
-    }
 
     return true;
   }
@@ -8998,45 +8958,6 @@ bool CVideoDatabase::GetCollectionsForMedia(const std::string& mediaType,
       m_pDS->next();
     }
     m_pDS->close();
-
-    // Also include legacy set membership from movie.idSet. GetCollectionsForMedia only reads
-    // collection_item, so a movie added to a set via the legacy path (movie.idSet) is invisible
-    // here unless we also check the sets join. This matters for the manage-collections dialog,
-    // which uses this function to determine original membership — without this the dialog shows
-    // the movie as not-in-set even though GetCollectionItems() finds it via the legacy fallback.
-    if (normalizedType == "movie")
-    {
-      std::unordered_set<int> existingIds;
-      for (const auto& c : outCollections)
-        existingIds.insert(c.idCollection);
-
-      std::string legacySql = PrepareSQL(
-          "SELECT c.idCollection, c.name, c.type, c.description, c.sortType, c.artwork "
-          "FROM collection c "
-          "JOIN movie m ON m.idSet = c.idCollection "
-          "WHERE m.idMovie=%i AND c.type='set'",
-          idMedia);
-
-      if (m_pDS->query(legacySql))
-      {
-        while (!m_pDS->eof())
-        {
-          const int legacyId = m_pDS->fv(0).get_asInt();
-          if (existingIds.find(legacyId) == existingIds.end())
-          {
-            CCollection& col = outCollections.emplace_back();
-            col.idCollection = legacyId;
-            col.name = m_pDS->fv(1).get_asString();
-            col.type = m_pDS->fv(2).get_asString();
-            col.description = m_pDS->fv(3).get_asString();
-            col.sortType = m_pDS->fv(4).get_asString();
-            col.artwork = m_pDS->fv(5).get_asString();
-          }
-          m_pDS->next();
-        }
-        m_pDS->close();
-      }
-    }
 
     return true;
   }
@@ -9244,17 +9165,6 @@ bool CVideoDatabase::RemoveCollectionItem(int idCollection,
     m_pDS->exec(PrepareSQL(
         "DELETE FROM collection_item WHERE idCollection=%i AND mediaType='%s' AND idMedia=%i",
         idCollection, normalizedType.c_str(), idMedia));
-
-    // For set-type collections also clear the legacy movie.idSet link; without this the movie
-    // continues to appear in GetCollectionItems() via the legacy fallback query on movie.idSet.
-    if (normalizedType == "movie")
-    {
-      const std::string collType = NormalizeCollectionType(
-          GetSingleValue("collection", "type", PrepareSQL("idCollection=%i", idCollection)));
-      if (collType == "set")
-        m_pDS->exec(PrepareSQL(
-            "UPDATE movie SET idSet=NULL WHERE idMovie=%i AND idSet=%i", idMedia, idCollection));
-    }
 
     return true;
   }

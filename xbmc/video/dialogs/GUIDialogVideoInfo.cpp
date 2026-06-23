@@ -1643,15 +1643,6 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   for (const auto& c : currentCollections)
     originalIds.insert(c.idCollection);
 
-  // For movies, also include the legacy idSet
-  // (GetCollectionsForMedia reads only collection_item, not movie.idSet)
-  if (mediaType == MediaTypeMovie)
-  {
-    const int legacySetId = item->GetVideoInfoTag()->m_set.GetID();
-    if (legacySetId > 0)
-      originalIds.insert(legacySetId);
-  }
-
   // preSelectIds = what to pre-select when the dialog opens/re-opens.
   // Updated as the user checks/unchecks items and creates new sets.
   std::unordered_set<int> preSelectIds = originalIds;
