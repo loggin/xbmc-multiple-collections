@@ -164,7 +164,17 @@ bool CVideoLibraryRefreshingJob::Work(CVideoDatabase &db)
     // tag now contains up-to-date set title
     if (tag.m_set.HasTitle())
       overview = tag.m_set.GetOverview();
-    db.AddSet(tag.m_set.GetTitle(), overview, tag.m_set.GetOriginalTitle());
+
+    // Update the already-known collection's title/overview directly by id — a name-based
+    // lookup here (like AddCollection()) could resolve to an unrelated collection if the
+    // freshly-scraped title happens to match a different one.
+    CVideoDatabase::CCollection collection;
+    collection.idCollection = dbId;
+    collection.name = tag.m_set.GetTitle();
+    collection.type = "set";
+    collection.description = overview;
+    collection.sortType = "custom";
+    db.AddOrUpdateCollection(collection);
 
     // Update set art
     ART::Artwork movieSetArt;

@@ -17,6 +17,8 @@
 #include "video/VideoDatabase.h"
 #include "video/VideoManagerTypes.h"
 
+#include <set>
+
 using namespace XFILE::VIDEODATABASEDIRECTORY;
 
 CDirectoryNodeCollectionItems::CDirectoryNodeCollectionItems(const std::string& strName,
@@ -81,6 +83,7 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
   }
 
   std::string previousGroup;
+  std::set<std::string> distinctMediaTypes;
   for (const auto& ci : collectionItems)
   {
     std::string mediaType = ci.mediaType;
@@ -198,9 +201,27 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
       item->SetProperty("collection.groupname", ci.groupName);
     item->SetLabelPreformatted(true);
     items.Add(item);
+    distinctMediaTypes.insert(mediaType);
   }
 
-  items.SetContent("mixed");
+  // Most collections contain only one media type (e.g. all movies). Use the real Kodi
+  // content string in that case so the skin's normal, well-tested per-type item layouts
+  // apply across every view mode — only fall back to "mixed" when the collection genuinely
+  // blends media types, since skins generally only provide a single generic layout for that.
+  std::string content = "mixed";
+  if (distinctMediaTypes.size() == 1)
+  {
+    const std::string& onlyType = *distinctMediaTypes.begin();
+    if (onlyType == "movie")
+      content = "movies";
+    else if (onlyType == "tvshow")
+      content = "tvshows";
+    else if (onlyType == "season")
+      content = "seasons";
+    else if (onlyType == "episode" || onlyType == "special")
+      content = "episodes";
+  }
+  items.SetContent(content);
   items.SetProperty("collection.name", collectionName);
   items.SetProperty("collection.description", collectionDescription);
   items.SetProperty("collection.artwork", collectionArtwork);

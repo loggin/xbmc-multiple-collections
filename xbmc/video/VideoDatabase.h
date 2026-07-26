@@ -307,7 +307,7 @@ public:
   bool GetCollectionsForMedia(const std::string& mediaType,
                               int idMedia,
                               std::vector<CCollection>& outCollections);
-  bool AddOrUpdateCollection(const CCollection& collection);
+  bool AddOrUpdateCollection(CCollection& collection, bool updateDescription = true);
   bool AddOrUpdateCollectionItem(const CCollectionItem& item);
   bool RemoveCollectionItem(int idCollection, const std::string& mediaType, int idMedia);
 
@@ -459,7 +459,7 @@ public:
   void DeleteStreamDetails(int idFile);
   void RemoveContentForPath(const std::string& strPath, CGUIDialogProgress* progress = nullptr);
   void UpdateFanart(const CFileItem& item, VideoDbContentType type);
-  void DeleteSet(int idSet);
+  void DeleteCollection(int idCollection);
   void DeleteTag(int idTag, VideoDbContentType mediaType);
   bool DeleteFile(int idFile);
 
@@ -942,14 +942,11 @@ public:
   \return The dbId of the season.
   */
   int AddSeason(int showID, int season, const std::string& name = "", const std::string& plot = "");
-  int AddSet(const std::string& strSet,
-             const std::string& strOverview = "",
-             const std::string& strOriginalSet = "",
-             const bool updateOverview = true,
-             const std::string& strPath = "");
-  void ClearMovieSet(int idMovie);
-  void SetMovieSet(int idMovie, int idSet);
-  void UpdateMovieSetId(int idMovie, int idSet);
+  int AddCollection(const std::string& name,
+                    const std::string& type = "set",
+                    const std::string& description = "",
+                    const bool updateDescription = true,
+                    const std::string& homePath = "");
   bool SetVideoUserRating(int dbId, int rating, const MediaType& mediaType);
   bool GetUseAllExternalAudioForVideo(const std::string& videoPath);
 

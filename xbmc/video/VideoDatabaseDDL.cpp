@@ -372,6 +372,9 @@ void CVideoDatabaseDDL::CreateTriggers(CDatabase& db)
   db.ExecuteQuery("CREATE TRIGGER delete_set AFTER DELETE ON `sets` FOR EACH ROW BEGIN "
                   "DELETE FROM art WHERE media_id=old.idSet AND media_type='set'; "
                   "END");
+  db.ExecuteQuery("CREATE TRIGGER delete_collection AFTER DELETE ON collection FOR EACH ROW BEGIN "
+                  "DELETE FROM art WHERE media_id=old.idCollection AND media_type='set'; "
+                  "END");
   db.ExecuteQuery("CREATE TRIGGER delete_person AFTER DELETE ON actor FOR EACH ROW BEGIN "
                   "DELETE FROM art WHERE media_id=old.actor_id AND media_type IN "
                   "('actor','artist','writer','director'); "

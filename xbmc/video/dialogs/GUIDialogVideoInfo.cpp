@@ -1420,7 +1420,7 @@ bool CGUIDialogVideoInfo::DeleteVideoItemFromDatabase(const std::shared_ptr<CFil
       database.DeleteMusicVideo(item->GetVideoInfoTag()->m_iDbId);
       break;
     case VideoDbContentType::MOVIE_SETS:
-      database.DeleteSet(item->GetVideoInfoTag()->m_iDbId);
+      database.DeleteCollection(item->GetVideoInfoTag()->m_iDbId);
       break;
     default:
       return false;
@@ -1474,7 +1474,7 @@ bool CGUIDialogVideoInfo::DeleteVideoItem(const std::shared_ptr<CFileItem>& item
 
 bool CGUIDialogVideoInfo::ManageMovieSets(const std::shared_ptr<CFileItem>& item)
 {
-  if (item == nullptr)
+  if (item == nullptr || !item->HasVideoInfoTag())
     return false;
 
   CFileItemList originalItems;
@@ -1489,24 +1489,33 @@ bool CGUIDialogVideoInfo::ManageMovieSets(const std::shared_ptr<CFileItem>& item
   auto selected = selectedItems.GetList();
   std::sort(selected.begin(), selected.end(), compFileItemsByDbId);
 
+  CVideoDatabase videodb;
+  if (!videodb.Open())
+    return false;
+
+  const int idCollection = item->GetVideoInfoTag()->m_iDbId;
+
   bool refreshNeeded = false;
   // update the "added" items
   std::vector<std::shared_ptr<CFileItem>> addedItems;
   set_difference(selected.begin(),selected.end(), original.begin(),original.end(), std::back_inserter(addedItems), compFileItemsByDbId);
   for (const auto& it : addedItems)
   {
-    if (SetMovieSet(it.get(), item.get()))
+    CVideoDatabase::CCollectionItem ci;
+    ci.idCollection = idCollection;
+    ci.mediaType = MediaTypeMovie;
+    ci.idMedia = it->GetVideoInfoTag()->m_iDbId;
+    ci.sortOrder = 0;
+    if (videodb.AddOrUpdateCollectionItem(ci))
       refreshNeeded = true;
   }
 
   // update the "deleted" items
-  CFileItemPtr clearItem(new CFileItem());
-  clearItem->GetVideoInfoTag()->m_iDbId = -1; // -1 will be used to clear set
   std::vector<std::shared_ptr<CFileItem>> deletedItems;
   set_difference(original.begin(),original.end(), selected.begin(),selected.end(), std::back_inserter(deletedItems), compFileItemsByDbId);
   for (const auto& it : deletedItems)
   {
-    if (SetMovieSet(it.get(), clearItem.get()))
+    if (videodb.RemoveCollectionItem(idCollection, MediaTypeMovie, it->GetVideoInfoTag()->m_iDbId))
       refreshNeeded = true;
   }
 
@@ -1705,7 +1714,7 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
         break; // cancelled keyboard — exit loop without changes
       if (!newSetTitle.empty())
       {
-        const int idNew = videodb.AddSet(newSetTitle);
+        const int idNew = videodb.AddCollection(newSetTitle);
         if (idNew >= 0)
           preSelectIds.insert(idNew); // auto-select the new collection on re-open
       }
@@ -1762,131 +1771,6 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
   return changed;
 }
 
-bool CGUIDialogVideoInfo::GetSetForMovie(const CFileItem* movieItem,
-                                         std::shared_ptr<CFileItem>& selectedSet)
-{
-  if (movieItem == nullptr || !movieItem->HasVideoInfoTag())
-    return false;
-
-  CVideoDatabase videodb;
-  if (!videodb.Open())
-    return false;
-
-  CFileItemList listItems;
-
-  // " ignoreSingleMovieSets=false " as an option in the url is needed here
-  // to override the gui-setting "Include sets containing a single movie"
-  // and retrieve all moviesets
-
-  std::string baseDir = "videodb://movies/sets/?ignoreSingleMovieSets=false";
-
-  if (!CDirectory::GetDirectory(baseDir, listItems, "", DIR_FLAG_DEFAULTS))
-    return false;
-  listItems.Sort(SortBy::LABEL, SortOrder::ASCENDING,
-                 CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
-                     CSettings::SETTING_FILELISTS_IGNORETHEWHENSORTING)
-                     ? SortAttributeIgnoreArticle
-                     : SortAttributeNone);
-
-  int currentSetId = 0;
-  std::string currentSetLabel;
-
-  if (movieItem->GetVideoInfoTag()->m_set.GetID() > currentSetId)
-  {
-    currentSetId = movieItem->GetVideoInfoTag()->m_set.GetID();
-    currentSetLabel = videodb.GetSetById(currentSetId);
-  }
-
-  if (currentSetId > 0)
-  {
-    // remove duplicate entry
-    for (int listIndex = 0; listIndex < listItems.Size(); listIndex++)
-    {
-      if (listItems.Get(listIndex)->GetVideoInfoTag()->m_iDbId == currentSetId)
-      {
-        listItems.Remove(listIndex);
-        break;
-      }
-    }
-    // add clear item
-    std::string strClear = StringUtils::Format(
-        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20467), currentSetLabel);
-    CFileItemPtr clearItem(new CFileItem(strClear));
-    clearItem->GetVideoInfoTag()->m_iDbId = -1; // -1 will be used to clear set
-    listItems.AddFront(clearItem, 0);
-    // add keep current set item
-    std::string strKeep = StringUtils::Format(
-        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20469), currentSetLabel);
-    CFileItemPtr keepItem(new CFileItem(strKeep));
-    keepItem->GetVideoInfoTag()->m_iDbId = currentSetId;
-    listItems.AddFront(keepItem, 1);
-  }
-
-  CGUIDialogSelect *dialog = CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogSelect>(WINDOW_DIALOG_SELECT);
-  if (dialog == nullptr)
-    return false;
-
-  dialog->Reset();
-  dialog->SetHeading(
-      CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20466)});
-  dialog->SetItems(listItems);
-  if (currentSetId >= 0)
-  {
-    for (int listIndex = 0; listIndex < listItems.Size(); listIndex++)
-    {
-      if (listItems.Get(listIndex)->GetVideoInfoTag()->m_iDbId == currentSetId)
-      {
-        dialog->SetSelected(listIndex);
-        break;
-      }
-    }
-  }
-  dialog->EnableButton(true, 20468); // new set via button
-  dialog->Open();
-
-  if (dialog->IsButtonPressed())
-  { // creating new set
-    std::string newSetTitle;
-    if (!CGUIKeyboardFactory::ShowAndGetInput(
-            newSetTitle,
-            CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20468)},
-            false))
-      return false;
-    int idSet = videodb.AddSet(newSetTitle);
-    KODI::ART::Artwork movieArt;
-    KODI::ART::Artwork setArt;
-    if (!videodb.GetArtForItem(idSet, MediaTypeVideoCollection, setArt))
-    {
-      videodb.GetArtForItem(movieItem->GetVideoInfoTag()->m_iDbId, MediaTypeMovie, movieArt);
-      videodb.SetArtForItem(idSet, MediaTypeVideoCollection, movieArt);
-    }
-    CFileItemPtr newSet(new CFileItem(newSetTitle));
-    newSet->GetVideoInfoTag()->m_iDbId = idSet;
-    selectedSet = newSet;
-    return true;
-  }
-  else if (dialog->IsConfirmed())
-  {
-    selectedSet = dialog->GetSelectedFileItem();
-    return (selectedSet != nullptr);
-  }
-  else
-    return false;
-}
-
-bool CGUIDialogVideoInfo::SetMovieSet(const CFileItem *movieItem, const CFileItem *selectedSet)
-{
-  if (movieItem == nullptr || !movieItem->HasVideoInfoTag() ||
-      selectedSet == nullptr || !selectedSet->HasVideoInfoTag())
-    return false;
-
-  CVideoDatabase videodb;
-  if (!videodb.Open())
-    return false;
-
-  videodb.SetMovieSet(movieItem->GetVideoInfoTag()->m_iDbId, selectedSet->GetVideoInfoTag()->m_iDbId);
-  return true;
-}
 
 bool CGUIDialogVideoInfo::GetItemsForTag(const std::string &strHeading, const std::string &type, CFileItemList &items, int idTag /* = -1 */, bool showAll /* = true */)
 {

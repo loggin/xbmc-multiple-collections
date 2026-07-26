@@ -798,7 +798,7 @@ void CGUIWindowVideoNav::OnDeleteItem(const CFileItemPtr& pItem)
       CVideoDatabaseDirectory dir;
       CQueryParams params;
       dir.GetQueryParams(pItem->GetPath(),params);
-      m_database.DeleteSet(params.GetSetId());
+      m_database.DeleteCollection(params.GetSetId());
     }
   }
   else if (m_vecItems->IsPath(CUtil::VideoPlaylistsLocation()) ||

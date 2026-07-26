@@ -993,12 +993,12 @@ CVideoInfoScanner::~CVideoInfoScanner()
         if (movieId < 0)
           return InfoRet::INFO_ERROR;
 
-        // Deal with set: always call AddSet when the movie has a set, so that
+        // Deal with set: always call AddCollection when the movie has a set, so that
         // MSIF local images gathered by UpdateSetInTag are stored even when
         // there is no set NFO file (UpdateSetInTag returns false in that case).
         UpdateSetInTag(*pItem->GetVideoInfoTag());
         if (pItem->GetVideoInfoTag()->m_set.HasTitle())
-          if (!AddSet(pItem->GetVideoInfoTag()->m_set))
+          if (!AddCollection(pItem->GetVideoInfoTag()->m_set))
             return InfoRet::INFO_ERROR;
       }
 
@@ -1069,7 +1069,7 @@ CVideoInfoScanner::~CVideoInfoScanner()
                                                                                     : nullptr,
                      pDlgProgress))
       {
-        if (UpdateSetInTag(*pItem->GetVideoInfoTag()) && !AddSet(pItem->GetVideoInfoTag()->m_set))
+        if (UpdateSetInTag(*pItem->GetVideoInfoTag()) && !AddCollection(pItem->GetVideoInfoTag()->m_set))
           return InfoRet::INFO_ERROR;
         const int dbId{static_cast<int>(AddVideo(pItem, info2, bDirNames, useLocal))};
         if (dbId < 0)
@@ -1093,7 +1093,7 @@ CVideoInfoScanner::~CVideoInfoScanner()
                                                                                   : nullptr,
                    pDlgProgress))
     {
-      if (UpdateSetInTag(*pItem->GetVideoInfoTag()) && !AddSet(pItem->GetVideoInfoTag()->m_set))
+      if (UpdateSetInTag(*pItem->GetVideoInfoTag()) && !AddCollection(pItem->GetVideoInfoTag()->m_set))
         return InfoRet::INFO_ERROR;
       const int dbId{static_cast<int>(AddVideo(pItem, info2, bDirNames, useLocal))};
       if (dbId < 0)
@@ -1609,7 +1609,7 @@ CVideoInfoScanner::~CVideoInfoScanner()
       CLog::Log(LOGDEBUG, "VideoInfoScanner: Pre-scanning set '{}' with {} art item(s)",
                 setTag.GetTitle(), art.size());
 
-      if (!AddSet(setTag))
+      if (!AddCollection(setTag))
         CLog::Log(LOGWARNING, "VideoInfoScanner: Failed to store set '{}' from pre-scan",
                   setTag.GetTitle());
     }
@@ -1667,22 +1667,22 @@ CVideoInfoScanner::~CVideoInfoScanner()
               "VideoInfoScanner: Inline collection.nfo '{}' → set '{}', {} art item(s)",
               CURL::GetRedacted(nfoPath), setTag.GetTitle(), art.size());
 
-    if (!AddSet(setTag))
+    if (!AddCollection(setTag))
       CLog::Log(LOGWARNING, "VideoInfoScanner: Failed to store inline collection '{}'",
                 setTag.GetTitle());
   }
 
-  bool CVideoInfoScanner::AddSet(const CSetInfoTag& set)
+  bool CVideoInfoScanner::AddCollection(const CSetInfoTag& set)
   {
     // ensure our database is open (this can get called via other classes)
     if (!m_database.Open())
       return false;
 
-    CLog::LogF(LOGDEBUG, "Adding new set {}", set.GetTitle());
+    CLog::LogF(LOGDEBUG, "Adding new collection {}", set.GetTitle());
 
-    // Create set, recording the home path where its collection.nfo was found
-    const int idSet{m_database.AddSet(set.GetTitle(), set.GetOverview(), set.GetOriginalTitle(),
-                                      true, set.m_strPath)};
+    // Create collection, recording the home path where its collection.nfo was found
+    const int idSet{m_database.AddCollection(set.GetTitle(), "set", set.GetOverview(),
+                                             true, set.m_strPath)};
 
     if (idSet > 0)
     {
@@ -1833,8 +1833,8 @@ CVideoInfoScanner::~CVideoInfoScanner()
             }
             else
             {
-              // Create set, then add movie to the set
-              const int idSet{m_database.AddSet(movieDetails.m_strTitle)};
+              // Create collection, then add movie to it
+              const int idSet{m_database.AddCollection(movieDetails.m_strTitle)};
               m_database.SetArtForItem(idSet, MediaTypeVideoCollection, art);
               movieDetails.SetSet(movieDetails.m_strTitle);
             }

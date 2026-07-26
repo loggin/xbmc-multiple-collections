@@ -1243,9 +1243,15 @@ void CVideoDatabase::UpdateTables(int iVersion)
     m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
     KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
   }
+
+  // Note: the new delete_collection trigger (added to VideoDatabaseDDL::CreateTriggers for the
+  // schema v148 bump below) needs no explicit migration step here. DatabaseManager already runs
+  // DropAnalytics() -> UpdateTables() -> CreateAnalytics() on every version upgrade, and
+  // CreateAnalytics() unconditionally recreates all triggers/indices/views from the DDL — adding
+  // it here too would just race with that and fail with "trigger already exists".
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 147;
+  return 148;
 }

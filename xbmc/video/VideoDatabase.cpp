@@ -1353,92 +1353,26 @@ int CVideoDatabase::AddUniqueIDs(int mediaId, const char *mediaType, const CVide
   return uniqueid;
 }
 
-int CVideoDatabase::AddSet(const std::string& strSet,
-                           const std::string& strOverview /* = "" */,
-                           const std::string& strOriginalSet /* = "" */,
-                           const bool updateOverview /* = true */,
-                           const std::string& strPath /* = "" */)
+int CVideoDatabase::AddCollection(const std::string& name,
+                                   const std::string& type /* = "set" */,
+                                   const std::string& description /* = "" */,
+                                   const bool updateDescription /* = true */,
+                                   const std::string& homePath /* = "" */)
 {
-  if (strSet.empty())
+  if (name.empty())
     return -1;
 
-  try
-  {
-    if (m_pDB == nullptr || m_pDS == nullptr)
-      return -1;
+  CCollection collection;
+  collection.name = name;
+  collection.type = type;
+  collection.description = description;
+  collection.sortType = "custom";
+  collection.homePath = homePath;
 
-    std::string strSQL =
-        PrepareSQL("SELECT idSet FROM `sets` WHERE strOriginalSet='%s'",
-                   strOriginalSet.empty() ? strSet.c_str() : strOriginalSet.c_str());
-    m_pDS->query(strSQL);
-    if (m_pDS->num_rows() == 0)
-    {
-      m_pDS->close();
-      strSQL = PrepareSQL("INSERT INTO `sets` (idSet, strSet, strOverview, strOriginalSet, strPath) "
-                          "VALUES(NULL, '%s', '%s', '%s', '%s')",
-                          strSet.c_str(), strOverview.c_str(),
-                          strOriginalSet.empty() ? strSet.c_str() : strOriginalSet.c_str(),
-                          strPath.c_str());
-      m_pDS->exec(strSQL);
-      const int id = static_cast<int>(m_pDS->lastinsertid());
+  if (!AddOrUpdateCollection(collection, updateDescription))
+    return -1;
 
-      CCollection collection;
-      collection.idCollection = id;
-      collection.name = strSet;
-      collection.type = "set";
-      collection.description = strOverview;
-      collection.sortType = "custom";
-      collection.homePath = strPath;
-      AddOrUpdateCollection(collection);
-
-      return id;
-    }
-    else
-    {
-      const int id = m_pDS->fv("idSet").get_asInt();
-      m_pDS->close();
-
-      // update set data
-      if (updateOverview)
-      {
-        if (strPath.empty())
-          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strOverview = '%s' WHERE idSet = %i",
-                              strSet.c_str(), strOverview.c_str(), id);
-        else
-          strSQL = PrepareSQL(
-              "UPDATE `sets` SET strSet = '%s', strOverview = '%s', strPath = '%s' WHERE idSet = %i",
-              strSet.c_str(), strOverview.c_str(), strPath.c_str(), id);
-      }
-      else
-      {
-        if (strPath.empty())
-          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s' WHERE idSet = %i",
-                              strSet.c_str(), id);
-        else
-          strSQL = PrepareSQL("UPDATE `sets` SET strSet = '%s', strPath = '%s' WHERE idSet = %i",
-                              strSet.c_str(), strPath.c_str(), id);
-      }
-
-      m_pDS->exec(strSQL);
-
-      CCollection collection;
-      collection.idCollection = id;
-      collection.name = strSet;
-      collection.type = "set";
-      collection.description = strOverview;
-      collection.sortType = "custom";
-      collection.homePath = strPath;
-      AddOrUpdateCollection(collection);
-
-      return id;
-    }
-  }
-  catch (...)
-  {
-    CLog::LogF(LOGERROR, "({}) failed", strSet);
-  }
-
-  return -1;
+  return collection.idCollection;
 }
 
 int CVideoDatabase::AddTag(const std::string& name)
@@ -2293,33 +2227,33 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
     // add unique ids
     details.m_iIdUniqueID = AddUniqueIDs(idMovie, MediaTypeMovie, details);
 
-    // add set...
-    int idSet = -1;
+    // add to collection...
+    int idCollection = -1;
     if (details.m_set.HasTitle())
     {
-      idSet = AddSet(details.m_set.GetTitle(), details.m_set.GetOverview(),
-                     details.m_set.GetOriginalTitle(), details.GetUpdateSetOverview());
-      details.m_set.SetID(idSet);
+      idCollection = AddCollection(details.m_set.GetTitle(), "set", details.m_set.GetOverview(),
+                                   details.GetUpdateSetOverview());
+      details.m_set.SetID(idCollection);
       // Populate collection_item so the movie is discoverable via collection browsing.
       // idMovie in this scope is always the movie media id (idMedia), not an idFile.
       // Using it in a videoversion idFile lookup can resolve to unrelated rows and
       // cause cross-linking of movies into the wrong collection.
-      if (idSet > 0 && idMovie > 0)
+      if (idCollection > 0 && idMovie > 0)
       {
         CCollectionItem ci;
-        ci.idCollection = idSet;
+        ci.idCollection = idCollection;
         ci.mediaType = MediaTypeMovie;
         ci.idMedia = idMovie;
         ci.sortOrder = 0;
         AddOrUpdateCollectionItem(ci);
       }
       // add art if not available
-      if (!HasArtForItem(idSet, MediaTypeVideoCollection))
+      if (!HasArtForItem(idCollection, MediaTypeVideoCollection))
       {
         for (const auto& [type, url] : artwork)
         {
           if (StringUtils::StartsWith(type, "set.") &&
-              !SetArtForItem(idSet, MediaTypeVideoCollection, type.substr(4), url))
+              !SetArtForItem(idCollection, MediaTypeVideoCollection, type.substr(4), url))
           {
             if (!inTransaction)
               RollbackTransaction();
@@ -2347,10 +2281,6 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
     // Update all non-key fields of the movie record
     std::string sql = "UPDATE movie SET " +
                       GetValueString(details, VIDEODB_ID_MIN, VIDEODB_ID_MAX, DbMovieOffsets);
-    if (idSet > 0)
-      sql += PrepareSQL(", idSet = %i", idSet);
-    else
-      sql += ", idSet = NULL";
     if (details.m_iUserRating > 0 && details.m_iUserRating < 11)
       sql += PrepareSQL(", userrating = %i", details.m_iUserRating);
     else
@@ -2420,17 +2350,15 @@ int CVideoDatabase::UpdateDetailsForMovie(int idMovie,
       UpdateFileDateAdded(details);
 
     // track if the set was updated
-    int idSet = 0;
     if (updatedDetails.contains("set"))
     { // set
-      idSet = -1;
       if (details.m_set.HasTitle())
       {
-        idSet = AddSet(details.m_set.GetTitle(), details.m_set.GetOverview());
-        if (idSet > 0 && idMovie > 0)
+        const int idCollection = AddCollection(details.m_set.GetTitle(), "set", details.m_set.GetOverview());
+        if (idCollection > 0 && idMovie > 0)
         {
           CCollectionItem ci;
-          ci.idCollection = idSet;
+          ci.idCollection = idCollection;
           ci.mediaType = MediaTypeMovie;
           ci.idMedia = idMovie;
           ci.sortOrder = 0;
@@ -2441,10 +2369,6 @@ int CVideoDatabase::UpdateDetailsForMovie(int idMovie,
 
     // and update the movie table
     std::string sql = "UPDATE movie SET " + GetValueString(details, VIDEODB_ID_MIN, VIDEODB_ID_MAX, DbMovieOffsets);
-    if (idSet > 0)
-      sql += PrepareSQL(", idSet = %i", idSet);
-    else if (idSet < 0)
-      sql += ", idSet = NULL";
     if (details.m_iUserRating > 0 && details.m_iUserRating < 11)
       sql += PrepareSQL(", userrating = %i", details.m_iUserRating);
     else
@@ -2486,7 +2410,7 @@ int CVideoDatabase::SetDetailsForMovieSet(const CVideoInfoTag& details,
 
     if (idSet < 0)
     {
-      idSet = AddSet(details.m_strTitle, details.m_strPlot);
+      idSet = AddCollection(details.m_strTitle, "set", details.m_strPlot);
       if (idSet < 0)
       {
         if (!inTransaction)
@@ -2502,10 +2426,15 @@ int CVideoDatabase::SetDetailsForMovieSet(const CVideoInfoTag& details,
       return -1;
     }
 
-    // and insert the new row
-    std::string sql = PrepareSQL("UPDATE `sets` SET strSet='%s', strOverview='%s' WHERE idSet=%i",
-                                 details.m_strTitle.c_str(), details.m_strPlot.c_str(), idSet);
-    m_pDS->exec(sql);
+    // Update the collection's title/plot (also covers the case where an explicit idSet was
+    // supplied and the AddCollection() call above was skipped)
+    CCollection collection;
+    collection.idCollection = idSet;
+    collection.name = details.m_strTitle;
+    collection.type = "set";
+    collection.description = details.m_strPlot;
+    collection.sortType = "custom";
+    AddOrUpdateCollection(collection);
 
     if (!inTransaction)
       CommitTransaction();
@@ -4065,7 +3994,7 @@ void CVideoDatabase::DeleteStreamDetails(int idFile)
   m_pDS->exec(PrepareSQL("DELETE FROM streamdetails WHERE idFile = %i", idFile));
 }
 
-void CVideoDatabase::DeleteSet(int idSet)
+void CVideoDatabase::DeleteCollection(int idCollection)
 {
   try
   {
@@ -4075,49 +4004,15 @@ void CVideoDatabase::DeleteSet(int idSet)
       return;
 
     std::string strSQL;
-    strSQL = PrepareSQL("delete from `sets` where idSet = %i", idSet);
+    strSQL = PrepareSQL("delete from collection_item where idCollection = %i", idCollection);
     m_pDS->exec(strSQL);
-    strSQL = PrepareSQL("update movie set idSet = null where idSet = %i", idSet);
-    m_pDS->exec(strSQL);
-    strSQL = PrepareSQL("delete from collection_item where idCollection = %i", idSet);
-    m_pDS->exec(strSQL);
-    strSQL = PrepareSQL("delete from collection where idCollection = %i", idSet);
+    strSQL = PrepareSQL("delete from collection where idCollection = %i", idCollection);
     m_pDS->exec(strSQL);
   }
   catch (...)
   {
-    CLog::LogF(LOGERROR, "({}) failed", idSet);
+    CLog::LogF(LOGERROR, "({}) failed", idCollection);
   }
-}
-
-void CVideoDatabase::ClearMovieSet(int idMovie)
-{
-  SetMovieSet(idMovie, -1);
-}
-
-void CVideoDatabase::SetMovieSet(int idMovie, int idSet)
-{
-  if (idSet >= 0)
-  {
-    ExecuteQuery(PrepareSQL("update movie set idSet = %i where idMovie = %i", idSet, idMovie));
-    AddOrUpdateCollectionItem(CCollectionItem{idSet, "movie", idMovie, 0, std::string{}});
-  }
-  else
-  {
-    ExecuteQuery(PrepareSQL("update movie set idSet = null where idMovie = %i", idMovie));
-    ExecuteQuery(
-        PrepareSQL("delete from collection_item where mediaType='movie' and idMedia = %i", idMovie));
-  }
-}
-
-void CVideoDatabase::UpdateMovieSetId(int idMovie, int idSet)
-{
-  // Updates only movie.idSet without touching collection_item.
-  // Use this instead of SetMovieSet(-1) when managing multi-collection membership.
-  if (idSet >= 0)
-    ExecuteQuery(PrepareSQL("UPDATE movie SET idSet = %i WHERE idMovie = %i", idSet, idMovie));
-  else
-    ExecuteQuery(PrepareSQL("UPDATE movie SET idSet = NULL WHERE idMovie = %i", idMovie));
 }
 
 std::string CVideoDatabase::GetFileBasePathById(int idFile)
@@ -6339,12 +6234,8 @@ void CVideoDatabase::UpdateMovieTitle(int idMovie,
     else if (iType == VideoDbContentType::MOVIE_SETS)
     {
       CLog::Log(LOGINFO, "Changing Movie set:id:{} New Title:{}", idMovie, strNewMovieTitle);
-      std::string strSQL = PrepareSQL("UPDATE `sets` SET strSet='%s' WHERE idSet=%i",
+      std::string strSQL = PrepareSQL("UPDATE collection SET name='%s' WHERE idCollection=%i",
                                       strNewMovieTitle.c_str(), idMovie);
-      m_pDS->exec(strSQL);
-      // Migration seeds collection with idCollection=idSet, so the same id applies.
-      strSQL = PrepareSQL("UPDATE collection SET name='%s' WHERE idCollection=%i",
-                          strNewMovieTitle.c_str(), idMovie);
       m_pDS->exec(strSQL);
     }
 
@@ -8969,7 +8860,7 @@ bool CVideoDatabase::GetCollectionsForMedia(const std::string& mediaType,
   return false;
 }
 
-bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
+bool CVideoDatabase::AddOrUpdateCollection(CCollection& collection, bool updateDescription /* = true */)
 {
   if (collection.name.empty())
     return false;
@@ -9020,8 +8911,8 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
     }
 
     // When an explicit ID was supplied but no row with that ID exists yet, do a name-based
-    // lookup before inserting. Without this, AddSet() can create a duplicate collection row
-    // for a name that was already stored under a different idCollection (e.g. from an NFO scan).
+    // lookup before inserting. Without this, AddCollection() can create a duplicate collection
+    // row for a name that was already stored under a different idCollection (e.g. from an NFO scan).
     if (idCollection > 0 && !collectionExistsById)
     {
       std::string nameQuery = PrepareSQL(
@@ -9051,6 +8942,7 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
     }
 
     std::string sql;
+    bool insertedFresh = false;
     if (idCollection > 0)
     {
       if (collectionExistsById)
@@ -9062,16 +8954,19 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
         const std::string homePathClause = collection.homePath.empty()
             ? ""
             : PrepareSQL(", homePath='%s'", collection.homePath.c_str());
+        const std::string descriptionClause =
+            updateDescription ? PrepareSQL(", description='%s'", collection.description.c_str()) : "";
         // When we matched by name only (typeMatched=false) preserve the existing type so that a
         // pre-existing type='set' row is not silently reclassified by a mismatched import.
         if (typeMatched)
-          sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', description='%s', sortType='%s', artwork='%s'",
-                           collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
+          sql = PrepareSQL("UPDATE collection SET name='%s', type='%s', sortType='%s', artwork='%s'",
+                           collection.name.c_str(), normalizedType.c_str(),
                            normalizedSortType.c_str(), collection.artwork.c_str());
         else
-          sql = PrepareSQL("UPDATE collection SET name='%s', description='%s', sortType='%s', artwork='%s'",
-                           collection.name.c_str(), collection.description.c_str(),
+          sql = PrepareSQL("UPDATE collection SET name='%s', sortType='%s', artwork='%s'",
+                           collection.name.c_str(),
                            normalizedSortType.c_str(), collection.artwork.c_str());
+        sql += descriptionClause;
         sql += homePathClause;
         sql += PrepareSQL(" WHERE idCollection=%i", idCollection);
       }
@@ -9089,9 +8984,15 @@ bool CVideoDatabase::AddOrUpdateCollection(const CCollection& collection)
                        collection.name.c_str(), normalizedType.c_str(), collection.description.c_str(),
                        normalizedSortType.c_str(), collection.artwork.c_str(),
                        collection.homePath.c_str());
+      insertedFresh = true;
     }
 
     m_pDS->exec(sql);
+
+    // Report back the id we actually used, so callers never lose track of a row that got
+    // merged into an existing collection by name rather than created under the id they supplied.
+    collection.idCollection = insertedFresh ? static_cast<int>(m_pDS->lastinsertid()) : idCollection;
+
     return true;
   }
   catch (...)
@@ -10606,8 +10507,13 @@ void CVideoDatabase::CleanDatabase(CGUIDialogProgressBarHandle* handle,
       m_pDS->exec(sql);
 
       CLog::LogFC(LOGDEBUG, LOGDATABASE, "Cleaning set table");
+      // `sets` is legacy-only (populated once by DB-upgrade migration, never written to again).
+      // A set/collection with real membership recorded only in collection_item (the current
+      // authoritative model) must never be treated as orphaned just because movie.idSet doesn't
+      // happen to reference it.
       sql = "DELETE FROM `sets` "
-            "WHERE NOT EXISTS (SELECT 1 FROM movie WHERE movie.idSet = `sets`.idSet)";
+            "WHERE NOT EXISTS (SELECT 1 FROM movie WHERE movie.idSet = `sets`.idSet) "
+            "AND NOT EXISTS (SELECT 1 FROM collection_item WHERE collection_item.idCollection = `sets`.idSet)";
       m_pDS->exec(sql);
 
       CLog::LogFC(LOGDEBUG, LOGDATABASE, "Cleaning collection_item table");
@@ -12004,7 +11910,7 @@ void CVideoDatabase::ImportFromXML(const std::string &path)
       {
         CSetInfoTag info;
         info.Load(movie);
-        scanner.AddSet(info);
+        scanner.AddCollection(info);
         currentTitle = info.GetTitle();
         current++;
       }
@@ -12098,15 +12004,6 @@ void CVideoDatabase::ImportFromXML(const std::string &path)
                 }
               }
             }
-          }
-
-          // For set-type collections also update the legacy sets table for compatibility.
-          if (StringUtils::EqualsNoCase(colType, MediaTypeVideoCollection))
-          {
-            CSetInfoTag setInfo;
-            setInfo.SetTitle(colName);
-            setInfo.SetOverview(colDesc);
-            scanner.AddSet(setInfo);
           }
 
           currentTitle = colName;

@@ -51,8 +51,6 @@ public:
 
   static bool ManageMovieSets(const std::shared_ptr<CFileItem>& item);
   static bool GetMoviesForSet(const CFileItem *setItem, CFileItemList &originalMovies, CFileItemList &selectedMovies);
-  static bool GetSetForMovie(const CFileItem* movieItem, std::shared_ptr<CFileItem>& selectedSet);
-  static bool SetMovieSet(const CFileItem *movieItem, const CFileItem *selectedSet);
 
   static bool ManageMediaCollections(const std::shared_ptr<CFileItem>& item);
   static bool ManageCollectionTimeline(const std::shared_ptr<CFileItem>& item);
