@@ -166,7 +166,7 @@ void CVideoDatabaseDDL::CreateTables(CDatabase& db)
   db.ExecuteQuery("CREATE TABLE collection ( idCollection integer primary key, "
                   "name text not null, type text not null default 'franchise', "
                   "description text, sortType text not null default 'custom', artwork text, "
-                  "homePath text, dateAdded text, dateModified text)");
+                  "homePath text, dateAdded text, dateModified text, originalName text)");
 
   CLog::Log(LOGINFO, "create collection_item table");
   db.ExecuteQuery("CREATE TABLE collection_item ( idCollection integer not null, "

@@ -1249,9 +1249,132 @@ void CVideoDatabase::UpdateTables(int iVersion)
   // DropAnalytics() -> UpdateTables() -> CreateAnalytics() on every version upgrade, and
   // CreateAnalytics() unconditionally recreates all triggers/indices/views from the DDL — adding
   // it here too would just race with that and fail with "trigger already exists".
+
+  if (iVersion < 149)
+  {
+    // Merge duplicate `collection` rows left behind by the Clean-Library id-divergence bug
+    // fixed in VideoDatabase.cpp/VideoInfoScanner.cpp for schema v148: CleanDatabase() used to
+    // delete a set/collection's legacy `sets` row whenever its membership lived only in
+    // collection_item, and the old AddSet() (which looked up `sets` by name, not `collection`)
+    // then recreated a brand-new, empty collection row under a fresh id on the next scan —
+    // leaving the real, populated collection behind under its original id. Group by
+    // case/whitespace-insensitive name + type (matching what AddOrUpdateCollection now treats
+    // as "the same collection") and fold every row but the one that actually holds members back
+    // into that survivor.
+    m_pDS->query("SELECT LOWER(TRIM(name)), type FROM collection "
+                  "GROUP BY LOWER(TRIM(name)), type HAVING COUNT(1) > 1");
+
+    std::vector<std::pair<std::string, std::string>> duplicateKeys;
+    while (!m_pDS->eof())
+    {
+      duplicateKeys.emplace_back(m_pDS->fv(0).get_asString(), m_pDS->fv(1).get_asString());
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    for (const auto& [normName, type] : duplicateKeys)
+    {
+      m_pDS->query(PrepareSQL(
+          "SELECT idCollection FROM collection WHERE LOWER(TRIM(name))='%s' AND type='%s'",
+          normName.c_str(), type.c_str()));
+      std::vector<int> ids;
+      while (!m_pDS->eof())
+      {
+        ids.push_back(m_pDS->fv(0).get_asInt());
+        m_pDS->next();
+      }
+      m_pDS->close();
+
+      // Winner = the row with the most collection_item members (ties -> lowest id), since that
+      // is always the real, original collection; every duplicate created by the bug is empty.
+      int winner = -1;
+      int winnerCount = -1;
+      for (int id : ids)
+      {
+        m_pDS2->query(PrepareSQL("SELECT COUNT(1) FROM collection_item WHERE idCollection=%i", id));
+        const int count = m_pDS2->eof() ? 0 : m_pDS2->fv(0).get_asInt();
+        m_pDS2->close();
+        if (count > winnerCount || (count == winnerCount && (winner < 0 || id < winner)))
+        {
+          winnerCount = count;
+          winner = id;
+        }
+      }
+
+      for (int loser : ids)
+      {
+        if (loser == winner)
+          continue;
+
+        // Fold membership into the winner (a loser should normally have none, but merge safely
+        // regardless in case a genuine multi-membership collided with a duplicate by name).
+        m_pDS2->exec(PrepareSQL(
+            "INSERT OR IGNORE INTO collection_item (idCollection, mediaType, idMedia, sortOrder, groupName) "
+            "SELECT %i, mediaType, idMedia, sortOrder, groupName FROM collection_item WHERE idCollection=%i",
+            winner, loser));
+        m_pDS2->exec(PrepareSQL("DELETE FROM collection_item WHERE idCollection=%i", loser));
+
+        // Fold in any artwork type the winner doesn't already have.
+        m_pDS->query(
+            PrepareSQL("SELECT type FROM art WHERE media_type='set' AND media_id=%i", loser));
+        while (!m_pDS->eof())
+        {
+          const std::string artType = m_pDS->fv(0).get_asString();
+          m_pDS2->query(PrepareSQL(
+              "SELECT 1 FROM art WHERE media_type='set' AND media_id=%i AND type='%s'", winner,
+              artType.c_str()));
+          const bool winnerHasArt = !m_pDS2->eof();
+          m_pDS2->close();
+          if (!winnerHasArt)
+            m_pDS2->exec(PrepareSQL(
+                "UPDATE art SET media_id=%i WHERE media_type='set' AND media_id=%i AND type='%s'",
+                winner, loser, artType.c_str()));
+          m_pDS->next();
+        }
+        m_pDS->close();
+
+        // Backfill description/homePath on the winner if it's missing them.
+        m_pDS2->exec(PrepareSQL(
+            "UPDATE collection SET "
+            "description = CASE WHEN description IS NULL OR description='' "
+            "THEN (SELECT description FROM collection WHERE idCollection=%i) ELSE description END, "
+            "homePath = CASE WHEN homePath IS NULL OR homePath='' "
+            "THEN (SELECT homePath FROM collection WHERE idCollection=%i) ELSE homePath END "
+            "WHERE idCollection=%i",
+            loser, loser, winner));
+
+        // Drop the duplicate; the delete_collection trigger cleans up anything left on it.
+        m_pDS2->exec(PrepareSQL("DELETE FROM collection WHERE idCollection=%i", loser));
+      }
+    }
+  }
+
+  if (iVersion < 150)
+  {
+    // Add originalName (the collection's title as first known, kept immutable afterwards —
+    // replaces the legacy sets.strOriginalSet as the source for GetOriginalSetById(), used by
+    // CVideoLibraryRefreshingJob to match local NFOs during a set refresh even if the collection
+    // has since been renamed).
+    try { m_pDS->exec("ALTER TABLE collection ADD originalName TEXT"); } catch (...) {}
+
+    // Backfill from the legacy sets table where available. idCollection and sets.idSet are
+    // independent AUTOINCREMENT sequences, so a matching id alone does NOT mean the rows are the
+    // same entity - a collection created long after migration can coincidentally land on the id
+    // of an unrelated orphaned legacy set (this is the exact bug this whole cleanup exists to
+    // fix). Rows that genuinely came from the v145/v147 seeding also share their name with the
+    // `sets` row at that same id (seeded as `SELECT idSet, strSet, ... FROM sets`), so require
+    // both id AND name to match before trusting the legacy value; otherwise fall back to the
+    // collection's current name.
+    m_pDS->exec(
+        "UPDATE collection SET originalName = COALESCE("
+        "(SELECT strOriginalSet FROM `sets` WHERE `sets`.idSet = collection.idCollection "
+        "AND LOWER(TRIM(`sets`.strSet)) = LOWER(TRIM(collection.name)) "
+        "AND `sets`.strOriginalSet IS NOT NULL AND `sets`.strOriginalSet != ''), name) "
+        "WHERE type='set' AND (originalName IS NULL OR originalName = '')");
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 148;
+  return 150;
 }

@@ -180,14 +180,6 @@ public:
     int id;
   };
 
-  class CSetInfo
-  {
-  public:
-    std::string name;
-    std::vector<CVideoInfoTag> movies;
-    DatabaseResults results;
-  };
-
   struct CCollection
   {
     int idCollection{-1};
@@ -197,6 +189,7 @@ public:
     std::string sortType;
     std::string artwork;
     std::string homePath; // Folder where collection.nfo was found (inline path); empty if none
+    std::string originalName; // Title at creation time; immutable once set
   };
 
   struct CCollectionItem
