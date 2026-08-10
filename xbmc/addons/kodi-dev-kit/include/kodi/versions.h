@@ -97,8 +97,8 @@
 #define ADDON_INSTANCE_VERSION_AUDIOENCODER_DEPENDS   "c-api/addon-instance/audioencoder.h" \
                                                       "addon-instance/AudioEncoder.h"
 
-#define ADDON_INSTANCE_VERSION_GAME                   "5.1.0"
-#define ADDON_INSTANCE_VERSION_GAME_MIN               "5.1.0"
+#define ADDON_INSTANCE_VERSION_GAME                   "6.0.0"
+#define ADDON_INSTANCE_VERSION_GAME_MIN               "6.0.0"
 #define ADDON_INSTANCE_VERSION_GAME_XML_ID            "kodi.binary.instance.game"
 #define ADDON_INSTANCE_VERSION_GAME_DEPENDS           "addon-instance/Game.h"
 
@@ -174,8 +174,8 @@
 #define ADDON_INSTANCE_VERSION_VFS_DEPENDS            "c-api/addon-instance/vfs.h" \
                                                       "addon-instance/VFS.h"
 
-#define ADDON_INSTANCE_VERSION_VISUALIZATION          "4.0.0"
-#define ADDON_INSTANCE_VERSION_VISUALIZATION_MIN      "4.0.0"
+#define ADDON_INSTANCE_VERSION_VISUALIZATION          "5.0.0"
+#define ADDON_INSTANCE_VERSION_VISUALIZATION_MIN      "5.0.0"
 #define ADDON_INSTANCE_VERSION_VISUALIZATION_XML_ID   "kodi.binary.instance.visualization"
 #define ADDON_INSTANCE_VERSION_VISUALIZATION_DEPENDS  "addon-instance/Visualization.h" \
                                                       "c-api/addon-instance/visualization.h"

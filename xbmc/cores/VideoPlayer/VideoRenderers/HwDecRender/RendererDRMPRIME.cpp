@@ -11,8 +11,8 @@
 #include "ServiceBroker.h"
 #include "cores/VideoPlayer/Buffers/VideoBufferDRMPRIME.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
+#include "cores/VideoPlayer/VideoRenderers/HwDecRender/DRMPRIMECaptureGLES.h"
 #include "cores/VideoPlayer/VideoRenderers/HwDecRender/VideoLayerBridgeDRMPRIME.h"
-#include "cores/VideoPlayer/VideoRenderers/RenderCapture.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFactory.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "settings/DisplaySettings.h"
@@ -24,11 +24,31 @@
 #include "windowing/gbm/WinSystemGbm.h"
 #include "windowing/gbm/drm/DRMAtomic.h"
 
+#include <typeinfo>
+
 using namespace KODI::WINDOWING::GBM;
 
 CRendererDRMPRIME::~CRendererDRMPRIME()
 {
   Flush(false);
+
+  auto* winSystem = static_cast<CWinSystemGbm*>(CServiceBroker::GetWinSystem());
+
+  // Clear the scanout colorspace and HDR metadata set during Configure so
+  // the GUI after playback falls back to Default / SDR.
+  winSystem->SetGuiCompositing(false);
+  winSystem->SetHDR(nullptr);
+  winSystem->SetColorimetry(nullptr);
+
+  //! @todo Restore single-plane state after D2P playback: null m_video_plane
+  //! via direct FindGuiPlane, mirroring Create's direct FindVideoAndGuiPlane.
+  //! D2P cannot share single-plane's teardown via winSystem->SetVideoOutput
+  //! (nullptr) because the renderer factory hands Create a CVideoBuffer*
+  //! (not a VideoPicture*) and start has no buffer-shaped winsystem entry.
+  //! Future: unified plane API for D2P and single-plane to share teardown.
+  auto drm = winSystem->GetDrm();
+  auto* gui = drm->GetGuiPlane();
+  drm->FindGuiPlane(gui->GetFormat(), gui->GetModifier());
 }
 
 CBaseRenderer* CRendererDRMPRIME::Create(CVideoBuffer* buffer)
@@ -108,6 +128,24 @@ bool CRendererDRMPRIME::Configure(const VideoPicture& picture, float fps, unsign
              GetFlagsColorPrimaries(picture.color_primaries) |
              GetFlagsStereoMode(picture.stereoMode);
 
+  // Signal source colorimetry and HDR metadata on the scanout via the DRM
+  // Colorspace and HDR_OUTPUT_METADATA connector properties. The direct-to-
+  // plane scanout path bypasses GL video rendering entirely.
+  if (auto* winSystem = CServiceBroker::GetWinSystem())
+  {
+    winSystem->SetColorimetry(&picture);
+
+    const bool passthroughHDR = winSystem->SetHDR(&picture);
+    CLog::Log(LOGDEBUG, "CRendererDRMPRIME::Configure: HDR passthrough: {}",
+              passthroughHDR ? "on" : "off");
+
+    const bool hdrFboActive =
+        passthroughHDR && winSystem->SetGuiCompositing(picture.color_transfer);
+    if (passthroughHDR && !hdrFboActive)
+      CLog::Log(LOGWARNING, "CRendererDRMPRIME::Configure: HDR passthrough active but "
+                            "GUI compositing not supported by windowing system");
+  }
+
   // Calculate the input frame aspect ratio.
   CalculateFrameAspectRatio(picture.iDisplayWidth, picture.iDisplayHeight);
   SetViewMode(m_videoSettings.m_ViewMode);
@@ -147,6 +185,14 @@ void CRendererDRMPRIME::AddVideoPicture(const VideoPicture& picture, int index)
   }
   buf.videoBuffer = picture.videoBuffer;
   buf.videoBuffer->Acquire();
+
+  //! @todo skip only the exact CVideoBufferDRMPRIMEFFmpeg type, which
+  //! CDVDVideoCodecDRMPRIME always fills at decode; its subclass
+  //! CVideoBufferDMA also arrives from CAddonVideoCodec unfilled, so it is
+  //! set here (a duplicate set for the ffmpeg software path, accepted).
+  auto* drmBuffer = dynamic_cast<CVideoBufferDRMPRIME*>(picture.videoBuffer);
+  if (drmBuffer && typeid(*drmBuffer) != typeid(CVideoBufferDRMPRIMEFFmpeg))
+    drmBuffer->SetPictureParams(picture);
 }
 
 bool CRendererDRMPRIME::Flush(bool saveBuffers)
@@ -175,6 +221,19 @@ bool CRendererDRMPRIME::NeedBuffer(int index)
     return true;
 
   return false;
+}
+
+bool CRendererDRMPRIME::CaptureVideoFrame(const KODI::RENDERING::CAPTURE::CaptureSpec& spec,
+                                          KODI::RENDERING::CAPTURE::CaptureResult& result)
+{
+  if (m_iLastRenderBuffer < 0)
+    return false;
+
+  auto* buffer = dynamic_cast<CVideoBufferDRMPRIME*>(m_buffers[m_iLastRenderBuffer].videoBuffer);
+  if (!buffer || !buffer->IsValid())
+    return false;
+
+  return CaptureDRMPRIMEVideo(buffer, spec, result);
 }
 
 CRenderInfo CRendererDRMPRIME::GetRenderInfo()
@@ -222,13 +281,6 @@ void CRendererDRMPRIME::RenderUpdate(
   m_videoLayerBridge->SetVideoPlane(buffer, m_planeDestRect);
 
   m_iLastRenderBuffer = index;
-}
-
-bool CRendererDRMPRIME::RenderCapture(int index, CRenderCapture* capture)
-{
-  capture->BeginRender();
-  capture->EndRender();
-  return true;
 }
 
 bool CRendererDRMPRIME::ConfigChanged(const VideoPicture& picture)

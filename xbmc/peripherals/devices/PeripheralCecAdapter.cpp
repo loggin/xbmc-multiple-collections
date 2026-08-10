@@ -68,6 +68,12 @@ using namespace std::chrono_literals;
 /* time in seconds to suppress source activation after receiving OnStop */
 #define CEC_SUPPRESS_ACTIVATE_SOURCE_AFTER_ON_STOP 2
 
+#if CEC_LIB_VERSION_MAJOR < 8
+/* delay in ms before a held button starts repeating. libCEC gained a field of its own for
+   this in 8.0.0; older versions take it from iDoubleTapTimeoutMs */
+#define CEC_BUTTON_REPEAT_DELAY_MS 300
+#endif
+
 CPeripheralCecAdapter::CPeripheralCecAdapter(CPeripherals& manager,
                                              const PeripheralScanResult& scanResult,
                                              CPeripheralBus* bus)
@@ -1321,6 +1327,9 @@ void CPeripheralCecAdapter::CecLogMessage(void* cbParam, const cec_log_message* 
 
 void CPeripheralCecAdapter::SetConfigurationFromLibCEC(const CEC::libcec_configuration& config)
 {
+  // these values are reported by libCEC, so they must not be marked as changed. sending them back
+  // to libCEC when the settings are persisted would needlessly reconfigure the adapter, and make
+  // Kodi the active source again when 'activate_source' is enabled
   bool bChanged(false);
 
   // set the primary device type
@@ -1335,13 +1344,13 @@ void CPeripheralCecAdapter::SetConfigurationFromLibCEC(const CEC::libcec_configu
 
   // set the connected device
   m_configuration.baseDevice = config.baseDevice;
-  bChanged |=
-      SetSetting("connected_device",
-                 config.baseDevice == CECDEVICE_AUDIOSYSTEM ? LOCALISED_ID_AVR : LOCALISED_ID_TV);
+  bChanged |= SetSetting(
+      "connected_device",
+      config.baseDevice == CECDEVICE_AUDIOSYSTEM ? LOCALISED_ID_AVR : LOCALISED_ID_TV, false);
 
   // set the HDMI port number
   m_configuration.iHDMIPort = config.iHDMIPort;
-  bChanged |= SetSetting("cec_hdmi_port", config.iHDMIPort);
+  bChanged |= SetSetting("cec_hdmi_port", config.iHDMIPort, false);
 
   // set the physical address, when baseDevice or iHDMIPort are not set
   std::string strPhysicalAddress("0");
@@ -1352,7 +1361,7 @@ void CPeripheralCecAdapter::SetConfigurationFromLibCEC(const CEC::libcec_configu
     m_configuration.iPhysicalAddress = config.iPhysicalAddress;
     strPhysicalAddress = StringUtils::Format("{:x}", config.iPhysicalAddress);
   }
-  bChanged |= SetSetting("physical_address", strPhysicalAddress);
+  bChanged |= SetSetting("physical_address", strPhysicalAddress, false);
 
   // set the devices to wake when starting
   m_configuration.wakeDevices = config.wakeDevices;
@@ -1365,16 +1374,17 @@ void CPeripheralCecAdapter::SetConfigurationFromLibCEC(const CEC::libcec_configu
 
   // set the boolean settings
   m_configuration.bActivateSource = config.bActivateSource;
-  bChanged |= SetSetting("activate_source", m_configuration.bActivateSource == 1);
+  bChanged |= SetSetting("activate_source", m_configuration.bActivateSource == 1, false);
 
   m_configuration.iDoubleTapTimeoutMs = config.iDoubleTapTimeoutMs;
-  bChanged |= SetSetting("double_tap_timeout_ms", (int)m_configuration.iDoubleTapTimeoutMs);
+  bChanged |= SetSetting("double_tap_timeout_ms", (int)m_configuration.iDoubleTapTimeoutMs, false);
 
   m_configuration.iButtonRepeatRateMs = config.iButtonRepeatRateMs;
-  bChanged |= SetSetting("button_repeat_rate_ms", (int)m_configuration.iButtonRepeatRateMs);
+  bChanged |= SetSetting("button_repeat_rate_ms", (int)m_configuration.iButtonRepeatRateMs, false);
 
   m_configuration.iButtonReleaseDelayMs = config.iButtonReleaseDelayMs;
-  bChanged |= SetSetting("button_release_delay_ms", (int)m_configuration.iButtonReleaseDelayMs);
+  bChanged |=
+      SetSetting("button_release_delay_ms", (int)m_configuration.iButtonReleaseDelayMs, false);
 
   m_configuration.bPowerOffOnStandby = config.bPowerOffOnStandby;
 
@@ -1479,13 +1489,21 @@ void CPeripheralCecAdapter::SetConfigurationFromSettings(void)
 
   // double tap prevention timeout in ms
   m_configuration.iDoubleTapTimeoutMs = GetSettingInt("double_tap_timeout_ms");
+#if CEC_LIB_VERSION_MAJOR < 8
+  // libCEC before 8.0.0 does no double tap prevention and reads this field as the button
+  // repeat delay instead, where the setting's "off" would make repeats start immediately
+  if (m_configuration.iDoubleTapTimeoutMs == 0)
+    m_configuration.iDoubleTapTimeoutMs = CEC_BUTTON_REPEAT_DELAY_MS;
+#endif
   m_configuration.iButtonRepeatRateMs = GetSettingInt("button_repeat_rate_ms");
   m_configuration.iButtonReleaseDelayMs = GetSettingInt("button_release_delay_ms");
 
   if (GetSettingBool("pause_playback_on_deactivate"))
   {
-    SetSetting("pause_or_stop_playback_on_deactivate", LOCALISED_ID_PAUSE);
-    SetSetting("pause_playback_on_deactivate", false);
+    // migration of a deprecated setting. the new value is read when it's needed, so it doesn't
+    // have to be marked as changed
+    SetSetting("pause_or_stop_playback_on_deactivate", LOCALISED_ID_PAUSE, false);
+    SetSetting("pause_playback_on_deactivate", false, false);
   }
 }
 
@@ -1540,7 +1558,8 @@ bool CPeripheralCecAdapter::WriteLogicalAddresses(const cec_logical_addresses& a
       if (addresses[iPtr])
         strPowerOffDevices += StringUtils::Format(" {:X}", iPtr);
     StringUtils::Trim(strPowerOffDevices);
-    bChanged = SetSetting(strAdvancedSettingName, strPowerOffDevices);
+    // reported by libCEC, so don't mark it as changed
+    bChanged = SetSetting(strAdvancedSettingName, strPowerOffDevices, false);
   }
 
   int iSettingPowerOffDevices = LOCALISED_ID_NONE;
@@ -1550,7 +1569,7 @@ bool CPeripheralCecAdapter::WriteLogicalAddresses(const cec_logical_addresses& a
     iSettingPowerOffDevices = LOCALISED_ID_TV;
   else if (addresses[CECDEVICE_AUDIOSYSTEM])
     iSettingPowerOffDevices = LOCALISED_ID_AVR;
-  return SetSetting(strSettingName, iSettingPowerOffDevices) || bChanged;
+  return SetSetting(strSettingName, iSettingPowerOffDevices, false) || bChanged;
 }
 
 CPeripheralCecAdapterUpdateThread::CPeripheralCecAdapterUpdateThread(
@@ -1773,8 +1792,12 @@ void CPeripheralCecAdapterUpdateThread::Process(void)
 
 void CPeripheralCecAdapter::OnDeviceRemoved(void)
 {
-  std::unique_lock lock(m_critSection);
-  m_bDeviceRemoved = true;
+  {
+    std::unique_lock lock(m_critSection);
+    m_bDeviceRemoved = true;
+  }
+
+  CPeripheral::OnDeviceRemoved();
 }
 
 namespace PERIPHERALS
@@ -1892,4 +1915,26 @@ bool CPeripheralCecAdapter::ToggleDeviceState(CecStateChange mode /*= STATE_SWIT
   }
 
   return false;
+}
+
+CecPowerStatus CPeripheralCecAdapter::GetDevicePowerStatus(void)
+{
+  if (!IsRunning())
+    return CecPowerStatus::NO_ADAPTER;
+
+  // libCEC caches the power status internally and only re-requests it from the device when
+  // needed. So this call is cheap.
+  switch (m_cecAdapter->GetDevicePowerStatus(CECDEVICE_TV))
+  {
+    case CEC_POWER_STATUS_ON:
+      return CecPowerStatus::ON;
+    case CEC_POWER_STATUS_STANDBY:
+      return CecPowerStatus::STANDBY;
+    case CEC_POWER_STATUS_IN_TRANSITION_STANDBY_TO_ON:
+      return CecPowerStatus::TRANSITION_TO_ON;
+    case CEC_POWER_STATUS_IN_TRANSITION_ON_TO_STANDBY:
+      return CecPowerStatus::TRANSITION_TO_STANDBY;
+    default:
+      return CecPowerStatus::UNKNOWN;
+  }
 }

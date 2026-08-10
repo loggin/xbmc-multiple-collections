@@ -719,6 +719,7 @@ namespace XBMCAddon
       {
         XBMCAddonUtils::GuiLock lock(languageHook, offscreen);
         addStreamRaw(infoTag, streamDetail);
+        finalizeStreamsRaw(infoTag);
       }
     }
 
@@ -731,6 +732,7 @@ namespace XBMCAddon
       {
         XBMCAddonUtils::GuiLock lock(languageHook, offscreen);
         addStreamRaw(infoTag, streamDetail);
+        finalizeStreamsRaw(infoTag);
       }
     }
 
@@ -743,6 +745,7 @@ namespace XBMCAddon
       {
         XBMCAddonUtils::GuiLock lock(languageHook, offscreen);
         addStreamRaw(infoTag, streamDetail);
+        finalizeStreamsRaw(infoTag);
       }
     }
 
@@ -1082,6 +1085,7 @@ namespace XBMCAddon
 
     void InfoTagVideo::addStreamRaw(CVideoInfoTag* infoTag, CStreamDetail* stream)
     {
+      stream->SetSource(CStreamDetail::EXTERNAL);
       infoTag->m_streamDetails.AddStream(stream);
     }
 

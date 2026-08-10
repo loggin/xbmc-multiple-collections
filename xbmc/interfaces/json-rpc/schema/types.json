@@ -1994,6 +1994,7 @@
         "userrating",
         "ratings",
         "runtime",
+        "status",
         "uniqueid",
         "trailer"
       ]
@@ -3741,6 +3742,10 @@
           "recording"
         ]
       },
+      "stationname": {
+        "type": "string",
+        "description": "Name of the radio station an internet stream is served by"
+      },
       "albumartist": {
         "$ref": "Array.String"
       },
@@ -4057,7 +4062,8 @@
         "datenew",
         "customproperties",
         "albumduration",
-        "songvideourl"
+        "songvideourl",
+        "stationname"
       ]
     }
   },
@@ -5202,5 +5208,17 @@
         "description": "Chapter position in seconds from start"
       }
     }
+  },
+  "Database.Type": {
+    "type": "string",
+    "enum": [
+      "addons",
+      "epg",
+      "music",
+      "tv",
+      "textures",
+      "videos",
+      "viewmodes"
+    ]
   }
 }

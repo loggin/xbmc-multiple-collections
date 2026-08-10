@@ -16,6 +16,7 @@
 #include "cores/VideoPlayer/VideoRenderers/DebugInfo.h"
 #include "guilib/DirtyRegion.h"
 #include "guilib/DispResource.h"
+#include "utils/DisplayInfo.h"
 #include "utils/HDRCapabilities.h"
 
 #include <memory>
@@ -77,6 +78,8 @@ public:
   virtual bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) = 0;
   virtual void SetDirtyRegions(const CDirtyRegionList& dirtyRegionsList) {}
   virtual int GetBufferAge() { return 2; }
+  //! \brief Bits per color channel of the presented output.
+  virtual int GetOutputBitDepth() const { return 8; }
   virtual bool MoveWindow(int topLeft, int topRight){return false;}
   virtual void FinishModeChange(RESOLUTION res){}
   virtual void FinishWindowResize(int newWidth, int newHeight) {ResizeWindow(newWidth, newHeight, -1, -1);}
@@ -227,6 +230,13 @@ public:
   virtual bool SetVideoOutput(const VideoPicture* videoPicture) { return false; }
 
   /*!
+   * \brief Set colorimetry (BT.709, BT.2020, etc). Passing nullptr as the
+   * parameter resets to "Default" (display then decides based on rez)
+   *
+   */
+  virtual void SetColorimetry(const VideoPicture* videoPicture) {}
+
+  /*!
    * \brief Set the HDR metadata. Passing nullptr as the parameter should
    * disable HDR.
    *
@@ -236,6 +246,11 @@ public:
   virtual HDR_STATUS ToggleHDR() { return HDR_STATUS::HDR_UNSUPPORTED; }
   virtual HDR_STATUS GetOSHDRStatus() { return HDR_STATUS::HDR_UNSUPPORTED; }
   virtual CHDRCapabilities GetDisplayHDRCapabilities() const { return {}; }
+  virtual KODI::UTILS::Eotf GetEotf() const { return KODI::UTILS::Eotf::TRADITIONAL_SDR; }
+  virtual KODI::UTILS::Colorimetry GetColorimetry() const
+  {
+    return KODI::UTILS::Colorimetry::DEFAULT;
+  }
   static const char* SETTING_WINSYSTEM_IS_HDR_DISPLAY;
   virtual float GetGuiSdrPeakLuminance() const { return .0f; }
   virtual bool HasSystemSdrPeakLuminance() { return false; }
@@ -246,6 +261,23 @@ public:
    *
    */
   virtual bool SupportsVideoSuperResolution() { return false; }
+
+  // GUI compositing for HDR: render GUI to FBO, composite with tone mapping
+  // colorTransfer: AVCOL_TRC_SMPTE2084 (PQ) or AVCOL_TRC_ARIB_STD_B67 (HLG), 0 to disable
+  virtual bool SetGuiCompositing(int colorTransfer) { return false; }
+  // guiWillRender: hint that GUI rendering is about to fire this frame.
+  // When false, implementations should skip FBO bind/clear since no GUI
+  // draws will land in the FBO this frame.
+  virtual bool BeginGuiComposite(bool guiWillRender) { return false; }
+  virtual void EndGuiComposite() {}
+  virtual void CompositeGui() {}
+
+  // True when GUI is rendered to an FBO that is then color-transformed
+  // (sRGB -> PQ/HLG) and composited against HDR video in that non-linear
+  // space. Alpha blending assumes linear light; blending non-linear values
+  // yields wrong transparency. When true, GUI draws select a compensated
+  // alpha blend (see CGUIFontTTFGLES::FirstBegin).
+  virtual bool IsHdrComposite() const { return false; }
 
   /*!
    * \brief Gets debug info from video renderer for use in "Debug Info OSD" (Alt + O)
