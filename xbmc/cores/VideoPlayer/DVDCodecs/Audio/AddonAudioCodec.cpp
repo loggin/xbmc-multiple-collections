@@ -26,6 +26,11 @@ extern "C"
 
 namespace
 {
+// Sanity upper bound for a single decoded audio frame, well above anything a
+// legitimate codec/channel-count combination would need. Guards against
+// unbounded/malicious allocation requests from an addon.
+constexpr size_t MAX_DECODED_FRAME_SIZE = 64 * 1024 * 1024;
+
 AEDataFormat ConvAudioCodecFormat(AUDIOCODEC_FORMAT acFormat)
 {
   switch (acFormat)
@@ -201,6 +206,7 @@ bool CAddonAudioCodec::CopyToInitData(AUDIOCODEC_INITDATA& initData, CDVDStreamI
 
     strncpy(initData.cryptoSession.sessionId, hints.cryptoSession->sessionId.c_str(),
             sizeof(initData.cryptoSession.sessionId) - 1);
+    initData.cryptoSession.sessionId[sizeof(initData.cryptoSession.sessionId) - 1] = '\0';
   }
 
   initData.extraData = hints.extradata.GetData();
@@ -240,7 +246,7 @@ bool CAddonAudioCodec::Open(CDVDStreamInfo& hints, CDVDCodecOptions& options)
   if (!m_ifc.audiocodec->toAddon->open)
     return false;
 
-  AUDIOCODEC_INITDATA initData;
+  AUDIOCODEC_INITDATA initData = {};
   if (!CopyToInitData(initData, hints))
     return false;
 
@@ -337,26 +343,46 @@ void CAddonAudioCodec::Reset()
 {
   CLog::Log(LOGDEBUG, "CAddonAudioCodec: Reset");
 
-  // Get the remaining frames out of the external decoder
-  AUDIOCODEC_FRAME frame;
-  frame.flags = AUDIOCODEC_FRAME_FLAG_DRAIN;
+  // Get the remaining frames out of the external decoder. Bounded so a
+  // misbehaving addon that never returns AC_EOF on drain can't hang playback.
+  constexpr int MAX_DRAIN_ITERATIONS = 1000;
 
-  AUDIOCODEC_RETVAL ret;
-  while ((ret = m_ifc.audiocodec->toAddon->get_frame(m_ifc.audiocodec, &frame)) !=
-         AUDIOCODEC_RETVAL::AC_EOF)
+  if (m_ifc.audiocodec->toAddon->get_frame)
   {
-    if (ret == AUDIOCODEC_RETVAL::AC_FRAME)
+    AUDIOCODEC_FRAME frame;
+    frame.flags = AUDIOCODEC_FRAME_FLAG_DRAIN;
+
+    AUDIOCODEC_RETVAL ret;
+    int iterations = 0;
+    while ((ret = m_ifc.audiocodec->toAddon->get_frame(m_ifc.audiocodec, &frame)) !=
+               AUDIOCODEC_RETVAL::AC_EOF &&
+           ++iterations < MAX_DRAIN_ITERATIONS)
     {
-      if (frame.audioBufferHandle)
-        ReleaseFrameBuffer(frame.audioBufferHandle);
+      if (ret == AUDIOCODEC_RETVAL::AC_FRAME)
+      {
+        if (frame.audioBufferHandle)
+          ReleaseFrameBuffer(frame.audioBufferHandle);
+      }
     }
+    if (iterations >= MAX_DRAIN_ITERATIONS)
+      CLog::Log(LOGWARNING, "CAddonAudioCodec: Reset: drain loop exceeded {} iterations, aborting",
+                MAX_DRAIN_ITERATIONS);
   }
+
   if (m_ifc.audiocodec->toAddon->reset)
     m_ifc.audiocodec->toAddon->reset(m_ifc.audiocodec);
 }
 
 bool CAddonAudioCodec::GetFrameBuffer(AUDIOCODEC_FRAME& frame)
 {
+  if (frame.decodedDataSize == 0 || frame.decodedDataSize > MAX_DECODED_FRAME_SIZE)
+  {
+    CLog::Log(LOGERROR, "CAddonAudioCodec::GetFrameBuffer Rejecting invalid buffer size {}",
+              frame.decodedDataSize);
+    frame.audioBufferHandle = nullptr;
+    return false;
+  }
+
   CLog::Log(LOGDEBUG, "CAddonAudioCodec: GetFrameBuffer allocating {} bytes",
             frame.decodedDataSize);
   frame.decodedData = static_cast<uint8_t*>(malloc(frame.decodedDataSize));
