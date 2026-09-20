@@ -10,16 +10,16 @@
 #
 # propagate these properties from one build system to the other
 set (p8-platform_VERSION "2.1.0.1")
-set (p8-platform_INCLUDE_DIRS "F:/work/Kodi/Multi Collections/project/BuildDependencies/x64/include/p8-platform;F:/work/Kodi/Multi Collections/project/BuildDependencies/x64/include/p8-platform/windows;F:/work/Kodi/Multi Collections/project/BuildDependencies/x64/include")
+set (p8-platform_INCLUDE_DIRS "F:/work/Kodi/builds/master/project/BuildDependencies/x64/include/p8-platform;F:/work/Kodi/builds/master/project/BuildDependencies/x64/include/p8-platform/windows;F:/work/Kodi/builds/master/project/BuildDependencies/x64/include")
 set (p8-platform_LIBRARY_DIRS "")
 set (p8-platform_LINKER_FLAGS "")
 set (p8-platform_CONFIG_VARS "")
 
 # libraries come from the build tree where this file was generated
 if(WIN32)
-  set (p8-platform_LIBRARY "F:/work/Kodi/Multi Collections/project/BuildDependencies/x64/lib/p8-platform.lib")
+  set (p8-platform_LIBRARY "F:/work/Kodi/builds/master/project/BuildDependencies/x64/lib/p8-platform.lib")
 else(WIN32)
-  set (p8-platform_LIBRARY "-LF:/work/Kodi/Multi Collections/project/BuildDependencies/x64/lib -lp8-platform")
+  set (p8-platform_LIBRARY "-LF:/work/Kodi/builds/master/project/BuildDependencies/x64/lib -lp8-platform")
 endif(WIN32)
 set (p8-platform_LIBRARIES ${p8-platform_LIBRARY} "")
 mark_as_advanced (p8-platform_LIBRARY)

@@ -1,12 +1,22 @@
 # Build script for Kodi Multi Collections (Windows, Visual Studio 2022, x64)
 #
-# *** CRITICAL: Run this script FIRST before every build session ***
-# The project was originally configured on L: drive. This machine has the source
-# on F:\work\Kodi\Multi Collections. Without the L: subst, ZERO_CHECK fails and
-# the build will not start.
+# The repo lives at F:\work\Kodi\Multi Collections\master. CMake is configured
+# against the stable junction F:\work\Kodi\builds\master (created via
+# `mklink /J F:\work\Kodi\builds\master "F:\work\Kodi\Multi Collections\master"`)
+# so the build survives future renames/moves of the "Multi Collections" folder —
+# only the junction target needs to change, not the CMake cache. No drive
+# substitution (subst) is used anywhere in this build - use the junction only.
 #
-# This script maps L: → F:\work\Kodi\Multi Collections automatically.
-# If the drive mapping is lost (e.g. after reboot), it is re-applied each run.
+# KNOWN ISSUE: Kodi's own Windows FFmpeg/MSYS build tooling (invoked by CMake's
+# build-ffmpeg custom-build step) independently expects an "L:" drive to exist
+# somewhere in that chain (root cause not isolated - it's created/torn down
+# within a single build-ffmpeg invocation, too fast to catch live via polling,
+# and isn't a literal `subst` call anywhere under tools/ or
+# project/BuildDependencies/scripts). Without L: mapped, ffmpeg's ./configure
+# bakes a stale absolute L:/... path into its generated Makefiles and the
+# build-ffmpeg step fails. Fixing that for real means finding the actual call
+# site; deleting project/BuildDependencies/build/src/ffmpeg-8.1 forces it to
+# regenerate but does not avoid the underlying dependency on L:.
 #
 # Build output: kodi-build.x64\Release\kodi.exe  (or \Debug\kodi.exe)
 #
@@ -24,14 +34,12 @@ param(
     [int]$Jobs = 0               # 0 = let MSBuild choose (/m)
 )
 
-# ── Step 1: Map L: drive (required — project was configured on L:/) ──────────
-$lMapped = (subst L: 2>$null | Select-String "L:\\:" | Measure-Object).Count -gt 0
-if (-not $lMapped) {
-    subst L: "F:\work\Kodi\Multi Collections" | Out-Null
-    Write-Host "L: drive mapped to F:\work\Kodi\Multi Collections" -ForegroundColor Yellow
-} else {
-    Write-Host "L: drive already mapped" -ForegroundColor DarkGray
+$buildRoot = "F:\work\Kodi\builds\master"
+if (-not (Test-Path $buildRoot)) {
+    Write-Error "Build junction not found: $buildRoot (run: mklink /J `"$buildRoot`" `"$PSScriptRoot`")"
+    exit 1
 }
+
 
 # ── Step 2: Kill stale mspdbsrv.exe (prevents C1902 PDB mismatch errors) ────
 # Also ensure Kodi is not running, as rebuilding while kodi.exe is active can
@@ -61,7 +69,7 @@ if (-not (Test-Path $msbuild)) {
 }
 
 $parallelFlag = if ($Jobs -gt 0) { "/m:$Jobs" } else { "/m" }
-$slnDir = Join-Path $PSScriptRoot "kodi-build.x64"   # ← real cmake build dir
+$slnDir = Join-Path $buildRoot "kodi-build.x64"   # ← real cmake build dir, via the stable junction
 
 # ── Step 4: Build ─────────────────────────────────────────────────────────────
 if ($Target -eq "libkodi") {
