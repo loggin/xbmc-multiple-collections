@@ -940,6 +940,17 @@ public:
                     const std::string& description = "",
                     const bool updateDescription = true,
                     const std::string& homePath = "");
+  // Upserts collection/collection_item rows for the <collections> NFO block (spec 4.2).
+  // 'set'-type entries are skipped - the caller's existing m_set handling is the sole
+  // vehicle for an item's single type='set' collection membership.
+  void AddCollectionMemberships(const std::string& mediaType,
+                                int idMedia,
+                                const std::vector<SCollectionMembership>& memberships);
+  // Reads back an item's non-'set' collection memberships for NFO export (spec 4.1),
+  // in the shape CVideoInfoTag::Save() writes out as <collections>.
+  void GetCollectionMembershipsForMedia(const std::string& mediaType,
+                                        int idMedia,
+                                        std::vector<SCollectionMembership>& outMemberships);
   bool SetVideoUserRating(int dbId, int rating, const MediaType& mediaType);
   bool GetUseAllExternalAudioForVideo(const std::string& videoPath);
 

@@ -1375,6 +1375,64 @@ int CVideoDatabase::AddCollection(const std::string& name,
   return collection.idCollection;
 }
 
+void CVideoDatabase::AddCollectionMemberships(
+    const std::string& mediaType,
+    int idMedia,
+    const std::vector<SCollectionMembership>& memberships)
+{
+  for (const auto& membership : memberships)
+  {
+    if (membership.name.empty() || StringUtils::EqualsNoCase(membership.type, "set"))
+      continue;
+
+    const int idCollection =
+        AddCollection(membership.name, membership.type.empty() ? "franchise" : membership.type);
+    if (idCollection <= 0)
+      continue;
+
+    CCollectionItem ci;
+    ci.idCollection = idCollection;
+    ci.mediaType = mediaType;
+    ci.idMedia = idMedia;
+    ci.sortOrder = membership.sortOrder;
+    ci.groupName = membership.groupName;
+    AddOrUpdateCollectionItem(ci);
+  }
+}
+
+void CVideoDatabase::GetCollectionMembershipsForMedia(
+    const std::string& mediaType, int idMedia, std::vector<SCollectionMembership>& outMemberships)
+{
+  outMemberships.clear();
+
+  try
+  {
+    if (m_pDB == nullptr || m_pDS2 == nullptr)
+      return;
+
+    m_pDS2->query(PrepareSQL(
+        "SELECT c.name, c.type, ci.sortOrder, ci.groupName "
+        "FROM collection c JOIN collection_item ci ON ci.idCollection = c.idCollection "
+        "WHERE ci.mediaType='%s' AND ci.idMedia=%i AND c.type<>'set' "
+        "ORDER BY c.name",
+        mediaType.c_str(), idMedia));
+    while (!m_pDS2->eof())
+    {
+      SCollectionMembership& membership = outMemberships.emplace_back();
+      membership.name = m_pDS2->fv(0).get_asString();
+      membership.type = m_pDS2->fv(1).get_asString();
+      membership.sortOrder = m_pDS2->fv(2).get_asInt();
+      membership.groupName = m_pDS2->fv(3).get_asString();
+      m_pDS2->next();
+    }
+    m_pDS2->close();
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}, {}) failed", mediaType, idMedia);
+  }
+}
+
 int CVideoDatabase::AddTag(const std::string& name)
 {
   if (name.empty())
@@ -2263,6 +2321,9 @@ int CVideoDatabase::SetDetailsForMovie(CVideoInfoTag& details,
       }
     }
 
+    // add multi-collection memberships from the <collections> NFO block (spec 4.2)
+    AddCollectionMemberships(MediaTypeMovie, idMovie, details.m_collections);
+
     if (details.HasStreamDetails() &&
         !SetStreamDetailsForFileId(details.m_streamDetails, GetAndFillFileId(details)))
     {
@@ -2366,6 +2427,9 @@ int CVideoDatabase::UpdateDetailsForMovie(int idMovie,
         }
       }
     }
+
+    // add multi-collection memberships from the <collections> NFO block (spec 4.2)
+    AddCollectionMemberships(MediaTypeMovie, idMovie, details.m_collections);
 
     // and update the movie table
     std::string sql = "UPDATE movie SET " + GetValueString(details, VIDEODB_ID_MIN, VIDEODB_ID_MAX, DbMovieOffsets);
@@ -2540,6 +2604,9 @@ bool CVideoDatabase::UpdateDetailsForTvShow(int idTvShow,
 
   // add unique ids
   details.m_iIdUniqueID = AddUniqueIDs(idTvShow, MediaTypeTvShow, details);
+
+  // add multi-collection memberships from the <collections> NFO block (spec 4.2)
+  AddCollectionMemberships(MediaTypeTvShow, idTvShow, details.m_collections);
 
   // add "all seasons" - the rest are added in SetDetailsForEpisode
   if (AddSeason(idTvShow, -1) == -1)
@@ -2904,6 +2971,9 @@ int CVideoDatabase::SetDetailsForEpisode(CVideoInfoTag& details,
 
     // add unique ids
     details.m_iIdUniqueID = AddUniqueIDs(idEpisode, MediaTypeEpisode, details);
+
+    // add multi-collection memberships from the <collections> NFO block (spec 4.2)
+    AddCollectionMemberships(MediaTypeEpisode, idEpisode, details.m_collections);
 
     if (details.HasStreamDetails() &&
         !SetStreamDetailsForFileId(details.m_streamDetails, GetAndFillFileId(details)))
@@ -10909,6 +10979,7 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
         // strip paths to make them relative
         if (StringUtils::StartsWith(movie.m_strTrailer, movie.m_strPath))
           movie.m_strTrailer = movie.m_strTrailer.substr(movie.m_strPath.size());
+        GetCollectionMembershipsForMedia(MediaTypeMovie, movie.m_iDbId, movie.m_collections);
         ART::Artwork artwork;
         if (GetArtForAsset(pDS3->fv("videoVersionIdFile").get_asInt(), ArtFallbackOptions::PARENT,
                            artwork) &&
@@ -11238,6 +11309,8 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
       KODI::ART::SeasonsArtwork seasonArt;
       GetTvShowSeasonArt(tvshow.m_iDbId, seasonArt);
 
+      GetCollectionMembershipsForMedia(MediaTypeTvShow, tvshow.m_iDbId, tvshow.m_collections);
+
       KODI::ART::Artwork artwork;
       if (GetArtForItem(tvshow.m_iDbId, tvshow.m_type, artwork) && !artwork.empty() && singleFile)
       {
@@ -11370,6 +11443,7 @@ void CVideoDatabase::ExportToXML(const std::string &path, bool singleFile /* = t
         CVideoInfoTag episode{GetDetailsForEpisode(*pDS, VideoDbDetailsAll)};
         ART::Artwork episodeArtwork;
         GetArtForItem(episode.m_iDbId, MediaTypeEpisode, episodeArtwork);
+        GetCollectionMembershipsForMedia(MediaTypeEpisode, episode.m_iDbId, episode.m_collections);
 
         if (!singleFile)
         {

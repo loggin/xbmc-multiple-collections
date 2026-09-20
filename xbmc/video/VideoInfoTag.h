@@ -41,6 +41,17 @@ struct SActorInfo
   int order{-1};
 };
 
+// A single <collection> entry parsed from (or written to) an item's <collections> NFO
+// block - see spec.md section 4.1. Distinct from the legacy single CSetInfoTag m_set,
+// which continues to represent the item's one type='set' collection membership.
+struct SCollectionMembership
+{
+  std::string name;
+  std::string type; // franchise, arc, crossover, timeline; empty defaults to franchise
+  int sortOrder{0};
+  std::string groupName;
+};
+
 class CRating
 {
 public:
@@ -397,6 +408,7 @@ public:
   std::vector<std::string> m_artist;
   std::vector<SActorInfo> m_cast;
   CSetInfoTag m_set;
+  std::vector<SCollectionMembership> m_collections;
   std::vector<std::string> m_tags;
   std::string m_strFile;
   std::string m_strPath;

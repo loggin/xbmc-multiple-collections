@@ -45,6 +45,7 @@ void CVideoInfoTag::Reset()
   m_strSortTitle.clear();
   m_cast.clear();
   m_set.Reset();
+  m_collections.clear();
   m_tags.clear();
   m_assetInfo.Clear();
   m_hasVideoVersions = false;
@@ -234,6 +235,25 @@ bool CVideoInfoTag::Save(TiXmlNode *node, const std::string &tag, bool savePathI
       XMLUtils::SetString(&set, "overview", m_set.GetOverview());
     movie->InsertEndChild(set);
   }
+  if (!m_collections.empty())
+  {
+    TiXmlElement collections("collections");
+    for (const auto& membership : m_collections)
+    {
+      if (membership.name.empty())
+        continue;
+      TiXmlElement collection("collection");
+      XMLUtils::SetString(&collection, "name", membership.name);
+      if (!membership.type.empty())
+        XMLUtils::SetString(&collection, "type", membership.type);
+      if (membership.sortOrder != 0)
+        XMLUtils::SetInt(&collection, "order", membership.sortOrder);
+      if (!membership.groupName.empty())
+        XMLUtils::SetString(&collection, "group", membership.groupName);
+      collections.InsertEndChild(collection);
+    }
+    movie->InsertEndChild(collections);
+  }
   XMLUtils::SetStringArray(movie, "tag", m_tags);
   m_assetInfo.Save(movie);
   XMLUtils::SetBoolean(movie, "hasvideoversions", m_hasVideoVersions);
@@ -398,6 +418,9 @@ void CVideoInfoTag::Merge(CVideoInfoTag& other)
     m_cast = other.m_cast;
 
   m_set.Merge(other.m_set);
+
+  if (!other.m_collections.empty())
+    m_collections = other.m_collections;
 
   if (!other.m_tags.empty())
     m_tags = other.m_tags;
@@ -1447,6 +1470,45 @@ void CVideoInfoTag::ParseNative(const TiXmlElement* movie, bool prioritise)
         SetSetOverview(value);
         m_updateSetOverview = true;
       }
+    }
+  }
+
+  // Multi-collection membership (spec 4.1):
+  //   <collections><collection><name/><type/><order/><group/></collection>...</collections>
+  // Minimal shorthand: <collection>Name</collection>
+  // Malformed/incomplete entries (missing <name>) are logged and skipped rather than
+  // aborting the scan - collection metadata failures must never block import of the item.
+  if (prioritise)
+    m_collections.clear();
+  node = movie->FirstChildElement("collections");
+  if (node)
+  {
+    const TiXmlElement* collectionNode = node->FirstChildElement("collection");
+    while (collectionNode)
+    {
+      if (XMLUtils::GetString(collectionNode, "name", value) && !value.empty())
+      {
+        SCollectionMembership membership;
+        membership.name = value;
+        XMLUtils::GetString(collectionNode, "type", membership.type);
+        XMLUtils::GetInt(collectionNode, "order", membership.sortOrder);
+        XMLUtils::GetString(collectionNode, "group", membership.groupName);
+        m_collections.push_back(std::move(membership));
+      }
+      else
+        CLog::LogF(LOGWARNING, "Skipping <collection> entry with no <name> in '{}'", m_strTitle);
+
+      collectionNode = collectionNode->NextSiblingElement("collection");
+    }
+  }
+  else
+  {
+    const TiXmlElement* shorthand = movie->FirstChildElement("collection");
+    if (shorthand && shorthand->FirstChild() && shorthand->FirstChild()->ToText())
+    {
+      SCollectionMembership membership;
+      membership.name = shorthand->FirstChild()->Value();
+      m_collections.push_back(std::move(membership));
     }
   }
 
