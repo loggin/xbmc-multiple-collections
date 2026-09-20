@@ -1714,7 +1714,10 @@ bool CGUIDialogVideoInfo::ManageMediaCollections(const std::shared_ptr<CFileItem
         break; // cancelled keyboard — exit loop without changes
       if (!newSetTitle.empty())
       {
-        const int idNew = videodb.AddCollection(newSetTitle);
+        // Explicit non-"set" type: AddCollection defaults to "set", which export
+        // (VideoDatabase::GetCollectionMembershipsForMedia) treats as the legacy
+        // single-movie set and filters out of the <collections> NFO block.
+        const int idNew = videodb.AddCollection(newSetTitle, "franchise");
         if (idNew >= 0)
           preSelectIds.insert(idNew); // auto-select the new collection on re-open
       }
