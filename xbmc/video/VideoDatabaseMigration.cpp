@@ -1372,9 +1372,48 @@ void CVideoDatabase::UpdateTables(int iVersion)
         "AND `sets`.strOriginalSet IS NOT NULL AND `sets`.strOriginalSet != ''), name) "
         "WHERE type='set' AND (originalName IS NULL OR originalName = '')");
   }
+
+  if (iVersion < 151)
+  {
+    // Fix collections mis-typed as 'set' by the ManageMediaCollections "New set..." dialog,
+    // which called AddCollection(name) with no explicit type and so always got the type="set"
+    // default (fixed in GUIDialogVideoInfo.cpp to pass "franchise" going forward). A collection
+    // stuck at type='set' is invisible to NFO export: GetCollectionMembershipsForMedia excludes
+    // type='set' from the <collections> block to avoid double-emitting the legacy single <set>
+    // tag, so every dialog-created collection silently dropped out of export even though its
+    // collection_item rows were real. This can't be told apart from a genuine legacy set by name
+    // alone, so two safe, unambiguous rules are applied instead of a blanket reclassification:
+
+    // Rule 1: a real legacy movie set can only ever contain movies. Any type='set' collection
+    // with a non-movie member (tvshow/season/episode/special) must be a mixed-media collection
+    // from the new dialog - reclassify it outright.
+    m_pDS->exec(
+        "UPDATE collection SET type='franchise' WHERE type='set' AND idCollection IN ("
+        "  SELECT DISTINCT idCollection FROM collection_item WHERE mediaType <> 'movie')");
+
+    // Rule 2: for movie-only collections, movie_view.idSet/strSet (the legacy <set> tag) already
+    // picks exactly one "primary" collection per movie - the one with the most movie members,
+    // ties broken by lowest id (see the ci_primary subquery in CVideoDatabaseDDL::CreateViews).
+    // Any type='set' collection that is never the primary pick for any of its own movies is
+    // already invisible in the legacy <set> tag today, so promoting it to 'franchise' changes
+    // nothing about current display and makes it exportable via <collections> instead.
+    m_pDS->exec(
+        "UPDATE collection SET type='franchise' WHERE type='set' AND idCollection NOT IN ("
+        "  SELECT ("
+        "    SELECT ci2.idCollection FROM collection_item ci2"
+        "    INNER JOIN ("
+        "      SELECT idCollection, COUNT(*) AS cnt FROM collection_item"
+        "      WHERE mediaType='movie' GROUP BY idCollection"
+        "    ) cc ON cc.idCollection = ci2.idCollection"
+        "    WHERE ci2.idMedia = m.idMedia AND ci2.mediaType='movie'"
+        "    ORDER BY cc.cnt DESC, ci2.idCollection ASC"
+        "    LIMIT 1"
+        "  )"
+        "  FROM (SELECT DISTINCT idMedia FROM collection_item WHERE mediaType='movie') m)");
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 150;
+  return 151;
 }
