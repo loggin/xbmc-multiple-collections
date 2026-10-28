@@ -26,12 +26,15 @@
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/DiscsUtils.h"
+#include "utils/ItemProperties.h"
 #include "utils/URIUtils.h"
 #include "utils/log.h"
 #include "video/Bookmark.h"
 #include "video/VideoDatabase.h"
 #include "video/VideoFileItemClassify.h"
 #include "video/VideoInfoTag.h"
+#include "video/VideoManagerTypes.h"
+#include "video/VideoUtils.h"
 
 #include <cstdint>
 #include <memory>
@@ -80,8 +83,12 @@ bool GetEpisodeBookmark(const CFileItem& item, CPlayerOptions& options, CVideoDa
     {
       CBookmark bookmark;
       db.GetBookMarkForEpisode(*tag, bookmark);
-      options.starttime = bookmark.timeInSeconds;
       options.state = bookmark.playerState;
+
+      // Only apply starttime for non-local/LAN items where EDL parser won't run
+      if (!URIUtils::IsLocalOrLAN(item.GetDynPath()))
+        options.starttime = bookmark.timeInSeconds;
+
       return true;
     }
   }
@@ -91,21 +98,21 @@ bool GetEpisodeBookmark(const CFileItem& item, CPlayerOptions& options, CVideoDa
 
 void CApplicationPlay::GetOptionsAndUpdateItem()
 {
-  if (m_item.HasProperty("StartPercent"))
+  if (m_item.HasProperty(ITEM::PROPERTY::START_PERCENT))
   {
-    m_options.startpercent = m_item.GetProperty("StartPercent").asDouble();
+    m_options.startpercent = m_item.GetProperty(ITEM::PROPERTY::START_PERCENT).asDouble();
     m_item.SetStartOffset(0);
   }
   m_options.starttime = CUtil::ConvertMilliSecsToSecs(m_item.GetStartOffset());
 
   if (VIDEO::IsVideo(m_item))
   {
-    if (m_item.HasProperty("savedplayerstate"))
+    if (m_item.HasProperty(ITEM::PROPERTY::SAVED_PLAYER_STATE))
     {
       // savedplayerstate is set in CPowerManager on sleep
       m_options.starttime = CUtil::ConvertMilliSecsToSecs(m_item.GetStartOffset());
-      m_options.state = m_item.GetProperty("savedplayerstate").asString();
-      m_item.ClearProperty("savedplayerstate");
+      m_options.state = m_item.GetProperty(ITEM::PROPERTY::SAVED_PLAYER_STATE).asString();
+      m_item.ClearProperty(ITEM::PROPERTY::SAVED_PLAYER_STATE);
       return;
     }
 
@@ -123,10 +130,11 @@ void CApplicationPlay::GetOptionsAndUpdateItem()
           VIDEO::IsVideoDb(m_item))
         path = videoInfoTagPath;
     }
-    else if (m_item.HasProperty("original_listitem_url") &&
-             URIUtils::IsPlugin(m_item.GetProperty("original_listitem_url").asString()))
+    else if (m_item.HasProperty(ITEM::PROPERTY::ORIGINAL_LISTITEM_URL) &&
+             URIUtils::IsPlugin(
+                 m_item.GetProperty(ITEM::PROPERTY::ORIGINAL_LISTITEM_URL).asString()))
     {
-      path = m_item.GetProperty("original_listitem_url").asString();
+      path = m_item.GetProperty(ITEM::PROPERTY::ORIGINAL_LISTITEM_URL).asString();
     }
 
     // Note that we need to load the tag from database also if the item already has a tag,
@@ -153,7 +161,7 @@ void CApplicationPlay::GetOptionsAndUpdateItem()
           m_options.starttime = bookmark.timeInSeconds;
           m_options.state = bookmark.playerState;
         }
-        else if (m_options.starttime == 0.0 && m_item.HasVideoInfoTag())
+        else if (m_options.starttime == 0.0)
           GetEpisodeBookmark(m_item, m_options, db);
       }
 
@@ -163,7 +171,7 @@ void CApplicationPlay::GetOptionsAndUpdateItem()
       if (m_options.starttime == 0.0)
         m_item.SetStartOffset(0);
     }
-    else if (m_item.HasVideoInfoTag())
+    else
       GetEpisodeBookmark(m_item, m_options, db);
 
     db.Close();
@@ -187,6 +195,10 @@ MenuDecision GetMenuDecisions(const CFileItem& item,
   if (isExternalPlayer || isRemotePlayer)
     return NO_ACTION;
 
+  // The playlist has just been chosen for this item, so play it as it is
+  if (item.GetProperty(ITEM::PROPERTY::PLAYLIST_CHOSEN).asBoolean(false))
+    return NO_ACTION;
+
   // See if disc image is a Blu-ray (as an image could be a DVD as well) or if the path is a BDMV folder
   const bool isBluray{::UTILS::DISCS::IsBlurayDiscImage(item) ||
                       URIUtils::IsBDFile(item.GetDynPath())};
@@ -199,19 +211,36 @@ MenuDecision GetMenuDecisions(const CFileItem& item,
       CSettings::SETTING_DISC_PLAYBACK)};
   const bool atStart{options.startpercent == 0.0 && options.starttime == 0.0};
 
+  // See if choose (new) playlist has been selected from context menu
+  const bool forceSelectionAlways{
+      item.GetProperty(ITEM::PROPERTY::FORCE_PLAYLIST_SELECTION).asBoolean(false)};
+
+  // Choose Playlist has been selected on the context menu, either for an already resolved
+  // playlist or for a disc (BDMV folder or ISO). This overrides the disc playback setting.
+  if (forceSelectionAlways && (isBlurayPath || isBluray))
+    return SHOW_SIMPLE_MENU;
+
+  // An extra stored as one of a disc's playlists plays that playlist rather than the disc menu or
+  // main title
+  const auto isExtraPlaylist{[&item, isBlurayPath]
+                             {
+                               CVideoDatabase db;
+                               return isBlurayPath && db.Open() &&
+                                      db.GetVideoVersionInfo(item.GetDynPath()).m_assetType ==
+                                          VideoAssetType::EXTRA;
+                             }};
+
   // Show Disc menu
   // This takes priority over the simple menu
   const bool useDiscMenuSetting{playbackSetting == BD_PLAYBACK_DISC_MENU};
-  if ((isBluray || isBlurayPath) && atStart && useDiscMenuSetting)
+  if ((isBluray || isBlurayPath) && atStart && useDiscMenuSetting && !isExtraPlaylist())
     return SHOW_DISC_MENU;
 
   // Select main title
   const bool useMainTitleSetting{playbackSetting == BD_PLAYBACK_MAIN_TITLE};
-  if ((isBluray || isBlurayPath) && atStart && useMainTitleSetting)
+  if ((isBluray || isBlurayPath) && atStart && useMainTitleSetting && !isExtraPlaylist())
     return GET_MAIN_TITLE;
 
-  // See if choose (new) playlist has been selected from context menu of if simple menu should always be used
-  const bool forceSelectionAlways{item.GetProperty("force_playlist_selection").asBoolean(false)};
   const bool forceSelectionAtStart{playbackSetting == BD_PLAYBACK_SIMPLE_MENU};
   const bool mainTitle{playbackSetting == BD_PLAYBACK_MAIN_TITLE};
 
@@ -220,9 +249,6 @@ MenuDecision GetMenuDecisions(const CFileItem& item,
   if (isBluray && atStart && !mainTitle)
     return SHOW_SIMPLE_MENU;
 
-  // If we already have a playlist but Choose Playlist has been selected on the context menu
-  if (forceSelectionAlways && isBlurayPath)
-    return SHOW_SIMPLE_MENU;
   // If we already have a playlist but we're at the start and simple menu is enabled in settings
   if (forceSelectionAtStart && isBlurayPath && atStart)
     return SHOW_SIMPLE_MENU;
@@ -247,18 +273,40 @@ bool CApplicationPlay::GetPlaylistIfDisc()
     case SILENT:
     {
       // Select playlist, showing simple menu if needed
-      if (!CDiscDirectoryHelper::GetOrShowPlaylistSelection(m_item, menuDecision))
+      CFileItemList items;
+      const std::string oldPath{m_item.GetDynPath()};
+      const int oldFileId{m_item.HasVideoInfoTag() ? m_item.GetVideoInfoTag()->m_iFileId : -1};
+      if (!CDiscDirectoryHelper::GetOrShowPlaylistSelection(m_item, items, menuDecision) ||
+          items.IsEmpty())
         return false; // User cancelled
+      m_item = *items[0];
+
+      // Only a choice the user made is saved, and now rather than when playback finishes
+      if (menuDecision == SHOW_SIMPLE_MENU && m_item.GetDynPath() != oldPath)
+      {
+        if (KODI::VIDEO::UTILS::CanSaveDiscPlaylist(m_item))
+        {
+          if (!KODI::VIDEO::UTILS::SaveDiscPlaylist(m_item))
+            m_item.SetProperty(ITEM::PROPERTY::NEW_PLAYLIST_PATH, true); // Retried at playback end
+          // Lets a listing entry still holding the old file id match the update at playback end
+          else if (m_item.GetVideoInfoTag()->m_iFileId != oldFileId)
+            m_item.SetProperty(ITEM::PROPERTY::REPLACED_FILE_ID, oldFileId);
+        }
+        else if (m_item.GetVideoContentType() == VideoDbContentType::UNKNOWN)
+          // Removable disc, saved at playback end
+          m_item.SetProperty(ITEM::PROPERTY::NEW_PLAYLIST_PATH, true);
+      }
 
       // Reset any resume state as new playlist chosen
       m_options.starttime = m_options.startpercent = 0.0;
       m_options.state = {};
-      m_item.ClearProperty("force_playlist_selection");
+      m_item.ClearProperty(ITEM::PROPERTY::FORCE_PLAYLIST_SELECTION);
       break;
     }
     case NO_ACTION:
       break;
   }
+  m_item.ClearProperty(ITEM::PROPERTY::PLAYLIST_CHOSEN);
   return true;
 }
 

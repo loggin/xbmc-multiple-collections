@@ -71,6 +71,9 @@ static const TestEntry TestData[] = {
      {{5, 1}, {5, 2}, {5, 3}, {5, 4}, {5, 5}},
      {{5, 1}, {5, 3}, {5, 5}}},
     {"foo.5x03-5x05.mkv", {{5, 3}, {5, 4}, {5, 5}}, {{5, 3}, {5, 5}}},
+    // range with single episode after
+    {"foo.S01E01-E03E05.mkv", {{1, 1}, {1, 2}, {1, 3}, {1, 5}}, {{1, 1}, {1, 3}, {1, 5}}},
+    {"foo.S01E01-E03S01E05.mkv", {{1, 1}, {1, 2}, {1, 3}, {1, 5}}, {{1, 1}, {1, 3}, {1, 5}}},
     // not ranges
     {"foo.E03-05.mkv", {{1, 3}, {1, 5}}, {{1, 3}, {1, 5}}},
     {"foo.ep03-05.mkv", {{1, 3}, {1, 5}}, {{1, 3}, {1, 5}}},
@@ -99,6 +102,7 @@ static const TestEntry TestData[] = {
      {{3, 1}, {3, 2}, {3, 3}, {3, 4}},
      {{1, 3}, {2, 2}, {3, 1}, {3, 4}}}, // first range invalid
     {"foo.S02E03-1080p.mkv", {{2, 3}}, {{2, 3}}}, // resolution
+    {"foo.S02E03_20231105123456.mkv", {{2, 3}}, {{2, 3}}}, // timestamp
     {"foo.S02E03-special.mkv", {{2, 3}}, {{2, 3}}}, // comment (starting with s)
     {"foo.S02E03-extended.mkv", {{2, 3}}, {{2, 3}}}, // comment (starting with e)
 };

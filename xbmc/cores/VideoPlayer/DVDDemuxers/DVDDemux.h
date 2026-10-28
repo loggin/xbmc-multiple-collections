@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -10,6 +10,7 @@
 
 #include "Interface/StreamInfo.h"
 #include "cores/FFmpeg.h"
+#include "language/LanguageTag.h"
 
 #include <chrono>
 #include <memory>
@@ -135,7 +136,7 @@ public:
   FFmpegExtraData extraData;
 
   StreamFlags flags{StreamFlags::FLAG_NONE};
-  std::string language; // RFC 5646 language code (empty string if undefined)
+  KODI::LANGUAGE::CLanguageTag language; // empty when the container declares no language at all
   bool disabled{false}; // set when stream is disabled. (when no decoder exists)
 
   std::string name;
@@ -202,6 +203,8 @@ class CDemuxStreamSubtitle : public CDemuxStream
 {
 public:
   CDemuxStreamSubtitle() : CDemuxStream(StreamType::SUBTITLE) {}
+
+  std::string GetStreamType() const;
 };
 
 class CDemuxStreamTeletext : public CDemuxStream
@@ -365,6 +368,8 @@ public:
    * adaptive demuxers like DASH can use this to choose best fitting video stream
    */
   virtual void SetVideoResolution(unsigned int width, unsigned int height) {}
+
+  virtual bool IsStreaming() const { return false; }
 
   /*
   * return the id of the demuxer

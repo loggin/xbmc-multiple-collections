@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -38,6 +38,8 @@
 #include "guilib/GUIWindowManager.h"
 #include "imagefiles/ImageFileURL.h"
 #include "interfaces/AnnouncementManager.h"
+#include "music/AudioType.h"
+#include "music/MusicDbPaths.h"
 #include "music/MusicFileItemClassify.h"
 #include "music/MusicLibraryQueue.h"
 #include "music/MusicThumbLoader.h"
@@ -50,9 +52,11 @@
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "utils/ArtTypes.h"
 #include "utils/Digest.h"
 #include "utils/FileExtensionProvider.h"
 #include "utils/FileUtils.h"
+#include "utils/ItemProperties.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
 #include "utils/Variant.h"
@@ -73,7 +77,6 @@ using KODI::UTILITY::CDigest;
 CMusicInfoScanner::CMusicInfoScanner()
 : m_fileCountReader(this, "MusicFileCounter")
 {
-  m_bStop = false;
   m_currentItem=0;
   m_itemCount=0;
   m_flags = 0;
@@ -83,7 +86,6 @@ CMusicInfoScanner::~CMusicInfoScanner() = default;
 
 void CMusicInfoScanner::Process()
 {
-  m_bStop = false;
   CServiceBroker::GetAnnouncementManager()->Announce(ANNOUNCEMENT::AudioLibrary, "OnScanStarted");
   try
   {
@@ -99,7 +101,8 @@ void CMusicInfoScanner::Process()
     // check if we only need to perform a cleaning
     if (m_bClean && m_pathsToScan.empty())
     {
-      CMusicLibraryQueue::GetInstance().CleanLibrary(false);
+      if (!m_bStop)
+        CMusicLibraryQueue::GetInstance().CleanLibrary(false);
       m_handle = NULL;
       m_bRunning = false;
 
@@ -150,8 +153,8 @@ void CMusicInfoScanner::Process()
 
         // Clear list of albums added by this scan
         m_albumsAdded.clear();
-        bool scancomplete = DoScan(it);
-        if (scancomplete)
+        if ([[maybe_unused]] const auto [scanComplete, foundContent] = DoScan(it);
+            scanComplete == ScanComplete::Completed)
         {
           if (!m_albumsAdded.empty())
           {
@@ -340,7 +343,7 @@ void CMusicInfoScanner::FetchAlbumInfo(const std::string& strDirectory,
   if (strDirectory.empty())
   {
     m_musicDatabase.Open();
-    m_musicDatabase.GetAlbumsNav("musicdb://albums/", items, SortDescription());
+    m_musicDatabase.GetAlbumsNav(MUSIC::DB_PATH::ALBUMS, items, SortDescription());
     m_musicDatabase.Close();
   }
   else
@@ -355,7 +358,7 @@ void CMusicInfoScanner::FetchAlbumInfo(const std::string& strDirectory,
       {
         //Add single album (id and path) as item to scan
         CFileItemPtr item(new CFileItem(strDirectory, false));
-        item->GetMusicInfoTag()->SetDatabaseId(params.GetAlbumId(), MediaTypeAlbum);
+        item->GetMusicInfoTag()->SetDatabaseId(params.GetAlbumId(), MEDIA::TYPE::ALBUM);
         items.Add(item);
       }
       else
@@ -404,7 +407,7 @@ void CMusicInfoScanner::FetchArtistInfo(const std::string& strDirectory,
     m_musicDatabase.Open();
     const auto settings = CServiceBroker::GetSettingsComponent()->GetSettings();
     m_musicDatabase.GetArtistsNav(
-        "musicdb://artists/", items, SortDescription(),
+        MUSIC::DB_PATH::ARTISTS, items, SortDescription(),
         !settings->GetBool(CSettings::SETTING_MUSICLIBRARY_SHOWCOMPILATIONARTISTS), -1);
     m_musicDatabase.Close();
   }
@@ -420,7 +423,7 @@ void CMusicInfoScanner::FetchArtistInfo(const std::string& strDirectory,
       {
         //Add single artist (id and path) as item to scan
         CFileItemPtr item(new CFileItem(strDirectory, false));
-        item->GetMusicInfoTag()->SetDatabaseId(params.GetAlbumId(), MediaTypeArtist);
+        item->GetMusicInfoTag()->SetDatabaseId(params.GetArtistId(), MEDIA::TYPE::ARTIST);
         items.Add(item);
       }
       else
@@ -479,7 +482,8 @@ static std::string Prettify(const std::string& strDirectory)
   return CURL::Decode(url.GetWithoutUserDetails());
 }
 
-bool CMusicInfoScanner::DoScan(const std::string& strDirectory)
+std::pair<CInfoScanner::ScanComplete, CInfoScanner::ContentFound> CMusicInfoScanner::DoScan(
+    const std::string& strDirectory)
 {
   if (m_handle)
   {
@@ -490,18 +494,18 @@ bool CMusicInfoScanner::DoScan(const std::string& strDirectory)
 
   std::set<std::string>::const_iterator it = m_seenPaths.find(strDirectory);
   if (it != m_seenPaths.end())
-    return true;
+    return std::make_pair(ScanComplete::Completed, ContentFound::None);
 
   m_seenPaths.insert(strDirectory);
 
   // Discard all excluded files defined by m_musicExcludeRegExps
   const std::vector<std::string> &regexps = CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_audioExcludeFromScanRegExps;
 
-  if (CUtil::ExcludeFileOrFolder(strDirectory, regexps))
-    return true;
+  if (CUtil::ExcludeFileOrFolder(strDirectory, regexps, &m_regexpCache))
+    return std::make_pair(ScanComplete::Completed, ContentFound::None);
 
   if (HasNoMedia(strDirectory))
-    return true;
+    return std::make_pair(ScanComplete::Completed, ContentFound::None);
 
   // load subfolder
   CFileItemList items;
@@ -515,6 +519,7 @@ bool CMusicInfoScanner::DoScan(const std::string& strDirectory)
   GetPathHash(items, hash);
 
   // check whether we need to rescan or not
+  ContentFound foundContent{ContentFound::None};
   std::string dbHash;
   if ((m_flags & SCAN_RESCAN) || !m_musicDatabase.GetPathHash(strDirectory, dbHash) || !StringUtils::EqualsNoCase(dbHash, hash))
   { // path has changed - rescan
@@ -538,6 +543,7 @@ bool CMusicInfoScanner::DoScan(const std::string& strDirectory)
     {
       if (m_handle)
         OnDirectoryScanned(strDirectory);
+      foundContent = ContentFound::NewContentFound;
     }
 
     // save information about this folder
@@ -568,20 +574,21 @@ bool CMusicInfoScanner::DoScan(const std::string& strDirectory)
     // if we have a directory item (non-playlist) we then recurse into that folder
     if (pItem->IsFolder() && !pItem->IsParentFolder() && !PLAYLIST::IsPlayList(*pItem))
     {
-      std::string strPath=pItem->GetPath();
-      if (!DoScan(strPath))
-      {
+      const auto [scanComplete, foundContentOnRecursion] = DoScan(pItem->GetPath());
+      if (scanComplete == ScanComplete::Stopped)
         m_bStop = true;
-      }
+      if (foundContentOnRecursion == ContentFound::NewContentFound)
+        foundContent = ContentFound::NewContentFound;
     }
   }
-  return !m_bStop;
+  return std::make_pair(m_bStop ? ScanComplete::Stopped : ScanComplete::Completed, foundContent);
 }
 
 CInfoScanner::InfoRet CMusicInfoScanner::ScanTags(const CFileItemList& items,
                                                   CFileItemList& scannedItems)
 {
-  std::vector<std::string> regexps = CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_audioExcludeFromScanRegExps;
+  std::vector<std::string> regexps =
+      CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_audioExcludeFromScanRegExps;
 
   for (int i = 0; i < items.Size(); ++i)
   {
@@ -590,7 +597,7 @@ CInfoScanner::InfoRet CMusicInfoScanner::ScanTags(const CFileItemList& items,
 
     CFileItemPtr pItem = items[i];
 
-    if (CUtil::ExcludeFileOrFolder(pItem->GetPath(), regexps))
+    if (CUtil::ExcludeFileOrFolder(pItem->GetPath(), regexps, &m_regexpCache))
       continue;
 
     if (pItem->IsFolder() || PLAYLIST::IsPlayList(*pItem) || pItem->IsPicture() ||
@@ -600,7 +607,13 @@ CInfoScanner::InfoRet CMusicInfoScanner::ScanTags(const CFileItemList& items,
     m_currentItem++;
 
     CMusicInfoTag& tag = *pItem->GetMusicInfoTag();
-    if (!tag.Loaded())
+    // Forced rescan must re-read tags from disk even if the item arrives with
+    // tag.Loaded() already true (e.g. DB-enriched directory listings). The
+    // folder-level SCAN_RESCAN check above (line 521) bypasses the path-hash
+    // skip, but without this check ScanTags would still reuse cached tag
+    // state on a per-file basis, defeating "Do full tag scan even when
+    // unchanged".
+    if (!tag.Loaded() || (m_flags & SCAN_RESCAN))
     {
       std::unique_ptr<IMusicInfoTagLoader> pLoader (CMusicInfoTagLoaderFactory::CreateLoader(*pItem));
       if (nullptr != pLoader)
@@ -982,8 +995,7 @@ int CMusicInfoScanner::RetrieveMusicInfo(const std::string& strDirectory, CFileI
 
     // mark albums without a title as singles
     if (album.strAlbum.empty())
-      album.releaseType = ReleaseType::Single;
-
+      album.releaseType = AudioType::Type::Single;
     album.strPath = strDirectory;
     m_musicDatabase.AddAlbum(album, m_idSourcePath);
     m_albumsAdded.insert(album.idAlbum);
@@ -1122,10 +1134,10 @@ void CMusicInfoScanner::FindArtForAlbums(std::vector<CAlbum>& albums, const std:
      that case and set the IsHTTPDirectory property to enable scanning for art.
     */
     if (StringUtils::StartsWithNoCase(path, "http") && StringUtils::EndsWith(path, "/"))
-      album.SetProperty("IsHTTPDirectory", true);
+      album.SetProperty(ITEM::PROPERTY::IS_HTTP_DIRECTORY, true);
     albumArt = album.GetUserMusicThumb(true);
     if (!albumArt.empty())
-      albums[0].art["thumb"] = albumArt;
+      albums[0].art[ART::TYPE::THUMB] = albumArt;
   }
   for (auto& album : albums)
   {
@@ -1167,7 +1179,7 @@ void CMusicInfoScanner::FindArtForAlbums(std::vector<CAlbum>& albums, const std:
     }
 
     if (!albumArt.empty())
-      album.art["thumb"] = albumArt;
+      album.art[ART::TYPE::THUMB] = albumArt;
 
     if (singleArt)
     { //if singleArt then we can clear the artwork for all songs
@@ -1188,7 +1200,7 @@ void CMusicInfoScanner::FindArtForAlbums(std::vector<CAlbum>& albums, const std:
     // assign to folder thumb as well
     CFileItem albumItem(path, true);
     CMusicThumbLoader loader;
-    loader.SetCachedImage(albumItem, "thumb", albumArt);
+    loader.SetCachedImage(albumItem, ART::TYPE::THUMB, albumArt);
   }
 }
 
@@ -1353,10 +1365,10 @@ CInfoScanner::InfoRet CMusicInfoScanner::UpdateDatabaseAlbumInfo(
         auto eventLog = CServiceBroker::GetEventLog();
         if (eventLog)
           eventLog->Add(EventPtr(new CMediaLibraryEvent(
-              MediaTypeAlbum, album.strPath, 24146,
+              MEDIA::TYPE::ALBUM, album.strPath, 24146,
               StringUtils::Format(
                   CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24147),
-                  MediaTypeAlbum, album.strAlbum),
+                  MEDIA::NameOf(MEDIA::TYPE::ALBUM), album.strAlbum),
               CScraperUrl::GetThumbUrl(album.thumbURL.GetFirstUrlByType()),
               CURL::GetRedacted(album.strPath), EventLevel::Warning)));
       }
@@ -1428,10 +1440,10 @@ CInfoScanner::InfoRet CMusicInfoScanner::UpdateDatabaseArtistInfo(
         auto eventLog = CServiceBroker::GetEventLog();
         if (eventLog)
           eventLog->Add(EventPtr(new CMediaLibraryEvent(
-              MediaTypeArtist, artist.strPath, 24146,
+              MEDIA::TYPE::ARTIST, artist.strPath, 24146,
               StringUtils::Format(
                   CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24147),
-                  MediaTypeArtist, artist.strArtist),
+                  MEDIA::NameOf(MEDIA::TYPE::ARTIST), artist.strArtist),
               CScraperUrl::GetThumbUrl(artist.thumbURL.GetFirstUrlByType()),
               CURL::GetRedacted(artist.strPath), EventLevel::Warning)));
       }
@@ -2016,13 +2028,13 @@ bool CMusicInfoScanner::AddArtistArtwork(CArtist& artist, const std::string& art
     return false; // No local or scraped possible art to process
 
   if (artist.art.empty())
-    m_musicDatabase.GetArtForItem(artist.idArtist, MediaTypeArtist, artist.art);
+    m_musicDatabase.GetArtForItem(artist.idArtist, MEDIA::TYPE::ARTIST, artist.art);
 
   std::map<std::string, std::string> addedart;
   std::string strArt;
 
   // Handle thumb separately, can be from multiple configurable file names
-  if (!artist.art.contains("thumb"))
+  if (!artist.art.contains(ART::TYPE::THUMB))
   {
     if (!artfolder.empty())
     { // Local music thumbnail images named by "musiclibrary.musicthumbs"
@@ -2030,16 +2042,16 @@ bool CMusicInfoScanner::AddArtistArtwork(CArtist& artist, const std::string& art
       strArt = item.GetUserMusicThumb(true);
     }
     if (strArt.empty())
-      strArt = CScraperUrl::GetThumbUrl(artist.thumbURL.GetFirstUrlByType("thumb"));
+      strArt = CScraperUrl::GetThumbUrl(artist.thumbURL.GetFirstUrlByType(ART::TYPE::THUMB));
     if (!strArt.empty())
-      addedart.insert(std::make_pair("thumb", strArt));
+      addedart.insert(std::make_pair(ART::TYPE::THUMB, strArt));
   }
 
   // Process additional art types in artist folder
-  AddLocalArtwork(addedart, MediaTypeArtist, artist.strArtist, artfolder);
+  AddLocalArtwork(addedart, MEDIA::TYPE::ARTIST, artist.strArtist, artfolder);
 
   // Process remote artist art filling gaps with first of scraped art URLs
-  AddRemoteArtwork(addedart, MediaTypeArtist, artist.thumbURL);
+  AddRemoteArtwork(addedart, MEDIA::TYPE::ARTIST, artist.thumbURL);
 
   int iArtLevel = CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
       CSettings::SETTING_MUSICLIBRARY_ARTWORKLEVEL);
@@ -2048,12 +2060,12 @@ bool CMusicInfoScanner::AddArtistArtwork(CArtist& artist, const std::string& art
   {
     // Cache thumb, fanart and other whitelisted artwork immediately
     // (other art types will be cached when first displayed)
-    if (iArtLevel != CSettings::MUSICLIBRARY_ARTWORK_LEVEL_ALL || it.first == "thumb" ||
-        it.first == "fanart")
+    if (iArtLevel != CSettings::MUSICLIBRARY_ARTWORK_LEVEL_ALL || it.first == ART::TYPE::THUMB ||
+        it.first == ART::TYPE::FANART)
       CServiceBroker::GetTextureCache()->BackgroundCacheImage(it.second);
     auto ret = artist.art.insert(it);
     if (ret.second)
-      m_musicDatabase.SetArtForItem(artist.idArtist, MediaTypeArtist, it.first, it.second);
+      m_musicDatabase.SetArtForItem(artist.idArtist, MEDIA::TYPE::ARTIST, it.first, it.second);
   }
   return !addedart.empty();
 }
@@ -2077,8 +2089,8 @@ bool CMusicInfoScanner::AddAlbumArtwork(CAlbum& album)
     return false; // No local or scraped possible art to process
 
   if (album.art.empty())
-    m_musicDatabase.GetArtForItem(album.idAlbum, MediaTypeAlbum, album.art);
-  auto thumb = album.art.find("thumb"); // Find "thumb", may want to replace it
+    m_musicDatabase.GetArtForItem(album.idAlbum, MEDIA::TYPE::ALBUM, album.art);
+  auto thumb = album.art.find(ART::TYPE::THUMB); // Find "thumb", may want to replace it
 
   bool replaceThumb = paths.size() > 1;
   if (CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
@@ -2104,16 +2116,16 @@ bool CMusicInfoScanner::AddAlbumArtwork(CAlbum& album)
       strArt = item.GetUserMusicThumb(true);
     }
     if (strArt.empty())
-      strArt = CScraperUrl::GetThumbUrl(album.thumbURL.GetFirstUrlByType("thumb"));
+      strArt = CScraperUrl::GetThumbUrl(album.thumbURL.GetFirstUrlByType(ART::TYPE::THUMB));
     if (!strArt.empty())
     {
       if (thumb != album.art.end())
         album.art.erase(thumb);
-      addedart.insert(std::make_pair("thumb", strArt));
+      addedart.insert(std::make_pair(ART::TYPE::THUMB, strArt));
     }
   }
   // Process additional art types in album folder
-  AddLocalArtwork(addedart, MediaTypeAlbum, album.strAlbum, album.strPath);
+  AddLocalArtwork(addedart, MEDIA::TYPE::ALBUM, album.strAlbum, album.strPath);
 
   // Fetch local art from disc subfolders
   if (paths.size() > 1)
@@ -2131,8 +2143,8 @@ bool CMusicInfoScanner::AddAlbumArtwork(CAlbum& album)
         // Handle thumbs separately. Get thumb for path from textures db cached during scan
         // (could be embedded or local file from multiple configurable file names)
         CFileItem item(pathpair.first.c_str(), true);
-        std::string strArtType = StringUtils::Format("{}{}", "thumb", discnum);
-        strArt = loader.GetCachedImage(item, "thumb");
+        std::string strArtType = StringUtils::Format("{}{}", ART::TYPE::THUMB, discnum);
+        strArt = loader.GetCachedImage(item, ART::TYPE::THUMB);
         if (strArt.empty())
           strArt = CScraperUrl::GetThumbUrl(album.thumbURL.GetFirstUrlByType(strArtType));
         if (!strArt.empty())
@@ -2147,22 +2159,23 @@ bool CMusicInfoScanner::AddAlbumArtwork(CAlbum& album)
         }
       }
       // Process additional art types in disc subfolder
-      AddLocalArtwork(addedart, MediaTypeAlbum, album.strAlbum, pathpair.first, discnum);
+      AddLocalArtwork(addedart, MEDIA::TYPE::ALBUM, album.strAlbum, pathpair.first, discnum);
     }
     // Finally if we still don't have album thumb then use the art from the
     // first disc in the set with a thumb
-    if (!firstDiscThumb.empty() && !album.art.contains("thumb"))
+    if (!firstDiscThumb.empty() && !album.art.contains(ART::TYPE::THUMB))
     {
-      m_musicDatabase.SetArtForItem(album.idAlbum, MediaTypeAlbum, "thumb", firstDiscThumb);
+      m_musicDatabase.SetArtForItem(album.idAlbum, MEDIA::TYPE::ALBUM, ART::TYPE::THUMB,
+                                    firstDiscThumb);
       // Assign art as folder thumb (in textures db) as well
 
       CFileItem albumItem(album.strPath, true);
-      loader.SetCachedImage(albumItem, "thumb", firstDiscThumb);
+      loader.SetCachedImage(albumItem, ART::TYPE::THUMB, firstDiscThumb);
     }
   }
 
   // Process remote album art filling gaps with first of scraped art URLs
-  AddRemoteArtwork(addedart, MediaTypeAlbum, album.thumbURL);
+  AddRemoteArtwork(addedart, MEDIA::TYPE::ALBUM, album.thumbURL);
 
   int iArtLevel = CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
       CSettings::SETTING_MUSICLIBRARY_ARTWORKLEVEL);
@@ -2170,30 +2183,30 @@ bool CMusicInfoScanner::AddAlbumArtwork(CAlbum& album)
   {
     // Cache thumb, fanart and whitelisted artwork immediately
     // (other art types will be cached when first displayed)
-    if (iArtLevel != CSettings::MUSICLIBRARY_ARTWORK_LEVEL_ALL || it.first == "thumb" ||
-        it.first == "fanart")
+    if (iArtLevel != CSettings::MUSICLIBRARY_ARTWORK_LEVEL_ALL || it.first == ART::TYPE::THUMB ||
+        it.first == ART::TYPE::FANART)
       CServiceBroker::GetTextureCache()->BackgroundCacheImage(it.second);
 
     auto ret = album.art.insert(it);
     if (ret.second)
-      m_musicDatabase.SetArtForItem(album.idAlbum, MediaTypeAlbum, it.first, it.second);
+      m_musicDatabase.SetArtForItem(album.idAlbum, MEDIA::TYPE::ALBUM, it.first, it.second);
   }
   return !addedart.empty();
 }
 
-std::vector<CVariant> CMusicInfoScanner::GetArtWhitelist(const MediaType& mediaType, int iArtLevel)
+std::vector<CVariant> CMusicInfoScanner::GetArtWhitelist(MEDIA::TYPE mediaType, int iArtLevel)
 {
   std::vector<CVariant> whitelistarttypes;
   if (iArtLevel == CSettings::MUSICLIBRARY_ARTWORK_LEVEL_BASIC)
   {
     // Basic artist artwork = thumb + fanart (but not "family" fanart1, fanart2 etc.)
     // Basic album artwork = thumb only, thumb handled separately not in whitelist
-    if (mediaType == MediaTypeArtist)
-      whitelistarttypes.emplace_back("fanart");
+    if (mediaType == MEDIA::TYPE::ARTIST)
+      whitelistarttypes.emplace_back(ART::TYPE::FANART);
   }
   else
   {
-    if (mediaType == MediaTypeArtist)
+    if (mediaType == MEDIA::TYPE::ARTIST)
       whitelistarttypes = CServiceBroker::GetSettingsComponent()->GetSettings()->GetList(
           CSettings::SETTING_MUSICLIBRARY_ARTISTART_WHITELIST);
     else
@@ -2205,7 +2218,7 @@ std::vector<CVariant> CMusicInfoScanner::GetArtWhitelist(const MediaType& mediaT
 }
 
 bool CMusicInfoScanner::AddLocalArtwork(std::map<std::string, std::string>& art,
-                                        const std::string& mediaType,
+                                        MEDIA::TYPE mediaType,
                                         const std::string& mediaName,
                                         const std::string& artfolder,
                                         int discnum)
@@ -2289,7 +2302,7 @@ bool CMusicInfoScanner::AddLocalArtwork(std::map<std::string, std::string>& art,
         // Catch any variants of music thumbs e.g. folder2.jpg as "thumb2"
         // Used for disc sets when files all in one album folder
         if (std::find(thumbs.begin(), thumbs.end(), strFamily + strExt) != thumbs.end())
-          strCandidate = "thumb" + strDigits;
+          strCandidate = ART::TYPE::THUMB + strDigits;
       }
       else if (discnum > 0)
         // Append disc number when candidate art type (and file) not have it
@@ -2304,7 +2317,7 @@ bool CMusicInfoScanner::AddLocalArtwork(std::map<std::string, std::string>& art,
 }
 
 bool CMusicInfoScanner::AddRemoteArtwork(std::map<std::string, std::string>& art,
-                                         const std::string& mediaType,
+                                         MEDIA::TYPE mediaType,
                                          const CScraperUrl& thumbURL)
 {
   int iArtLevel = CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
@@ -2327,7 +2340,7 @@ bool CMusicInfoScanner::AddRemoteArtwork(std::map<std::string, std::string>& art
     // Art type is encoded into the scraper XML held in thumbURL as optional "aspect=" field.
     // Those URL without aspect are also returned for all other type values.
     // Loop through all the first URLS of each type except "thumb" and add if art missing
-    if (url.m_aspect.empty() || url.m_aspect == "thumb")
+    if (url.m_aspect.empty() || url.m_aspect == ART::TYPE::THUMB)
       continue;
     if (!bUseAll)
     { // Check whitelist for art type family e.g. "discart" for aspect="discart2"
@@ -2363,21 +2376,31 @@ void CMusicInfoScanner::Run()
 }
 
 // Recurse through all folders we scan and count files
-int CMusicInfoScanner::CountFilesRecursively(const std::string& strPath)
+int CMusicInfoScanner::CountFilesRecursively(const std::string& strPath, int depth)
 {
+  static constexpr int MAX_COUNT_DEPTH{256};
+  if (depth >= MAX_COUNT_DEPTH)
+  {
+    CLog::LogF(LOGWARNING, "Maximum directory depth ({}) reached for: {}", MAX_COUNT_DEPTH,
+               CURL::GetRedacted(strPath));
+    return 0;
+  }
+
   // load subfolder
   CFileItemList items;
-  CDirectory::GetDirectory(strPath, items, CServiceBroker::GetFileExtensionProvider().GetMusicExtensions(), DIR_FLAG_NO_FILE_DIRS);
+  CDirectory::GetDirectory(strPath, items,
+                           CServiceBroker::GetFileExtensionProvider().GetMusicExtensions(),
+                           DIR_FLAG_NO_FILE_DIRS);
 
   if (m_bStop)
     return 0;
 
   // true for recursive counting
-  int count = CountFiles(items, true);
+  int count = CountFiles(items, true, depth);
   return count;
 }
 
-int CMusicInfoScanner::CountFiles(const CFileItemList& items, bool recursive)
+int CMusicInfoScanner::CountFiles(const CFileItemList& items, bool recursive, int depth)
 {
   int count = 0;
   for (int i = 0; i < items.Size(); ++i)
@@ -2385,7 +2408,7 @@ int CMusicInfoScanner::CountFiles(const CFileItemList& items, bool recursive)
     const CFileItemPtr pItem = items[i];
 
     if (recursive && pItem->IsFolder())
-      count += CountFilesRecursively(pItem->GetPath());
+      count += CountFilesRecursively(pItem->GetPath(), depth + 1);
     else if (MUSIC::IsAudio(*pItem) && !PLAYLIST::IsPlayList(*pItem) && !pItem->IsNFO())
       ++count;
   }

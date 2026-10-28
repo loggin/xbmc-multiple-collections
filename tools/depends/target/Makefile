@@ -16,7 +16,6 @@ DEPENDS = \
   gettext \
   gmp \
   gnutls \
-  gtest \
   harfbuzz \
   libffi \
   libgcrypt \
@@ -44,8 +43,8 @@ else
 endif
 
 ifeq ($(OS),darwin_embedded)
-  EXCLUDED_DEPENDS = libusb gtest libcdio libcdio-gplv3
-  ifeq ($(TARGET_PLATFORM),appletvos)
+  EXCLUDED_DEPENDS = libusb libcdio libcdio-gplv3
+  ifeq ($(findstring appletv,$(TARGET_PLATFORM)),appletv)
     EXCLUDED_DEPENDS += libshairplay libplist
   endif
   DEPENDS += darwin-embedded-entitlements
@@ -60,7 +59,7 @@ ifeq ($(OS),osx)
 endif
 
 ifeq ($(OS),android)
-  EXCLUDED_DEPENDS = libusb gtest libcdio libcdio-gplv3
+  EXCLUDED_DEPENDS = libusb libcdio libcdio-gplv3
   DEPENDS += dummy-libxbmc libdovi libuuid
   PYMODULE_DEPS = dummy-libxbmc
   LIBUUID = libuuid
@@ -151,12 +150,11 @@ $(DOWNLOAD_TARGETS):
 
 download: $(DOWNLOAD_TARGETS)
 
-cec: p8-platform
 crossguid: $(LIBUUID)
-curl: brotli openssl nghttp2 $(ZLIB)
+curl: brotli openssl nghttp2 $(ZLIB) zstd
 dbus: expat
 exiv2: $(ICONV) $(ZLIB) expat
-ffmpeg: $(ICONV) $(ZLIB) bzip2 gnutls dav1d $(LIBVA)
+ffmpeg: $(ICONV) $(ZLIB) bzip2 openssl dav1d $(LIBVA)
 fontconfig: freetype2 expat $(ICONV) $(LIBUUID)
 freetype2: bzip2 harfbuzz $(ZLIB)
 gettext: $(ICONV)
@@ -179,7 +177,7 @@ libva: libdrm $(LIBVA_DEPS)
 libxml2: $(ZLIB)
 libxslt: libxml2
 libzip: bzip2 gnutls $(ZLIB)
-mariadb: openssl $(ICONV) $(ZLIB)
+mariadb: openssl $(ICONV) $(ZLIB) zstd
 mesa: libdrm $(MESA_DEPS) $(ZLIB)
 nettle: gmp
 openssl: $(ZLIB)
@@ -259,5 +257,6 @@ linux-system-gl-libs:
 	mkdir -p $(PREFIX)/lib/pkgconfig
 	[ -f $(PREFIX)/lib/pkgconfig/egl.pc ] || ln -sf $(HOST_LIB_PKGCONFIG)/egl.pc $(PREFIX)/lib/pkgconfig/egl.pc
 	[ -f $(PREFIX)/lib/pkgconfig/wayland-egl.pc ] || ln -sf $(HOST_LIB_PKGCONFIG)/wayland-egl.pc $(PREFIX)/lib/pkgconfig/wayland-egl.pc
+	[ -f $(PREFIX)/lib/pkgconfig/gbm.pc ] || ln -sf $(HOST_LIB_PKGCONFIG)/gbm.pc $(PREFIX)/lib/pkgconfig/gbm.pc
 	[ -f $(PREFIX)/lib/pkgconfig/gl.pc ] || ln -sf $(HOST_LIB_PKGCONFIG)/gl.pc $(PREFIX)/lib/pkgconfig/gl.pc
 	[ -f $(PREFIX)/lib/pkgconfig/glu.pc ] || ln -sf $(HOST_LIB_PKGCONFIG)/glu.pc $(PREFIX)/lib/pkgconfig/glu.pc

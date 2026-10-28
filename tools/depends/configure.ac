@@ -1,11 +1,21 @@
 AC_PREREQ(2.59)
 AC_INIT([xbmc-depends], [2.00], [https://github.com/xbmc/xbmc])
-:${CFLAGS=""}
+: ${CFLAGS=""}
 AC_CONFIG_AUX_DIR([build-aux])
-AC_CONFIG_FILES([native/config.site.native Makefile.include
+# Only touch Makefile.include's mtime if its content actually changed, since every
+# dependency's rebuild stamp depends on it and an unconditional rewrite here would
+# force a full rebuild of all dependencies on every ./configure run.
+AC_CONFIG_FILES([native/config.site.native
+                 Makefile.include.tmp:Makefile.include.in
                  target/config.site target/config-binaddons.site
                  target/Toolchain.cmake target/Toolchain_binaddons.cmake
                  native/Toolchain-Native.cmake])
+AC_CONFIG_COMMANDS([Makefile.include],
+  [if test -f Makefile.include && cmp -s Makefile.include.tmp Makefile.include; then
+     rm -f Makefile.include.tmp
+   else
+     mv -f Makefile.include.tmp Makefile.include
+   fi])
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
 
@@ -185,7 +195,7 @@ case $build in
   *darwin*)
     build_os="osx"
     if test "x$build_cpu" = "xx86_64"; then
-      host_includes="-arch x86_64 -mmacosx-version-min=10.14"
+      host_includes="-arch x86_64 -mmacosx-version-min=10.15"
     else
       host_includes="-arch arm64 -mmacosx-version-min=11.0"
     fi
@@ -300,6 +310,9 @@ case $host in
       use_linker=wasm-ld
     fi
   ;;
+  arm-webos-linux-gnueabi|arm-starfish-linux-gnueabi)
+    lto_wrap_prefix=gcc-
+  ;;
   *darwin*)
     # Again we set CC to find toolchain path for use in AC_PATH_TOOL macros further down
     CC=[`$use_xcrun --find clang`]
@@ -318,13 +331,13 @@ else
   PATH_FOR_HOST=$PATH
 fi
 
-AC_PATH_TOOL([RANLIB], [${platform_tool_prefix}ranlib],, $PATH_FOR_HOST)
+AC_PATH_TOOL([RANLIB], [${platform_tool_prefix}${lto_wrap_prefix}ranlib],, $PATH_FOR_HOST)
 AC_PATH_TOOL([LD], [${use_linker}],, $PATH_FOR_HOST)
-AC_PATH_TOOL([AR], [${platform_tool_prefix}ar],, $PATH_FOR_HOST)
+AC_PATH_TOOL([AR], [${platform_tool_prefix}${lto_wrap_prefix}ar],, $PATH_FOR_HOST)
 AC_PATH_TOOL([READELF], [${platform_tool_prefix}readelf],, $PATH_FOR_HOST)
 AC_PATH_TOOL([STRIP], [${platform_tool_prefix}strip],, $PATH_FOR_HOST)
 AC_PATH_TOOL([AS], [${platform_tool_prefix}as],, $PATH_FOR_HOST)
-AC_PATH_TOOL([NM], [${platform_tool_prefix}nm],, $PATH_FOR_HOST)
+AC_PATH_TOOL([NM], [${platform_tool_prefix}${lto_wrap_prefix}nm],, $PATH_FOR_HOST)
 AC_PATH_TOOL([OBJDUMP], [${platform_tool_prefix}objdump],, $PATH_FOR_HOST)
 AC_PATH_TOOL([CC],[$platform_cc],,$PATH_FOR_HOST)
 AC_PATH_TOOL([CXX],[$platform_cxx],,$PATH_FOR_HOST)
@@ -353,7 +366,8 @@ esac
 case $host in
   *-*linux-android*)
     deps_dir="$use_host-$use_ndk_api-$build_type"
-    platform_cflags="-DANDROID -fexceptions -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fPIC -DPIC -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+    platform_cppflags="-DANDROID -DPIC -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+    platform_cflags="-fexceptions -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fPIC"
     optimize_flags="-Os"
     platform_ldflags="-Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libatomic.a -L$prefix/$deps_dir/lib/android-$use_ndk_api"
 
@@ -409,7 +423,8 @@ case $host in
       use_cpu="armeabi-v7a"
     fi
     use_toolchain="${use_toolchain:-/usr}"
-    platform_cflags="-fPIC -DPIC -mcpu=cortex-a53 -mtune=cortex-a53 -mfloat-abi=softfp -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+    platform_cppflags="-DPIC -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+    platform_cflags="-fPIC -mcpu=cortex-a53 -mtune=cortex-a53 -mfloat-abi=softfp"
     platform_cxxflags="$platform_cflags -static-libstdc++"
     optimize_flags="-Os"
     platform_ldflags="-Wl,-rpath-link=$prefix/$deps_dir/lib"
@@ -431,7 +446,8 @@ case $host in
       use_cpu=$host_cpu
     fi
     use_toolchain="${use_toolchain:-/usr}"
-    platform_cflags="-fPIC -DPIC"
+    platform_cppflags="-DPIC"
+    platform_cflags="-fPIC"
     platform_cxxflags="$platform_cflags"
     optimize_flags="-Os"
     platform_ldflags="-Wl,-rpath-link=$prefix/$deps_dir/lib"
@@ -452,7 +468,8 @@ case $host in
     esac
     use_cpu=$host_cpu
     use_toolchain="${use_toolchain:-/usr}"
-    platform_cflags="-fPIC -DPIC"
+    platform_cppflags="-DPIC"
+    platform_cflags="-fPIC"
     optimize_flags="-O2"
     platform_cxxflags="$platform_cflags"
     platform_os="linux"
@@ -484,15 +501,21 @@ case $host in
 
     meson_system="darwin"
 
-    platform_ldflags="-Wl,-search_paths_first"
-
     case $use_platform in
       tvos)
         target_platform=appletvos
         platform_os="darwin_embedded"
       ;;
+      tvos-simulator)
+        target_platform=appletvsimulator
+        platform_os="darwin_embedded"
+      ;;
       ios)
         target_platform=iphoneos
+        platform_os="darwin_embedded"
+      ;;
+      ios-simulator)
+        target_platform=iphonesimulator
         platform_os="darwin_embedded"
       ;;
       macos)
@@ -509,6 +532,10 @@ case $host in
     use_sdk_path=$($use_xcrun --sdk $target_platform --show-sdk-path)
     sdk_name=$target_platform$use_sdk
 
+    platform_cflags="-ftree-vectorize -pipe -Wno-trigraphs -fpascal-strings -Wreturn-type -Wunused-variable -fmessage-length=0 -gdwarf-2 -Werror=unguarded-availability-new -Wunsupported-availability-guard"
+    optimize_flags="-O3"
+    platform_ldflags="-Wl,-search_paths_first -L$use_sdk_path/usr/lib"
+
     case $host in
       x86_64-apple-darwin)
         MC_CHECK_NOT_CPU([$use_cpu], "arm*")
@@ -521,7 +548,7 @@ case $host in
           AC_MSG_ERROR(invalid architecture (--with-cpu=$use_cpu))
         fi
 
-        target_minver="10.14"
+        target_minver="10.15"
       ;;
       aarch64-apple-darwin*)
         MC_CHECK_NOT_CPU([$use_cpu], "*86")
@@ -545,20 +572,17 @@ case $host in
         else
           AC_MSG_ERROR(invalid architecture (--with-cpu=$use_cpu))
         fi
-
-        platform_cflags="${platform_cflags} -ftree-vectorize -pipe -Wno-trigraphs -fpascal-strings"
-        platform_cflags="${platform_cflags} -Wreturn-type -Wunused-variable -fmessage-length=0 -gdwarf-2"
-        optimize_flags="-O3"
-        platform_ldflags="${platform_ldflags} -L$use_sdk_path/usr/lib"
       ;;
     esac
 
     AX_COMPARE_VERSION([$use_sdk], [ge], [$target_minver], , AC_MSG_ERROR("invalid SDK version provided (--with-sdk=$use_sdk) less than minimum supported ($target_minver)"))
 
     platform_min_version="$target_platform-version-min=$target_minver"
-
     platform_includes="-arch $use_cpu -m$platform_min_version -isysroot $use_sdk_path"
+
     platform_ldflags="${platform_ldflags} $platform_includes"
+    platform_cxxflags="$platform_cflags"
+
     deps_dir="${sdk_name}_${use_cpu}-target-${build_type}"
   ;;
   *)
@@ -566,7 +590,7 @@ case $host in
 esac
 
 case $use_platform in
-  ios|tvos|macos)
+  ios|ios-simulator|tvos|tvos-simulator|macos)
     ;;
   webos)
     ;;
@@ -705,35 +729,41 @@ if [ ! `mkdir -p $use_tarballs` ]; then
 fi
 
 # remove unwanted optimization flags
-tmp_cflags=$(echo $CFLAGS $platform_cflags | sed 's/-O@<:@123@:>@//g;s/-g //g;s/ \{2,\}//g')
-tmp_cxxflags=$(echo $CXXFLAGS $platform_cxxflags | sed 's/-O@<:@123@:>@//g;s/-g //g;s/ \{2,\}//g')
+tmp_cflags=$(echo $CFLAGS $platform_cflags | sed 's/-O@<:@123@:>@//g;s/-g //g;s/ \{2,\}/ /g')
+tmp_cxxflags=$(echo $CXXFLAGS $platform_cxxflags | sed 's/-O@<:@123@:>@//g;s/-g //g;s/ \{2,\}/ /g')
+tmp_cppflags=$(echo $platform_cppflags $CPPFLAGS)
 
-release_cflags="-DNDEBUG=1"
+release_cppflags="-DNDEBUG=1"
+debug_cppflags="-D_DEBUG"
 
 # newer xcode version accept -Og flag, but debugging doesn't work with it
 if test "$platform_os" = "osx" || test "$platform_os" = "darwin_embedded"; then
-  debug_cflags="-g -D_DEBUG"
+  debug_cflags="-g"
 else
-  CFLAGS="$tmp_cflags -Og -g -D_DEBUG"
+  CFLAGS="$tmp_cflags -Og -g"
   AC_COMPILE_IFELSE(
     [AC_LANG_SOURCE([int foo;])],
-    [debug_cflags="-Og -g -D_DEBUG"],
-    [debug_cflags="-g -D_DEBUG"])
+    [debug_cflags="-Og -g"],
+    [debug_cflags="-g"])
 fi
 
 # add user supplied flags to the end, so they override our defaults
-platform_cflags_release="$tmp_cflags $release_cflags $optimize_flags $target_cflags"
-platform_cxxflags_release="$tmp_cxxflags $release_cflags $optimize_flags $target_cxxflags"
+platform_cflags_release="$tmp_cflags $optimize_flags $target_cflags"
+platform_cxxflags_release="$tmp_cxxflags $optimize_flags $target_cxxflags"
+platform_cppflags_release="$tmp_cppflags $release_cppflags"
 platform_cflags_debug="$tmp_cflags $debug_cflags $target_cflags"
 platform_cxxflags_debug="$tmp_cxxflags $debug_cflags $target_cxxflags"
+platform_cppflags_debug="$tmp_cppflags $debug_cppflags"
 platform_ldflags="${platform_ldflags} $target_ldflags"
 
 if test "$use_debug" = "yes"; then
   platform_cflags="$platform_cflags_debug"
   platform_cxxflags="$platform_cxxflags_debug"
+  platform_cppflags="$platform_cppflags_debug"
 else
   platform_cflags="$platform_cflags_release"
   platform_cxxflags="$platform_cxxflags_release"
+  platform_cppflags="$platform_cppflags_release"
 fi
 
 CXXFLAGS="$platform_cxxflags $platform_includes"
@@ -784,11 +814,14 @@ AC_SUBST(use_firmware)
 AC_SUBST(cross_compiling)
 AC_SUBST(platform_asflags)
 AC_SUBST(platform_cflags)
+AC_SUBST(platform_cppflags)
 AC_SUBST(platform_cxxflags)
 AC_SUBST(platform_cflags_release)
 AC_SUBST(platform_cxxflags_release)
+AC_SUBST(platform_cppflags_release)
 AC_SUBST(platform_cflags_debug)
 AC_SUBST(platform_cxxflags_debug)
+AC_SUBST(platform_cppflags_debug)
 AC_SUBST(platform_ldflags)
 AC_SUBST(platform_includes)
 AC_SUBST(platform_os)
@@ -816,7 +849,7 @@ fi
 
 # Parse and handle CFLAGS
 read -r CFLAGS_ARRAY << EOF
-$platform_cflags $platform_includes -isystem $prefix/$deps_dir/include
+$platform_cppflags $platform_cflags $platform_includes -isystem $prefix/$deps_dir/include
 EOF
 
 count=1
@@ -837,7 +870,7 @@ fi
 
 # Parse and handle CXXFLAGS
 read -r CXXFLAGS_ARRAY << EOF
-$platform_cxxflags $platform_includes -isystem $prefix/$deps_dir/include
+$platform_cppflags $platform_cxxflags $platform_includes -isystem $prefix/$deps_dir/include
 EOF
 
 count=1
@@ -889,6 +922,7 @@ endian = 'little'
 
 [properties]
 pkg_config_libdir = '$prefix/$deps_dir/lib/pkgconfig'
+cmake_toolchain_file = '$prefix/$deps_dir/share/Toolchain.cmake'
 
 [built-in options]
 c_args = $MESON_CFLAGS
@@ -904,13 +938,6 @@ EOF
 ]
 
 AC_OUTPUT
-
-if test "$platform_os" = "darwin_embedded"; then
-  if test "$use_platform" = "ios"; then
-    simulator_sdk_path=[`$use_xcrun --sdk iphonesimulator --show-sdk-path`]
-    echo -e "use simulator:\t $simulator_sdk_path"
-  fi
-fi
 
 cp -vf target/config.site $prefix/$deps_dir/share
 cp -vf target/config-binaddons.site $prefix/$tool_dir/share
@@ -934,6 +961,7 @@ echo -e "CXX:\t\t $CXX"
 echo -e "asflags:\t\t $platform_asflags"
 echo -e "cflags:\t\t $platform_cflags"
 echo -e "cxxflags:\t\t $platform_cxxflags"
+echo -e "cppflags:\t\t $platform_cppflags"
 echo -e "ldflags:\t\t $platform_ldflags"
 echo -e "target_platform:\t $target_platform"
 echo -e "platform_includes:\t $platform_includes"
@@ -943,4 +971,10 @@ echo -e "depends:\t\t $prefix/$deps_dir"
 if test "$platform_os" = "android"; then
   echo -e "ndk-api-level:\t $use_ndk_api"
   echo -e "build-tools:\t $build_tools_path"
+fi
+if test "$platform_os" = "darwin_embedded"; then
+  if test "$use_platform" = "ios"; then
+    simulator_sdk_path=[`$use_xcrun --sdk iphonesimulator --show-sdk-path`]
+    echo -e "use simulator:\t $simulator_sdk_path"
+  fi
 fi

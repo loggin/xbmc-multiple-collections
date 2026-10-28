@@ -30,7 +30,7 @@ static std::string s_className = std::string(CCompileInfo::GetClass()) + "/XBMCM
 CJNIXBMCMediaSession::CJNIXBMCMediaSession()
   : CJNIBase(s_className)
 {
-  m_object = new_object(CJNIContext::getClassLoader().loadClass(GetClassNameAsPath()));
+  m_object = new_object(CJNIContext::getClassLoader().loadClass(ToDotClassName(s_className)));
   m_object.setGlobal();
 
   add_instance(m_object, this);
@@ -149,10 +149,9 @@ void CJNIXBMCMediaSession::OnForwardRequested()
   const auto appPlayer = components.GetComponent<CApplicationPlayer>();
   if (appPlayer->IsPlaying())
   {
-    if (!appPlayer->IsPaused())
-      CServiceBroker::GetAppMessenger()->PostMsg(
-          TMSG_GUI_ACTION, WINDOW_INVALID, -1,
-          static_cast<void*>(new CAction(ACTION_PLAYER_FORWARD)));
+    CServiceBroker::GetAppMessenger()->PostMsg(
+        TMSG_GUI_ACTION, WINDOW_INVALID, -1,
+        static_cast<void*>(new CAction(ACTION_PLAYER_FORWARD)));
   }
 }
 
@@ -162,10 +161,8 @@ void CJNIXBMCMediaSession::OnRewindRequested()
   const auto appPlayer = components.GetComponent<CApplicationPlayer>();
   if (appPlayer->IsPlaying())
   {
-    if (!appPlayer->IsPaused())
-      CServiceBroker::GetAppMessenger()->PostMsg(
-          TMSG_GUI_ACTION, WINDOW_INVALID, -1,
-          static_cast<void*>(new CAction(ACTION_PLAYER_REWIND)));
+    CServiceBroker::GetAppMessenger()->PostMsg(
+        TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PLAYER_REWIND)));
   }
 }
 

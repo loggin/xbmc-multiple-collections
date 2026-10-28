@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -63,7 +63,7 @@ constexpr uint32_t PLAYER_CAN_SEEK                   = 51;
 constexpr uint32_t PLAYER_START_TIME                 = 52;
 // unused id 53
 constexpr uint32_t PLAYER_ISINTERNETSTREAM           = 54;
-// unused id 55
+constexpr uint32_t PLAYER_SEEKSTEPVALUE              = 55;
 constexpr uint32_t PLAYER_SEEKSTEPSIZE               = 56;
 constexpr uint32_t PLAYER_IS_CHANNEL_PREVIEW_ACTIVE  = 57;
 constexpr uint32_t PLAYER_SUPPORTS_TEMPO             = 58;
@@ -81,7 +81,9 @@ constexpr uint32_t PLAYER_EDITLIST                   = 69;
 constexpr uint32_t PLAYER_CUTS                       = 70;
 constexpr uint32_t PLAYER_SCENE_MARKERS              = 71;
 constexpr uint32_t PLAYER_HAS_SCENE_MARKERS          = 72;
-// unused id 73 to 80
+constexpr uint32_t PLAYER_BOOKMARKS                  = 73;
+constexpr uint32_t PLAYER_HAS_BOOKMARKS              = 74;
+// unused id 75 to 80
 
 // Keep player infolabels that work with offset and position together
 constexpr uint32_t PLAYER_PATH                       = 81;
@@ -290,7 +292,7 @@ constexpr uint32_t VIDEOPLAYER_AUDIO_CODEC           = 285;
 constexpr uint32_t VIDEOPLAYER_AUDIO_CHANNELS        = 286;
 constexpr uint32_t VIDEOPLAYER_VIDEO_ASPECT          = 287;
 constexpr uint32_t VIDEOPLAYER_SUBTITLES_LANG        = 288;
-// unused id 289
+constexpr uint32_t VIDEOPLAYER_SUBTITLE_CODEC        = 289;
 constexpr uint32_t VIDEOPLAYER_AUDIO_LANG            = 290;
 constexpr uint32_t VIDEOPLAYER_STEREOSCOPIC_MODE     = 291;
 constexpr uint32_t VIDEOPLAYER_CAST                  = 292;
@@ -350,6 +352,19 @@ constexpr uint32_t RETROPLAYER_OVERVIEW              = 1709;
 constexpr uint32_t RETROPLAYER_GAME_CLIENT           = 1710;
 constexpr uint32_t RETROPLAYER_GAME_CLIENT_NAME      = 1711;
 constexpr uint32_t RETROPLAYER_GAME_CLIENT_PLATFORMS = 1712;
+constexpr uint32_t RETROPLAYER_RICH_PRESENCE         = 1713;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_LOGGED_IN = 1714;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_PROGRESS = 1715;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_CHALLENGE_TITLE = 1716;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_CHALLENGE_BADGE = 1717;
+constexpr uint32_t RETROPLAYER_LEADERBOARD_TRACKER = 1718;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_INDICATOR_TITLE = 1719;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_INDICATOR_BADGE = 1720;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_INDICATOR_PROGRESS = 1721;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_INDICATOR_PERCENT = 1722;
+constexpr uint32_t RETROPLAYER_HAS_CHEATS = 1723;
+constexpr uint32_t RETROPLAYER_SUPPORTS_CHEATS = 1724;
+constexpr uint32_t RETROPLAYER_ACHIEVEMENTS_HARDCORE = 1725;
 constexpr uint32_t RETROPLAYER_SUPPORTS_EJECT        = 1700;
 constexpr uint32_t RETROPLAYER_DISC_EJECTED          = 1701;
 constexpr uint32_t RETROPLAYER_DISC_LABEL            = 1702;
@@ -434,6 +449,11 @@ constexpr uint32_t VISUALISATION_PRESET              = 411;
 constexpr uint32_t VISUALISATION_NAME                = 412;
 constexpr uint32_t VISUALISATION_ENABLED             = 413;
 constexpr uint32_t VISUALISATION_HAS_PRESETS         = 414;
+// unused id 415
+constexpr uint32_t VIDEOPLAYER_AUDIO_LANG_EX         = 416;
+constexpr uint32_t VIDEOPLAYER_AUDIO_NAME            = 417;
+constexpr uint32_t VIDEOPLAYER_SUBTITLE_LANG_EX      = 418;
+constexpr uint32_t VIDEOPLAYER_SUBTITLE_NAME         = 419;
 
 constexpr uint32_t STRING_IS_EMPTY                   = 420;
 constexpr uint32_t STRING_IS_EQUAL                   = 421;
@@ -792,6 +812,13 @@ constexpr uint32_t PLAYER_PROCESS_AUDIOCHANNELS      = PLAYER_PROCESS_START + 9;
 constexpr uint32_t PLAYER_PROCESS_AUDIOSAMPLERATE    = PLAYER_PROCESS_START + 10;
 constexpr uint32_t PLAYER_PROCESS_AUDIOBITSPERSAMPLE = PLAYER_PROCESS_START + 11;
 constexpr uint32_t PLAYER_PROCESS_VIDEOSCANTYPE      = PLAYER_PROCESS_START + 12;
+constexpr uint32_t PLAYER_PROCESS_SUBTITLEDECODER    = PLAYER_PROCESS_START + 13;
+constexpr uint32_t PLAYER_PROCESS_AUDIO_LIVE_BITRATE = PLAYER_PROCESS_START + 14;
+constexpr uint32_t PLAYER_PROCESS_VIDEO_LIVE_BITRATE = PLAYER_PROCESS_START + 15;
+constexpr uint32_t PLAYER_PROCESS_AUDIO_QUEUE_LEVEL  = PLAYER_PROCESS_START + 16;
+constexpr uint32_t PLAYER_PROCESS_AUDIO_QUEUE_DATA_LEVEL = PLAYER_PROCESS_START + 17;
+constexpr uint32_t PLAYER_PROCESS_VIDEO_QUEUE_LEVEL  = PLAYER_PROCESS_START + 18;
+constexpr uint32_t PLAYER_PROCESS_VIDEO_QUEUE_DATA_LEVEL = PLAYER_PROCESS_START + 19;
 
 constexpr uint32_t ADDON_INFOS_START                 = 1600;
 constexpr uint32_t ADDON_SETTING_STRING              = ADDON_INFOS_START;
@@ -1049,6 +1076,16 @@ constexpr uint32_t LISTITEM_MEDIAPROVIDERS           = LISTITEM_START + 224;
 constexpr uint32_t LISTITEM_TITLE_EXTRAINFO          = LISTITEM_START + 225;
 constexpr uint32_t LISTITEM_DECODED_FILENAME_AND_PATH  = LISTITEM_START + 226;
 constexpr uint32_t LISTITEM_VIDEO_HDR_DETAIL         = LISTITEM_START + 227;
+constexpr uint32_t LISTITEM_FIRST_AUDIO_LANGUAGE   = LISTITEM_START + 228;
+constexpr uint32_t LISTITEM_FIRST_SUBTITLE_LANGUAGE = LISTITEM_START + 229;
+constexpr uint32_t LISTITEM_FIRST_AUDIO_CODEC      = LISTITEM_START + 230;
+constexpr uint32_t LISTITEM_FIRST_AUDIO_CHANNELS   = LISTITEM_START + 231;
+constexpr uint32_t LISTITEM_ISDEFAULTVIDEOVERSION_NAME = LISTITEM_START + 232;
+constexpr uint32_t LISTITEM_PLATFORM                 = LISTITEM_START + 233;
+constexpr uint32_t LISTITEM_DEVELOPER                = LISTITEM_START + 234;
+constexpr uint32_t LISTITEM_PUBLISHER                = LISTITEM_START + 235;
+constexpr uint32_t LISTITEM_PLAYERS                  = LISTITEM_START + 236;
+constexpr uint32_t LISTITEM_AGERATING                = LISTITEM_START + 237;
 
 constexpr int      LISTITEM_END                      = LISTITEM_START + 2500;
 

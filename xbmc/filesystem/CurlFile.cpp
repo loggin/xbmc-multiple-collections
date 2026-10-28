@@ -19,6 +19,7 @@
 #include "threads/SystemClock.h"
 #include "utils/Base64.h"
 #include "utils/Map.h"
+#include "utils/URIUtils.h"
 #include "utils/XTimeUtils.h"
 
 #include <algorithm>
@@ -35,6 +36,11 @@
 
 #include "DllLibCurl.h"
 #include "ShoutcastFile.h"
+#if defined(TARGET_WASM)
+#include "wasm/XhrFile.h"
+
+#include "platform/wasm/network/TizenSockets.h"
+#endif
 #include "utils/CharsetConverter.h"
 #include "utils/log.h"
 #include "utils/StringUtils.h"
@@ -74,6 +80,15 @@ extern "C" int debug_callback(CURL_HANDLE *handle, curl_infotype info, char *out
   if (!CServiceBroker::GetLogging().CanLogComponent(LOGCURL))
     return 0;
 
+  // TLS records are binary, logging their contents as text yields hundreds of
+  // unreadable lines per handshake, so only note that they went by
+  if (info == CURLINFO_SSL_DATA_IN || info == CURLINFO_SSL_DATA_OUT)
+  {
+    const char* direction = info == CURLINFO_SSL_DATA_IN ? "IN" : "OUT";
+    CLog::Log(LOGDEBUG, "Curl::Debug - SSL_DATA_{}: {} bytes", direction, size);
+    return 0;
+  }
+
   std::string strLine;
   strLine.append(output, size);
   std::vector<std::string> vecLines;
@@ -86,8 +101,6 @@ extern "C" int debug_callback(CURL_HANDLE *handle, curl_infotype info, char *out
     case CURLINFO_TEXT         : infotype = "TEXT: "; break;
     case CURLINFO_HEADER_IN    : infotype = "HEADER_IN: "; break;
     case CURLINFO_HEADER_OUT   : infotype = "HEADER_OUT: "; break;
-    case CURLINFO_SSL_DATA_IN  : infotype = "SSL_DATA_IN: "; break;
-    case CURLINFO_SSL_DATA_OUT : infotype = "SSL_DATA_OUT: "; break;
     case CURLINFO_END          : infotype = "END: "; break;
     default                    : infotype = ""; break;
   }
@@ -157,6 +170,38 @@ static inline void* realloc_simple(void *ptr, size_t size)
 
 static constexpr int CURL_OFF = 0L;
 static constexpr int CURL_ON = 1L;
+
+static bool IsTransientCurlError(CURLcode result)
+{
+  return result == CURLE_OPERATION_TIMEDOUT || result == CURLE_PARTIAL_FILE ||
+         result == CURLE_COULDNT_CONNECT || result == CURLE_HTTP2_STREAM ||
+         result == CURLE_RECV_ERROR || result == CURLE_SEND_ERROR;
+}
+
+static CURLcode PerformWithTransientRetries(CURL_HANDLE* easyHandle,
+                                            const CURL& url,
+                                            const char* functionName)
+{
+  const int maxRetries =
+      CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_curlretries;
+
+  CURLcode result = CURLE_OK;
+  for (int attempt = 0; attempt <= maxRetries; ++attempt)
+  {
+    result = g_curlInterface.easy_perform(easyHandle);
+    if (!IsTransientCurlError(result) || attempt == maxRetries)
+      break;
+
+    // Force the next probe off the failed/reused connection.
+    CLog::Log(LOGWARNING, "CCurlFile::{} - <{}> Transient error {}({}), reconnect and retry {}",
+              functionName, url.GetRedacted(), g_curlInterface.easy_strerror(result), result,
+              attempt + 1);
+    g_curlInterface.easy_setopt(easyHandle, CURLOPT_FRESH_CONNECT, CURL_ON);
+  }
+
+  g_curlInterface.easy_setopt(easyHandle, CURLOPT_FRESH_CONNECT, CURL_OFF); // restore pool reuse
+  return result;
+}
 
 size_t CCurlFile::CReadState::HeaderCallback(void *ptr, size_t size, size_t nmemb)
 {
@@ -1070,31 +1115,6 @@ void CCurlFile::Reset()
   m_state->m_cancelled = false;
 }
 
-void CCurlFile::SetProxy(const std::string &type, const std::string &host,
-  uint16_t port, const std::string &user, const std::string &password)
-{
-  m_proxytype = CCurlFile::ProxyType::HTTP;
-  if (type == "http")
-    m_proxytype = CCurlFile::ProxyType::HTTP;
-  else if (type == "https")
-    m_proxytype = CCurlFile::ProxyType::HTTPS;
-  else if (type == "socks4")
-    m_proxytype = CCurlFile::ProxyType::SOCKS4;
-  else if (type == "socks4a")
-    m_proxytype = CCurlFile::ProxyType::SOCKS4A;
-  else if (type == "socks5")
-    m_proxytype = CCurlFile::ProxyType::SOCKS5;
-  else if (type == "socks5-remote")
-    m_proxytype = CCurlFile::ProxyType::SOCKS5_REMOTE;
-  else
-    CLog::Log(LOGERROR, "CCurFile::{} - <{}> Invalid proxy type \"{}\"", __FUNCTION__,
-              CURL::GetRedacted(m_url), type);
-  m_proxyhost = host;
-  m_proxyport = port;
-  m_proxyuser = user;
-  m_proxypassword = password;
-}
-
 bool CCurlFile::Open(const CURL& url)
 {
   m_opened = true;
@@ -1373,7 +1393,7 @@ bool CCurlFile::Exists(const CURL& url)
       g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_FTP_FILEMETHOD, CURLFTPMETHOD_NOCWD);
   }
 
-  CURLcode result = g_curlInterface.easy_perform(m_state->m_easyHandle);
+  CURLcode result = PerformWithTransientRetries(m_state->m_easyHandle, url, __FUNCTION__);
 
   if (result == CURLE_WRITE_ERROR || result == CURLE_OK)
   {
@@ -1399,7 +1419,7 @@ bool CCurlFile::Exists(const CURL& url)
         list = g_curlInterface.slist_append(list, "Range: bytes=0-1"); /* try to only request 1 byte */
         g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_HTTPHEADER, list);
 
-        CURLcode result = g_curlInterface.easy_perform(m_state->m_easyHandle);
+        result = PerformWithTransientRetries(m_state->m_easyHandle, url, __FUNCTION__);
         g_curlInterface.slist_free_all(list);
 
         if (result == CURLE_WRITE_ERROR || result == CURLE_OK)
@@ -1580,7 +1600,7 @@ int CCurlFile::Stat(const CURL& url, struct __stat64* buffer)
       g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_FTP_FILEMETHOD, CURLFTPMETHOD_NOCWD);
   }
 
-  CURLcode result = g_curlInterface.easy_perform(m_state->m_easyHandle);
+  CURLcode result = PerformWithTransientRetries(m_state->m_easyHandle, url, __FUNCTION__);
 
   if(result == CURLE_HTTP_RETURNED_ERROR)
   {
@@ -1611,8 +1631,7 @@ int CCurlFile::Stat(const CURL& url, struct __stat64* buffer)
 #endif
     g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_NOPROGRESS, 0);
 
-    result = g_curlInterface.easy_perform(m_state->m_easyHandle);
-
+    result = PerformWithTransientRetries(m_state->m_easyHandle, url, __FUNCTION__);
   }
 
   if( result != CURLE_ABORTED_BY_CALLBACK && result != CURLE_OK )
@@ -1787,12 +1806,7 @@ int8_t CCurlFile::CReadState::FillBuffer(unsigned int want)
                         msg->data.result);
             }
 
-            if ( (msg->data.result == CURLE_OPERATION_TIMEDOUT ||
-                  msg->data.result == CURLE_PARTIAL_FILE       ||
-                  msg->data.result == CURLE_COULDNT_CONNECT    ||
-                  msg->data.result == CURLE_HTTP2_STREAM       ||
-                  msg->data.result == CURLE_RECV_ERROR)        &&
-                  !m_bFirstLoop)
+            if (IsTransientCurlError(msg->data.result) && !m_bFirstLoop)
             {
               bRetryNow = false; // Leave it to caller whether the operation is retried
               bError = true;
@@ -1974,11 +1988,6 @@ void CCurlFile::SetRequestHeader(const std::string& header, long value)
   m_requestheaders[header] = std::to_string(value);
 }
 
-std::string CCurlFile::GetRedirectURL()
-{
-  return GetInfoString(CURLINFO_REDIRECT_URL);
-}
-
 std::string CCurlFile::GetInfoString(int infoType)
 {
   char* info{};
@@ -1996,10 +2005,19 @@ std::string CCurlFile::GetInfoString(int infoType)
 /* STATIC FUNCTIONS */
 bool CCurlFile::GetHttpHeader(const CURL &url, CHttpHeader &headers)
 {
+#if defined(TARGET_WASM)
+  if (!kodi_wasm_has_sockets())
+    return CXhrFile::GetHttpHeader(url, headers);
+#endif
   try
   {
+    // Apply any stored credentials (passwords.xml). CFile::Stat() does this for its callers,
+    // but this helper drives CCurlFile directly, so without it an authenticated http/dav
+    // source is queried anonymously and gets a 401.
+    const CURL authUrl = URIUtils::AddCredentials(url);
+
     CCurlFile file;
-    if(file.Stat(url, NULL) == 0)
+    if (file.Stat(authUrl, NULL) == 0)
     {
       headers = file.GetHttpHeader();
       return true;
@@ -2016,13 +2034,22 @@ bool CCurlFile::GetHttpHeader(const CURL &url, CHttpHeader &headers)
 
 bool CCurlFile::GetMimeType(const CURL &url, std::string &content, const std::string &useragent)
 {
+#if defined(TARGET_WASM)
+  if (!kodi_wasm_has_sockets())
+    return CXhrFile::GetMimeType(url, content, useragent);
+#endif
   CCurlFile file;
   if (!useragent.empty())
     file.SetUserAgent(useragent);
 
+  // Apply any stored credentials (passwords.xml). CFile::Stat() does this for its callers,
+  // but this helper drives CCurlFile directly, so without it an authenticated http/dav
+  // source is queried anonymously, gets a 401 and mime type detection always fails.
+  const CURL authUrl = URIUtils::AddCredentials(url);
+
   struct __stat64 buffer;
   std::string redactUrl = url.GetRedacted();
-  if( file.Stat(url, &buffer) == 0 )
+  if (file.Stat(authUrl, &buffer) == 0)
   {
     if (buffer.st_mode == _S_IFDIR)
       content = "x-directory/normal";
@@ -2038,13 +2065,22 @@ bool CCurlFile::GetMimeType(const CURL &url, std::string &content, const std::st
 
 bool CCurlFile::GetContentType(const CURL &url, std::string &content, const std::string &useragent)
 {
+#if defined(TARGET_WASM)
+  if (!kodi_wasm_has_sockets())
+    return CXhrFile::GetContentType(url, content, useragent);
+#endif
   CCurlFile file;
   if (!useragent.empty())
     file.SetUserAgent(useragent);
 
+  // Apply any stored credentials (passwords.xml). CFile::Stat() does this for its callers,
+  // but this helper drives CCurlFile directly, so without it an authenticated http/dav
+  // source is queried anonymously, gets a 401 and content type detection always fails.
+  const CURL authUrl = URIUtils::AddCredentials(url);
+
   struct __stat64 buffer;
   std::string redactUrl = url.GetRedacted();
-  if (file.Stat(url, &buffer) == 0)
+  if (file.Stat(authUrl, &buffer) == 0)
   {
     if (buffer.st_mode == _S_IFDIR)
       content = "x-directory/normal";
@@ -2152,6 +2188,12 @@ const std::string CCurlFile::GetProperty(XFILE::FileProperty type, const std::st
     {
       char* url = nullptr;
       g_curlInterface.easy_getinfo(m_state->m_easyHandle, CURLINFO_EFFECTIVE_URL, &url);
+      return url ? url : "";
+    }
+    case FileProperty::REDIRECT_URL:
+    {
+      char* url = nullptr;
+      g_curlInterface.easy_getinfo(m_state->m_easyHandle, CURLINFO_REDIRECT_URL, &url);
       return url ? url : "";
     }
   default:

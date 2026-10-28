@@ -80,6 +80,7 @@ public:
     RECONFIGURE,
     SUSPEND,
     DEVICECHANGE,
+    DEFAULTDEVICECHANGE,
     DEVICECOUNTCHANGE,
     MUTE,
     VOLUME,
@@ -99,6 +100,7 @@ public:
     DISPLAYRESET,
     APPFOCUSED,
     KEEPCONFIG,
+    YIELDDEVICE,
     TIMEOUT,
   };
   enum InSignal
@@ -197,6 +199,8 @@ public:
   float GetCacheTotal();
   float GetMaxDelay() const;
   float GetWaterLevel();
+  int GetBufferedSamples();
+  double GetSinkDelaySeconds();
   void SetSuspended(bool state);
   void SetCurrentSinkFormat(const AEAudioFormat& SinkFormat);
   void SetSinkCacheTotal(float time) { m_sinkCacheTotal = time; }
@@ -243,6 +247,8 @@ public:
   bool Suspend() override;
   bool Resume() override;
   bool IsSuspended() override;
+  bool YieldDevice() override;
+  bool ReclaimDevice() override;
   void OnSettingsChange();
 
   float GetVolume() override;
@@ -268,6 +274,7 @@ public:
   bool IsSettingVisible(const std::string &settingId) override;
   void KeepConfiguration(unsigned int millis) override;
   void DeviceChange() override;
+  void DefaultDeviceChange() override;
   void DeviceCountChange(const std::string& driver) override;
   bool GetCurrentSinkFormat(AEAudioFormat &SinkFormat) override;
 
@@ -306,11 +313,13 @@ protected:
   void Process() override;
   void StateMachine(int signal, Protocol *port, Message *msg);
   bool InitSink();
+  bool SendYieldDevice(bool yield);
   void DrainSink();
   void UnconfigureSink();
   void Dispose();
   void LoadSettings();
   void ValidateOutputDevices(bool saveChanges);
+  void HandleDeviceCountChange(const std::string& driver, bool defaultDeviceChanged);
   bool NeedReconfigureBuffers();
   bool NeedReconfigureSink();
   void ApplySettingsToFormat(AEAudioFormat& format,
@@ -321,7 +330,7 @@ protected:
   CActiveAEStream* CreateStream(MsgStreamNew *streamMsg);
   void DiscardStream(CActiveAEStream *stream);
   void SFlushStream(CActiveAEStream *stream);
-  void FlushEngine();
+  void FlushEngine(bool discardOutput = false);
   void ClearDiscardedBuffers();
   void SStopSound(CActiveAESound *sound);
   void DiscardSound(CActiveAESound *sound);
@@ -331,6 +340,7 @@ protected:
   bool RunStages();
   bool HasWork();
   CSampleBuffer* SyncStream(CActiveAEStream *stream);
+  bool IsTrueHDPassthrough() const;
 
   void ResampleSounds();
   bool ResampleSound(CActiveAESound *sound);
@@ -347,6 +357,7 @@ protected:
   bool m_bStateMachineSelfTrigger;
   std::chrono::milliseconds m_extTimeout;
   bool m_extError;
+  unsigned int m_extErrorRetries{0};
   bool m_extDrain;
   XbmcThreads::EndTime<> m_extDrainTimer;
   std::chrono::milliseconds m_extKeepConfig;
@@ -372,6 +383,9 @@ protected:
   CEngineStats m_stats;
   IAEEncoder *m_encoder;
   std::string m_currDevice;
+  std::string m_openedDevice;
+  std::string m_openedDriver;
+  bool m_currentDeviceFollowsDefault{false};
   std::unique_ptr<CActiveAESettings> m_settingsHandler;
 
   // buffers

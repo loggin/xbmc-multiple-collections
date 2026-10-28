@@ -29,32 +29,51 @@ set(HOST_CAN_EXECUTE_TARGET FALSE)
 # Prefer internal libs when cross-compiling to wasm (typical for depends builds)
 set(USE_INTERNAL_LIBS ON)
 
-list(APPEND AUDIO_BACKENDS_LIST "webaudio")
-
 set(APP_BINARY_SUFFIX ".js")
 
+# emcc --profiling keeps function names in the build so browser DevTools can
+# attribute samples; it is off by default because it inflates the binary.
+option(ENABLE_WASM_PROFILING "Enable Emscripten --profiling (CPU profiling in browser DevTools)" OFF)
+option(ENABLE_WASM_DEV_PROXY "Route cross-origin requests through tools/wasm/serve.py's /proxy" OFF)
+
 # Threading + memory (COOP/COEP headers required in HTML for pthreads).
-# PROXY_TO_PTHREAD: Kodi's init is synchronous/blocking; it must run on a
-# pthread so the browser main thread stays responsive.
-# OFFSCREEN_FRAMEBUFFER: required for WebGL to work from a pthread. Without it,
-# emscripten_webgl_make_context_current silently fails on worker threads.
-# The newRenderingFrameStarted crash (GL.currentContext null on main thread) is
-# fixed by calling MAIN_THREAD_EM_ASM to mirror the context current state on the
-# main thread right after emscripten_webgl_make_context_current (see
-# WinSystemWasmGLESContext.cpp).
 if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   add_link_options(
     "SHELL:-sUSE_PTHREADS=1"
-    "SHELL:-sPTHREAD_POOL_SIZE=8"
-    "SHELL:-sINITIAL_MEMORY=2GB"
+    "SHELL:-sPTHREAD_POOL_SIZE=16"
+    "SHELL:-sAUDIO_WORKLET"
+    "SHELL:-sWASM_WORKERS"
+    "SHELL:-sINITIAL_MEMORY=512MB"
+    # Emscripten's getHeapMax() (src/lib/libcore.js) caps this at
+    # 4GB - WASM_PAGE_SIZE on non-MEMORY64 builds, so emscripten_get_heap_max()
+    # never actually wraps to 0 despite the literal 4GB here.
+    "SHELL:-sMAXIMUM_MEMORY=4GB"
+    "SHELL:-sALLOW_MEMORY_GROWTH=1"
+    "SHELL:-sSTACK_SIZE=5MB"
     "SHELL:-sPROXY_TO_PTHREAD"
-    "SHELL:-sOFFSCREEN_FRAMEBUFFER"
     "SHELL:-sMIN_WEBGL_VERSION=2"
     "SHELL:-sMAX_WEBGL_VERSION=2"
-    "SHELL:-sFULL_ES3=1"
-    "SHELL:-sABORTING_MALLOC=0"
+    # The WebGL context lives on the browser main thread; GL calls from the Kodi
+    # pthread are proxied to it and presented with wasm_webgl_commit_frame().
+    "SHELL:-sOFFSCREEN_FRAMEBUFFER=1"
+    "SHELL:-sGL_SUPPORT_EXPLICIT_SWAP_CONTROL=1"
     "SHELL:-lidbfs.js"
+    "SHELL:-lembind"
+    # kodi_pre.js uses Module.ccall('kodi_wasm_dispatch_paste', ...) for clipboard paste.
+    "SHELL:-sEXPORTED_RUNTIME_METHODS=ccall,cwrap"
+    "SHELL:--pre-js ${CMAKE_SOURCE_DIR}/xbmc/platform/wasm/kodi_pre.js"
+    "SHELL:--js-library ${CMAKE_SOURCE_DIR}/xbmc/windowing/wasm/webgl_commit.js"
+    # BSD sockets over the Tizen Sockets Extension; falls back to the upstream
+    # implementation in ordinary browsers.
+    "SHELL:--js-library ${CMAKE_SOURCE_DIR}/xbmc/platform/wasm/network/tizen_sockets.js"
+    "SHELL:--js-library ${CMAKE_SOURCE_DIR}/xbmc/cores/VideoPlayer/DVDCodecs/Video/webcodecs_bridge.js"
   )
+
+  # tizen_sockets.js returns one getaddrinfo() node per address, and older
+  # Emscripten freeaddrinfo() frees only the first one.
+  if(EMSCRIPTEN_VERSION AND EMSCRIPTEN_VERSION VERSION_LESS 6.0.10)
+    message(WARNING "Emscripten ${EMSCRIPTEN_VERSION} leaks getaddrinfo() results on Tizen; use 6.0.10 or later")
+  endif()
 
   # ---------------------------------------------------------------------------
   # Debug vs Release
@@ -85,6 +104,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   else()
     add_link_options("SHELL:-sASSERTIONS=1")
   endif()
+
+  if(ENABLE_WASM_PROFILING)
+    add_compile_options(--profiling)
+    add_link_options(--profiling)
+    message(STATUS "WASM: Emscripten --profiling enabled (ENABLE_WASM_PROFILING=ON)")
+  endif()
+
+  if(ENABLE_WASM_DEV_PROXY)
+    add_link_options("SHELL:--pre-js ${CMAKE_SOURCE_DIR}/tools/wasm/dev_proxy_pre.js")
+    message(STATUS "WASM: cross-origin requests routed through serve.py's /proxy (ENABLE_WASM_DEV_PROXY=ON)")
+  endif()
 endif()
 
 # Preload Kodi data directories into the Emscripten virtual filesystem under /kodi.
@@ -103,4 +133,5 @@ set(ENABLE_DVDCSS OFF CACHE BOOL "libdvdcss disabled for WASM" FORCE)
 set(ENABLE_AIRTUNES OFF CACHE BOOL "AirTunes not available in browser" FORCE)
 set(ENABLE_EVENTCLIENTS OFF CACHE BOOL "Event clients not used for WASM" FORCE)
 set(ENABLE_INTERNAL_FFMPEG ON CACHE BOOL "No system FFmpeg for Emscripten" FORCE)
+set(ENABLE_INTERNAL_OPUS ON CACHE BOOL "Enable internal opus?")
 

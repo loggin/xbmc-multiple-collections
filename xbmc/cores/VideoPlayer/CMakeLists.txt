@@ -11,9 +11,13 @@ set(SOURCES AudioSinkAE.cpp
             Edl/EdlParsers/BeyondTVParser.cpp
             Edl/EdlParsers/ComskipParser.cpp
             Edl/EdlParsers/EdlFileParser.cpp
+            Edl/EdlParsers/MultipleEpisodeEdlParser.cpp
             Edl/EdlParsers/PvrEdlParser.cpp
             Edl/EdlParsers/VideoReDoParser.cpp
             PTSTracker.cpp
+            RadioRDSCountries.cpp
+            VideoDecodeSession.cpp
+            VideoFileGeometry.cpp
             VideoPlayer.cpp
             VideoPlayerAudio.cpp
             VideoPlayerAudioID3.cpp
@@ -38,10 +42,14 @@ set(HEADERS AudioSinkAE.h
             Edl/EdlParsers/BeyondTVParser.h
             Edl/EdlParsers/ComskipParser.h
             Edl/EdlParsers/EdlFileParser.h
+            Edl/EdlParsers/MultipleEpisodeEdlParser.h
             Edl/EdlParsers/PvrEdlParser.h
             Edl/EdlParsers/VideoReDoParser.h
             IVideoPlayer.h
             PTSTracker.h
+            RadioRDSCountries.h
+            VideoDecodeSession.h
+            VideoFileGeometry.h
             VideoPlayer.h
             VideoPlayerAudio.h
             VideoPlayerAudioID3.h

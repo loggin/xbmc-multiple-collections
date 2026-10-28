@@ -14,7 +14,6 @@ set(SOURCES AutoSwitch.cpp
             GUILargeTextureManager.cpp
             GUIPassword.cpp
             InfoScanner.cpp
-            LangInfo.cpp
             MediaSource.cpp
             NfoFile.cpp
             PasswordManager.cpp
@@ -41,6 +40,7 @@ set(HEADERS AutoSwitch.h
             ContextMenus.h
             CueDocument.h
             DatabaseManager.h
+            DatabaseTypes.h
             DbUrl.h
             DllPaths.h
             DllPaths_win32.h
@@ -56,7 +56,6 @@ set(HEADERS AutoSwitch.h
             IFileItemListModifier.h
             IProgressCallback.h
             InfoScanner.h
-            LangInfo.h
             LockMode.h
             MediaSource.h
             NfoFile.h

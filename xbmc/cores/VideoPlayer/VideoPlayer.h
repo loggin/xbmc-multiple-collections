@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -22,12 +22,15 @@
 #include "cores/VideoPlayer/Interface/TimingConstants.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderManager.h"
 #include "guilib/DispResource.h"
+#include "language/LanguageTag.h"
 #include "threads/SystemClock.h"
 #include "threads/Thread.h"
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -49,6 +52,8 @@ struct SPlayerState
     menuType = MenuType::NONE;
     chapter = 0;
     chapters.clear();
+    rawChapters.clear();
+    m_bookmarks.clear();
     canpause = false;
     canseek = false;
     cantempo = false;
@@ -76,9 +81,17 @@ struct SPlayerState
   MenuType menuType;
   bool streamsReady;
 
-  int chapter; // 1-based current chapter. <=0 means no chapter / unknown
-  // name and start timestamp of chapters.
+  // 1-based current chapter, numbered among the chapters visible to the user (i.e. excluding
+  // chapters fully hidden by an EDL cut). <=0 means no chapter / unknown
+  int chapter;
+  // name and start timestamp of chapters visible to the user (chapters fully contained within
+  // an EDL cut are omitted).
   std::vector<std::pair<std::string, std::chrono::milliseconds>> chapters;
+  // for each entry in `chapters`, the corresponding 1-based chapter index reported by the
+  // demuxer/inputstream, used to translate a visible chapter number back to a seekable one.
+  std::vector<int> rawChapters;
+  // position of the bookmarks
+  std::vector<std::chrono::milliseconds> m_bookmarks;
 
   bool canpause;            // pvr: can pause the current playing item
   bool canseek;             // pvr: can seek in the current playing item
@@ -118,9 +131,11 @@ public:
   void* stream; // pointer or integer, identifying stream playing. if it changes stream changed
   int changes; // remembered counter from stream to track codec changes
   bool inited;
+  bool demuxDisabled; // disabled in the demuxer since it was opened
   unsigned int packets;
   IDVDStreamPlayer::ESyncState syncState;
   double starttime;
+  bool starttimePending;
   double cachetime;
   double cachetotal;
   const StreamType type;
@@ -155,9 +170,11 @@ public:
     stream = NULL;
     changes = 0;
     inited = false;
+    demuxDisabled = false;
     packets = 0;
     syncState = IDVDStreamPlayer::SYNC_STARTING;
     starttime = DVD_NOPTS_VALUE;
+    starttimePending = false;
     startpts = DVD_NOPTS_VALUE;
     lastdts = DVD_NOPTS_VALUE;
     avsync = AV_SYNC_FORCE;
@@ -182,7 +199,7 @@ struct SelectionStream
   int type_index = 0;
   std::string filename;
   std::string filename2;  // for vobsub subtitles, 2 files are necessary (idx/sub)
-  std::string language;
+  KODI::LANGUAGE::CLanguageTag language;
   std::string name;
   StreamFlags flags = StreamFlags::FLAG_NONE;
   int source = 0;
@@ -205,6 +222,11 @@ struct SelectionStream
   AVDOVIDecoderConfigurationRecord dovi{};
   uint32_t fpsScale{0};
   uint32_t fpsRate{0};
+
+  bool IsCurrent(const CCurrentStream& current) const
+  {
+    return demuxerId == current.demuxerId && id == current.id && source == current.source;
+  }
 };
 
 class CSelectionStreams
@@ -218,6 +240,7 @@ public:
   SelectionStream& Get(StreamType type, int index);
   const SelectionStream& Get(StreamType type, int index) const;
   bool Get(StreamType type, StreamFlags flag, SelectionStream& out);
+  bool Contains(StreamType type, int source, int64_t demuxerId, int id) const;
   void Clear(StreamType type, StreamSource source);
   int Source(StreamSource source, const std::string& filename);
   void Update(SelectionStream& s);
@@ -333,8 +356,11 @@ public:
   int GetChapterCount() const override;
   int GetChapter() const override;
   void GetChapterName(std::string& strChapterName, int chapterIdx = -1) const override;
-  int64_t GetChapterPos(int chapterIdx = -1) const override;
+  int64_t GetChapterPos(int chapterIdx = -1) const override; // chapter start ts in seconds
   int  SeekChapter(int iChapter) override;
+  std::vector<std::chrono::milliseconds> GetBookmarks() const override;
+  bool HasBookmarks() const;
+  void SetBookmarks(const std::vector<std::chrono::milliseconds>& bookmarks) override;
 
   void SeekTime(int64_t iTime) override;
   bool SeekTimeRelative(int64_t iTime) override;
@@ -358,16 +384,13 @@ public:
   unsigned int GetOrientation() const override;
   void TriggerUpdateResolution() override;
   bool IsRenderingVideo() const override;
+  bool HasVisibleOverlay() const override;
   bool IsLiveStream() const override;
+  bool IsStreaming() const override;
   bool Supports(EINTERLACEMETHOD method) const override;
   EINTERLACEMETHOD GetDeinterlacingMethodDefault() const override;
   bool Supports(ESCALINGMETHOD method) const override;
   bool Supports(ERENDERFEATURE feature) const override;
-
-  unsigned int RenderCaptureAlloc() override;
-  void RenderCapture(unsigned int captureId, unsigned int width, unsigned int height, int flags) override;
-  void RenderCaptureRelease(unsigned int captureId) override;
-  bool RenderCaptureGetPixels(unsigned int captureId, unsigned int millis, uint8_t *buffer, unsigned int size) override;
 
   // IDispResource interface
   void OnLostDisplay() override;
@@ -402,6 +425,8 @@ protected:
   void DestroyPlayers();
 
   void Prepare();
+  void ForgetSubtitleSelection();
+  bool ShouldDeferSync(bool ready, std::chrono::steady_clock::time_point now);
   bool OpenStream(CCurrentStream& current, int64_t demuxerId, int iStream, int source, bool reset = true);
   bool OpenAudioStream(CDVDStreamInfo& hint, bool reset = true);
   bool OpenVideoStream(CDVDStreamInfo& hint, bool reset = true);
@@ -435,6 +460,7 @@ protected:
   void SetEnableStream(CCurrentStream& current, bool isEnabled);
 
   void SetSubtitleVisibleInternal(bool bVisible);
+  void ReopenSubtitleStream(const SelectionStream& stream);
 
   enum SubtitleChange
   {
@@ -470,9 +496,12 @@ protected:
   void HandlePlaySpeed();
   bool IsInMenuInternal() const;
   void SynchronizeDemuxer();
+  void QueueAutoSceneSkip(std::chrono::milliseconds seekTime);
   void CheckAutoSceneSkip();
   bool CheckContinuity(CCurrentStream& current, DemuxPacket* pPacket);
   bool CheckSceneSkip(const CCurrentStream& current);
+  std::chrono::milliseconds GetEdlTime(const CCurrentStream& current) const;
+  std::chrono::milliseconds GetSourceStreamLength() const;
   bool CheckPlayerInit(CCurrentStream& current);
   void UpdateCorrection(DemuxPacket* pkt, double correction);
   void UpdateTimestamps(CCurrentStream& current, DemuxPacket* pPacket);
@@ -489,11 +518,12 @@ protected:
   bool OpenDemuxStream();
   void CloseDemuxer();
   void OpenDefaultStreams(bool reset = true);
+  void UpdateHasVideoAudio();
 
   void UpdatePlayState(double timeout);
   void GetGeneralInfo(std::string& strVideoInfo);
   int64_t GetUpdatedTime();
-  int64_t GetTime();
+  int64_t GetTime() const;
   float GetPercentage();
 
   virtual bool CanTempo();
@@ -503,6 +533,49 @@ protected:
 
   void UpdateFileItemStreamDetails(CFileItem& item, UpdateStreamDetails update);
   int GetPreviousChapter();
+  std::optional<std::chrono::milliseconds> GetChapterPosMs(int chapterIdx = -1) const;
+  // Translate a 1-based visible chapter number (as seen by GetChapter()/GetChapterCount())
+  // to the 1-based chapter index expected by the demuxer/inputstream. Falls back to
+  // returning visibleChapter unchanged if no mapping is available yet.
+  int ToRawChapter(int visibleChapter) const;
+  int GetPreviousBookmark(std::chrono::milliseconds ts);
+  int GetNextBookmark(std::chrono::milliseconds ts);
+  std::optional<std::chrono::milliseconds> GetBookmarkPos(int idx);
+
+  struct SeekCandidate
+  {
+    int64_t targetTime;
+    std::function<void()> action;
+  };
+
+  enum class SeekStep
+  {
+    NORMAL,
+    LARGE,
+  };
+
+  static int64_t CalcTimeOrPercentSeekTarget(int64_t time,
+                                             int64_t maxTime,
+                                             Direction direction,
+                                             SeekStep step);
+  std::optional<SeekCandidate> GetTimeOrPercentSeekCandidate(int64_t time,
+                                                             Direction direction,
+                                                             SeekStep step);
+  std::optional<SeekCandidate> GetChapterSeekCandidate(int64_t time, Direction direction);
+  std::optional<SeekCandidate> GetBookmarkSeekCandidate(int64_t time, Direction direction);
+  void ExecuteTimeSeek(int64_t target, Direction direction, bool accurate);
+  bool EvaluateIsStreaming() const;
+
+  struct SpeedChangeNotifications
+  {
+    bool resumed{false};
+    bool speedChanged{false};
+  };
+  // Callbacks to raise for a PLAYER_SETSPEED transition. Unpausing to normal or tempo
+  // speed is excluded because SetSpeed() already raises OnPlayBackResumed.
+  static SpeedChangeNotifications GetSpeedChangeNotifications(int previousSpeed,
+                                                              int newSpeed,
+                                                              bool isTempo);
 
   bool m_players_created;
 
@@ -535,6 +608,9 @@ protected:
     int m_videoIndex{-1};
     int m_audioIndex{-1};
     int m_subtitleIndex{-1};
+    //! Last subtitle index that resolved to an open stream. A hidden subtitle is
+    //! closed on the demuxer but stays selected, so this outlives the stream.
+    int m_selectedSubtitleIndex{-1};
   } m_content;
 
   int m_playSpeed;
@@ -545,7 +621,6 @@ protected:
     double lastpts{0.0}; // holds last display pts during ff/rw operations
     int64_t lasttime{0};
     double lastseekpts{0.0};
-    double lastabstime{0.0};
 
     void Reset(double pts)
     {
@@ -607,6 +682,8 @@ protected:
   SPlayerState m_State;
   mutable CCriticalSection m_StateSection;
   XbmcThreads::EndTime<> m_syncTimer;
+
+  std::optional<std::chrono::steady_clock::time_point> m_syncStartPtsWait;
 
   CEdl m_Edl;
   bool m_SkipCommercials;

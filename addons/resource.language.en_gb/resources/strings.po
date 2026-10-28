@@ -1094,7 +1094,7 @@ msgstr ""
 #: xbmc/addons/GUIViewStateAddonBrowser.cpp
 #: xbmc/playlists/SmartPlaylist.cpp
 #: system/settings/settings.xml
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 #: xbmc/utils/Systeminfo.cpp
 #: ###this documented usage does not cover all usecases yet###
 msgctxt "#231"
@@ -1478,7 +1478,7 @@ msgstr ""
 
 #. Select option for the setting "Preferred audio language".
 #. Will prefer the stream marked as "default" if available.
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 #: xbmc/cores/VideoPlayer/VideoPlayer.cpp
 msgctxt "#307"
 msgid "Media default"
@@ -1486,13 +1486,13 @@ msgstr ""
 
 #. Select option for the setting "Preferred audio language".
 #. Will prefer the stream marked as "original" if available.
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 #: xbmc/cores/VideoPlayer/VideoPlayer.cpp
 msgctxt "#308"
 msgid "Original language"
 msgstr ""
 
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#309"
 msgid "User interface language"
 msgstr ""
@@ -1833,13 +1833,13 @@ msgid "Light"
 msgstr ""
 
 #. Weather token
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#378"
 msgid "AM"
 msgstr ""
 
 #. Weather token
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#379"
 msgid "PM"
 msgstr ""
@@ -2256,7 +2256,19 @@ msgctxt "#470"
 msgid "Credits"
 msgstr ""
 
-#empty strings from id 471 to 473
+#. Option to alter the image hue in video settings
+#: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
+msgctxt "#471"
+msgid "Hue"
+msgstr ""
+
+#. Option to alter the image saturation in video settings
+#: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
+msgctxt "#472"
+msgid "Saturation"
+msgstr ""
+
+#empty string with id 473
 
 msgctxt "#474"
 msgid "Off"
@@ -2741,6 +2753,7 @@ msgid "Date added"
 msgstr ""
 
 #: xbmc/playlists/SmartPlaylist.cpp
+#: xbmc/dialogs/GUIDialogSmartPlaylistEditor.cpp
 #: xbmc/settings/SubtitlesSettings.cpp
 msgctxt "#571"
 msgid "Default"
@@ -3047,12 +3060,12 @@ msgstr ""
 
 #: system/settings/settings.xml
 msgctxt "#641"
-msgid "Files with ReplayGain information"
+msgid "Preamp for files with ReplayGain information"
 msgstr ""
 
 #: system/settings/settings.xml
 msgctxt "#642"
-msgid "Files without ReplayGain information"
+msgid "Preamp for files without ReplayGain information"
 msgstr ""
 
 #: system/settings/settings.xml
@@ -4050,6 +4063,7 @@ msgid "No"
 msgstr ""
 
 #. Value for setting 'Delete after watching'. Confirm delete.
+#. Value for setting 'Create versions for similar videos'
 #: system/settings/settings.xml
 msgctxt "#863"
 msgid "Ask"
@@ -4198,8 +4212,11 @@ msgctxt "#1023"
 msgid "Browse for new share"
 msgstr ""
 
-#: addons/skin.estuary/xml/DialogNetworkSetup.xml
+#. Displays a dialog to select movie title(s) for text matching in a smart rule
 #: addons/skin.estuary/xml/SmartPlaylistRule.xml
+#.
+#. Action on DVD/Bluray physical disc insertion - show a browse dialog
+#: system/settings/settings.xml
 msgctxt "#1024"
 msgid "Browse"
 msgstr ""
@@ -4973,7 +4990,12 @@ msgctxt "#1450"
 msgid "Put display to sleep when idle"
 msgstr ""
 
-#empty strings from id 1451 to 2049
+#: system/settings/settings.xml
+msgctxt "#1451"
+msgid "Restart playback after waking up"
+msgstr ""
+
+#empty strings from id 1452 to 2049
 #strings through to 1470 reserved for power-saving
 
 msgctxt "#2050"
@@ -5063,7 +5085,7 @@ msgstr ""
 
 #: addons/skin.estuary/xml/DialogPVRRadioRDSInfo.xml
 #: addons/skin.estuary/xml/DialogSeekBar.xml
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 #: xbmc/addons/Scraper.cpp
 #: xbmc/addons/addons/GUIDialogAddonInfo.cpp
 #: xbmc/guilib/guiinfo/SystemGUIInfo.cpp
@@ -6246,7 +6268,7 @@ msgid "Switch to visualisation on playback"
 msgstr ""
 
 #. time format with meridiem (xx) e.g. "HH:mm:ss xx"
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#12382"
 msgid "{0:s} xx"
 msgstr ""
@@ -6462,7 +6484,10 @@ msgctxt "#13018"
 msgid "Allow idle shutdown"
 msgstr ""
 
-#empty string with id 13019
+#: xbmc/storage/MediaManager.cpp
+msgctxt "#13019"
+msgid "Mounted optical disc"
+msgstr ""
 
 #: unknown
 msgctxt "#13020"
@@ -6757,7 +6782,7 @@ msgstr ""
 
 #. generic "unknown" label used in different places
 #: xbmc/GUIInfoManager.cpp
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 #: xbmc/addons/gui/GUIDialogAddonSettings.cpp
 #: xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemux.cpp
 #: xbmc/cores/VideoPlayer/DVDInputStreams/DVDInputStreamNavigator.cpp
@@ -6768,6 +6793,7 @@ msgstr ""
 #: xbmc/pvr/channels/PVRChannel.cpp
 #: xbmc/pvr/dialogs/GUIDialogPVRClientPriorities.cpp
 #: xbmc/pvr/guilib/guiinfo/PVRGUIInfo.cpp
+#: xbmc/settings/MediaSettings.cpp
 #: xbmc/video/dialogs/GUIDialogAudioSubtitleSettings.cpp
 #: xbmc/video/PlayerController.cpp
 #: xbmc/video/dialogs/GUIDialogAudioSettings.cpp
@@ -6781,7 +6807,7 @@ msgid "Overwrite"
 msgstr ""
 
 #. Subtitle selection to only use forced subtitles
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#13207"
 msgid "Forced only"
 msgstr ""
@@ -7075,6 +7101,8 @@ msgctxt "#13328"
 msgid "{0:s} not found"
 msgstr ""
 
+#. Label in the notification dialog for when a file or add-on fails to open
+#: xbmc/guilib/GUIVisualisationControl.cpp
 msgctxt "#13329"
 msgid "Error opening {0:s}"
 msgstr ""
@@ -7228,7 +7256,19 @@ msgctxt "#13362"
 msgid "Continue watching"
 msgstr ""
 
-#empty strings from id 13363 to 13374
+#. Label for context menu item on a video source to refresh the library information of all items in it
+#: xbmc/video/windows/GUIWindowVideoNav.cpp
+msgctxt "#13363"
+msgid "Refresh all content"
+msgstr ""
+
+#. Label for context menu item on a video source to stop refreshing the library information of all items in it
+#: xbmc/video/windows/GUIWindowVideoNav.cpp
+msgctxt "#13364"
+msgid "Stop refreshing"
+msgstr ""
+
+#empty strings from id 13365 to 13374
 
 msgctxt "#13375"
 msgid "Enable device"
@@ -7472,8 +7512,8 @@ msgctxt "#13423"
 msgid "Remember for this path"
 msgstr ""
 
-#. Shown on context menu when a bluray:// or dvd:// playlist has already been saved
-#. Giving the user a chance to select a new one via the simple menu dialog
+#. Shown on context menu for a Blu-ray disc image, BDMV folder or an already saved bluray://
+#. playlist. Giving the user a chance to select a playlist via the simple menu dialog
 #: xbmc/video/windows/GUIWindowVideoBase.cpp
 msgctxt "#13424"
 msgid "Choose playlist"
@@ -7760,7 +7800,70 @@ msgctxt "#13476"
 msgid "16 bit per channel"
 msgstr ""
 
-#empty strings from id 13477 to 13504
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13477"
+msgid "2 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13478"
+msgid "3 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13479"
+msgid "4 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13480"
+msgid "5 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13481"
+msgid "6 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13482"
+msgid "7 bit"
+msgstr ""
+
+#. Value of setting with label #36100 "Dither depth"
+#: system/settings/settings.xml
+msgctxt "#13483"
+msgid "8 bit"
+msgstr ""
+
+#. Shown on context menu for a Blu-ray disc image, BDMV folder or an already saved bluray://
+#. playlist, when further choices (see #13485 and #13486) will be offered
+#: xbmc/video/windows/GUIWindowVideoBase.cpp
+msgctxt "#13484"
+msgid "Choose playlist ..."
+msgstr ""
+
+#. Shown on the "Choose playlist ..." context menu of a library item, to assign the chosen
+#. Blu-ray playlist to it
+#: xbmc/video/windows/GUIWindowVideoBase.cpp
+msgctxt "#13485"
+msgid "and Save"
+msgstr ""
+
+#. Shown on the "Choose playlist ..." context menu of a library item, to assign the chosen
+#. Blu-ray playlist to it and play it
+#: xbmc/video/windows/GUIWindowVideoBase.cpp
+msgctxt "#13486"
+msgid "and Play"
+msgstr ""
+
+#empty strings from id 13487 to 13504
 
 #: system/settings/settings.xml
 msgctxt "#13505"
@@ -7886,6 +7989,9 @@ msgctxt "#13550"
 msgid "Delay after change of refresh rate"
 msgstr ""
 
+#. value for setting 'Create versions for similar videos'
+#: system/settings/settings.xml
+#: xbmc/settings/DisplaySettings.cpp
 msgctxt "#13551"
 msgid "Off"
 msgstr ""
@@ -7918,14 +8024,32 @@ msgctxt "#13557"
 msgid "Skip delay"
 msgstr ""
 
-#empty strings from id 13558 to 13600
+#. Name of a setting to configure the maximum fast-forward speed with smooth/continuous playback
+#: system/settings/settings.xml
+msgctxt "#13558"
+msgid "Maximum smooth fast-forward speed"
+msgstr ""
+
+#. Playback speed unit used to format speeds for display ex. 2x, 4x, ...
+#: xbmc/settings/PlayerSettings.cpp
+msgctxt "#13559"
+msgid "{0:d}x"
+msgstr ""
+
+#empty strings id 13600
 
 #: system/settings/darwin_tvos.xml
 msgctxt "#13601"
 msgid "Apple TV"
 msgstr ""
 
-#empty strings from id 13602 to 13999
+#. Option to set the granularity (default 1.0) of the brightness/contrast/hue/saturation/gamma settings in video settings
+#: system/settings/settings.xml
+msgctxt "#13602"
+msgid "Image adjustment granularity"
+msgstr ""
+
+#empty strings from id 13603 to 13999
 
 msgctxt "#14000"
 msgid "Stack"
@@ -8283,7 +8407,10 @@ msgctxt "#14084"
 msgid "Queue songs on selection"
 msgstr ""
 
-#empty string with id 14085
+#: system/settings/settings.xml
+msgctxt "#14085"
+msgid "Video disc insert action"
+msgstr ""
 
 #: system/settings/settings.xml
 msgctxt "#14086"
@@ -8296,10 +8423,7 @@ msgctxt "#14087"
 msgid "Discs"
 msgstr ""
 
-#: system/settings/settings.xml
-msgctxt "#14088"
-msgid "Play DVDs automatically"
-msgstr ""
+#empty string with id 14088
 
 #. Subtitle font selection setting
 #: system/settings/settings.xml
@@ -8345,10 +8469,7 @@ msgctxt "#14097"
 msgid "Audio CD insert action"
 msgstr ""
 
-#: system/settings/settings.xml
-msgctxt "#14098"
-msgid "Play"
-msgstr ""
+#empty string with id 14098
 
 #: system/settings/settings.xml
 msgctxt "#14099"
@@ -8666,6 +8787,7 @@ msgstr ""
 #empty strings from id 14228 to 14229
 
 #: system/settings/settings.xml
+#: xbmc/addons/gui/GUIDialogAddonSettings.cpp
 msgctxt "#14230"
 msgid "Actions"
 msgstr ""
@@ -9233,7 +9355,6 @@ msgctxt "#16017"
 msgid "Enter search string"
 msgstr ""
 
-#: system/settings/settings.xml
 #: xbmc/playlists/SmartPlaylist.cpp
 msgctxt "#16018"
 msgid "None"
@@ -9350,17 +9471,21 @@ msgstr ""
 
 #empty strings from id 16042 to 16099
 
-#: xbmc/video/windows/GUIWindowVideoNav.cpp
+#: xbmc/settings/MediaSettings.cpp
 #: xbmc/video/windows/VideoFileItemListModifier.cpp
 msgctxt "#16100"
 msgid "All videos"
 msgstr ""
 
+#: xbmc/settings/MediaSettings.cpp
+#: xbmc/pvr/windows/GUIWindowPVRRecordings.cpp
 msgctxt "#16101"
 msgid "Unwatched"
 msgstr ""
 
 #: addons/skin.estuary/xml/Home.xml
+#: xbmc/settings/MediaSettings.cpp
+#: xbmc/pvr/windows/GUIWindowPVRRecordings.cpp
 msgctxt "#16102"
 msgid "Watched"
 msgstr ""
@@ -9531,11 +9656,13 @@ msgstr ""
 
 #: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
 msgctxt "#16315"
-msgid "Lanczos3 - Optimised"
+msgid "Lanczos3 - Fast"
 msgstr ""
 
+#. value for setting 'Create versions for similar videos'
 #: xbmc/games/dialogs/osd/DialogGameVideoFilter.cpp
 #: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
+#: system/settings/settings.xml
 msgctxt "#16316"
 msgid "Auto"
 msgstr ""
@@ -9572,7 +9699,7 @@ msgstr ""
 
 #: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
 msgctxt "#16323"
-msgid "Spline36 - Optimised"
+msgid "Spline36 - Fast"
 msgstr ""
 
 #: xbmc/video/dialogs/GUIDialogVideoSettings.cpp
@@ -10880,7 +11007,8 @@ msgctxt "#19193"
 msgid "The channel scan can't be started."
 msgstr ""
 
-#. unused?
+#. Question after an explanation of what will happen, such as #35702
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
 msgctxt "#19194"
 msgid "Continue?"
 msgstr ""
@@ -10891,11 +11019,7 @@ msgctxt "#19195"
 msgid "Delay mark last watched"
 msgstr ""
 
-#. value for "pvr client specific actions" dialog headers
-#: xbmc/pvr/guilib/PVRGUIActionsClients.cpp
-msgctxt "#19196"
-msgid "PVR client specific actions"
-msgstr ""
+#empty string with id 19196
 
 #. text for "recording started on <pvr client name>" pvr client addon callback notification
 #: xbmc/pvr/addons/PVRClient.cpp
@@ -11384,11 +11508,7 @@ msgctxt "#19279"
 msgid "PVR clients"
 msgstr ""
 
-#. pvr client specific settings 'client specific settings' action control label.
-#: system/settings/settings.xml
-msgctxt "#19280"
-msgid "Client specific settings"
-msgstr ""
+#empty string with id 19280
 
 #. pvr settings 'confirm channel switch' setting label.
 #: system/settings/settings.xml
@@ -11805,11 +11925,7 @@ msgctxt "#19346"
 msgid "Display and manage available PVR client add-ons."
 msgstr ""
 
-#. info message box text stating that none of the available pvr clients does provide client-specific settings
-#: xbmc/pvr/guilib/PVRGUIActionsClients.cpp
-msgctxt "#19347"
-msgid "None of the active PVR clients provide client-specific settings."
-msgstr ""
+#empty string with id 19347
 
 #. generic label for a pvr provider used in different places
 #: xbmc/pvr/windows/GUIViewStatePVR.cpp
@@ -11872,7 +11988,13 @@ msgctxt "#19357"
 msgid "Delete recording"
 msgstr ""
 
-#empty strings from id 19358 to 19498
+#. Label for the optional provider-scoped channel OSD setting
+#: system/settings/settings.xml
+msgctxt "#19358"
+msgid "Show channels by provider in channel OSD"
+msgstr ""
+
+#empty strings from id 19359 to 19498
 
 #. label for epg genre value
 #: xbmc/pvr/epg/Epg.cpp
@@ -12648,13 +12770,13 @@ msgstr ""
 #empty strings from id 20027 to 20034
 #string id's 20027 thru 20034 are reserved for temperature strings (LocalizeStrings.cpp)
 
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#20035"
 msgid "Regional ({0:s})"
 msgstr ""
 
 #. Used for date/time format settings like "10:00:00 (HH:mm:ss)"
-#: xbmc/LangInfo.cpp
+#: xbmc/language/LangInfo.cpp
 msgctxt "#20036"
 msgid "{0:s} ({1:s})"
 msgstr ""
@@ -14122,7 +14244,9 @@ msgstr ""
 
 #. Value for setting with label #170 "Player / Videos / Adjust display refresh rate"
 #. Value for setting with label #36098 "System / Display / Use 10 bit for SDR"
+#. Value for setting with label #36057 "Send volume commands over CEC"
 #: system/settings/settings.xml
+#: system/peripherals.xml
 msgctxt "#20422"
 msgid "Always"
 msgstr ""
@@ -14391,7 +14515,7 @@ msgstr ""
 #: xbmc/playlists/SmartPlayList.cpp
 msgctxt "#20475"
 msgid "Has multiple versions"
-msgstr ""	
+msgstr ""
 
 #. Used in smart playlists as rule field name to select items that have video extras
 #: xbmc/playlists/SmartPlayList.cpp
@@ -14412,7 +14536,13 @@ msgctxt "#20478"
 msgid "DV profile"
 msgstr ""
 
-#empty strings from id 20479 to 21329
+#. Used in the smart playlist editor to define a watched mode
+#: xbmc/dialogs/GUIDialogSmartPlaylistEditor.cpp
+msgctxt "#20479"
+msgid "Watched Mode"
+msgstr ""
+
+#empty strings from id 20480 to 21329
 #up to 21329 is reserved for the video db !! !
 
 #: system/settings/settings.xml
@@ -15168,7 +15298,37 @@ msgctxt "#21485"
 msgid "Supported file extensions and media types"
 msgstr ""
 
-#empty strings from id 21486 to 21601
+#. Used to show Episodes in Video->Files (eg. Episode n)
+#: xbmc/FileItem.cpp
+msgctxt "#21486"
+msgid "Episode {0:d}"
+msgstr ""
+
+#. Used to show Episodes in Video->Files (eg. Episodes m-n)
+#: xbmc/FileItem.cpp
+msgctxt "#21487"
+msgid "Episodes {0:d}-{1:d}"
+msgstr ""
+
+#. Used to show Episodes in Video->Files (eg. Season x Episode n)
+#: xbmc/FileItem.cpp
+msgctxt "#21488"
+msgid "Season {0:d} Episode {1:d}"
+msgstr ""
+
+#. Used to show Episodes in Video->Files (eg. Season x Episodes m-n)
+#: xbmc/FileItem.cpp
+msgctxt "#21489"
+msgid "Season {0:d} Episodes {1:d}-{2:d}"
+msgstr ""
+
+#. Used to show Specials in Video->Files (when there are no episodes) (eg. Specials)
+#: xbmc/FileItem.cpp
+msgctxt "#21490"
+msgid "Specials"
+msgstr ""
+
+#empty strings from id 21491 to 21601
 
 #: xbmc/Util.cpp
 msgctxt "#21602"
@@ -15920,6 +16080,7 @@ msgid "Script"
 msgstr ""
 
 #: xbmc/addons/Addon.cpp
+#: xbmc/guilib/GUIVisualisationControl.cpp
 msgctxt "#24010"
 msgid "Visualisation"
 msgstr ""
@@ -16169,7 +16330,6 @@ msgid "Last updated {0:s}"
 msgstr ""
 
 #. Used as a title in the progress dialog when installing an add-on
-#: xbmc/addons/AddonInstaller.cpp
 #: xbmc/games/controllers/windows/ControllerInstaller.cpp
 msgctxt "#24057"
 msgid "Installing {0:s}..."
@@ -16717,7 +16877,7 @@ msgctxt "#24161"
 msgid "This prevents you from accidental tap/swipe/pan action when you grab the remote in your hand"
 msgstr ""
 
-#: system/settings/darwin_tvos.xml
+#: system/settings/settings.xml
 msgctxt "#24162"
 msgid "Use Kodi virtual keyboard"
 msgstr ""
@@ -16841,7 +17001,19 @@ msgctxt "#24187"
 msgid "Failed to initialise databases - exiting in {} seconds."
 msgstr ""
 
-#empty strings from id 24188 to 24990
+#. Progress text while extracting an add-on package
+#: xbmc/addons/AddonInstaller.cpp
+msgctxt "#24188"
+msgid "Unpacking add-on..."
+msgstr ""
+
+#. Header of the background progress bar when installing an add-on, followed by the percentage
+#: xbmc/addons/AddonInstaller.cpp
+msgctxt "#24189"
+msgid "Installing {0:s}"
+msgstr ""
+
+#empty strings from id 24190 to 24990
 
 #. Used as error message in add-on browser when add-on repository data could not be downloaded
 #: xbmc/filesystem/AddonsDirectory.cpp
@@ -16973,11 +17145,7 @@ msgctxt "#25014"
 msgid "Manual"
 msgstr ""
 
-#. Used to ask user if they want to use a playlist already assigned to an episode
-#: xbmc/video/dialogs/GUIDialogSimpleMenu.cpp
-msgctxt "#25015"
-msgid "Selected playlist is already in use. Associate with this episode instead?"
-msgstr ""
+#empty string with id 25015
 
 #. Inform user that no valid movie playlist has been found on disc
 #: xbmc/video/dialogs/GUIDialogSimpleMenu.cpp
@@ -16998,7 +17166,37 @@ msgctxt "#25018"
 msgid "Automatic menu selection"
 msgstr ""
 
-#empty strings from id 25019 to 29800
+#. Bit rate unit of measure for the audio live bit rate info label (bits per second  / 1024)
+#: xbmc/guilib/guiinfo/PlayerGUIInfo.cpp
+msgctxt "#25019"
+msgid "Kb/s"
+msgstr ""
+
+#. Bit rate unit of measure for the video live bit rate info label (bits per second  / (1024 * 1024))
+#: xbmc/guilib/guiinfo/PlayerGUIInfo.cpp
+msgctxt "#25020"
+msgid "Mb/s"
+msgstr ""
+
+#: Indicates a playlist shown in the simple menu is already used (and shows what)
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#25021"
+msgid "used by {0:s}"
+msgstr ""
+
+#: Indicates a playlist shown in the simple menu is already used by a movie
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#25022"
+msgid "used by movie"
+msgstr ""
+
+#: Indicates a playlist shown in the simple menu is already used by an extra
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#25023"
+msgid "used by extra"
+msgstr ""
+
+#empty strings from id 25024 to 29800
 
 #: unused
 msgctxt "#29801"
@@ -17977,9 +18175,9 @@ msgctxt "#34007"
 msgid "Windows media audio 2 (FFmpeg wmav2)"
 msgstr ""
 
-#: system/settings/darwin_tvos.xml
+#: system/settings/settings.xml
 msgctxt "#34008"
-msgid "When you need to enter some text, Kodi virtual keyboard will show up instead of the built-in tvOS keyboard"
+msgid "When you need to enter some text, Kodi virtual keyboard will show up instead of the built-in platform keyboard"
 msgstr ""
 
 #: system/settings/darwin_tvos.xml
@@ -18961,17 +19159,7 @@ msgctxt "#35216"
 msgid "Support add-ons"
 msgstr ""
 
-#. Dialog text asking user to overwrite their savestate file
-#: xbmc/cores/RetroPlayer/RetroPlayer.cpp"
-msgctxt "#35217"
-msgid "The savestate can only be loaded with \"{0:s}\". Erase savestate and continue?"
-msgstr ""
-
-#. Button to erase the savestate
-#: xbmc/cores/RetroPlayer/RetroPlayer.cpp"
-msgctxt "#35218"
-msgid "Erase savestate"
-msgstr ""
+#empty strings from id 35217 to 35218
 
 #. Error dialog text when trying to play a game and the game's files aren't found.
 #: xbmc/games/GameClient.cpp
@@ -19103,7 +19291,19 @@ msgctxt "#35239"
 msgid "Integer (square pixels)"
 msgstr ""
 
-#empty strings from id 35240 to 35248
+#. Error dialog text when an emulator can't find a file it needs, such as a BIOS file. {0:s} - emulator name, {1:s} - file name
+#: xbmc/games/addons/GameClient.cpp
+msgctxt "#35240"
+msgid "The emulator \"{0:s}\" couldn't find {1:s}."
+msgstr ""
+
+#. Error dialog text when an emulator can't find files it needs and doesn't say which. {0:s} - emulator name
+#: xbmc/games/addons/GameClient.cpp
+msgctxt "#35241"
+msgid "The emulator \"{0:s}\" couldn't find files it needs, such as BIOS files."
+msgstr ""
+
+#empty strings from id 35242 to 35248
 
 #. Button to open the savestate manager from the game OSD
 #: addons/skin.estuary/xml/GameOSD.xml
@@ -19231,11 +19431,7 @@ msgctxt "#35270"
 msgid "Your account is not verified. Please check your email to complete your sign up."
 msgstr ""
 
-#. Error message shown when an OpenGL game is played, as OpenGL is not currently supported
-#: xbmc/games/addons/GameClient.cpp
-msgctxt "#35271"
-msgid "This game requires OpenGL support for 3D rendering. OpenGL support is still under development."
-msgstr ""
+#empty string with id 35271
 
 #. Label for the "Disc menu" button to open the Disc Manager when playing a game
 #: addons/skin.estuary/xml/GameOSD.xml
@@ -19297,7 +19493,485 @@ msgctxt "#35280"
 msgid "Select disc"
 msgstr ""
 
-#empty strings from id 35281 to 35504
+#. Heading of the notification shown when the player earns an achievement
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35281"
+msgid "Achievement Unlocked"
+msgstr ""
+
+#. Heading of the notification shown when every achievement of a game has been earned in hardcore mode
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35282"
+msgid "Game mastered"
+msgstr ""
+
+#. Heading of the notification shown when every achievement of a game has been earned
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35283"
+msgid "Game completed"
+msgstr ""
+
+#. Notification shown when a game with achievement support is loaded. {0:d} is the number earned, {1:d} the total
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35284"
+msgid "{0:d} of {1:d} achievements unlocked"
+msgstr ""
+
+#. Message shown when the achievements dialog is opened without being logged in to RetroAchievements
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35285"
+msgid "Log in to RetroAchievements in Settings to use this feature."
+msgstr ""
+
+#. Message shown when the achievements dialog is opened for a game that RetroAchievements has no achievement set for
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35286"
+msgid "This game doesn't support RetroAchievements"
+msgstr ""
+
+#. Label for the button that opens the achievements dialog, and heading of that dialog
+#: addons/skin.estuary/xml/GameOSD.xml
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35287"
+msgid "Achievements"
+msgstr ""
+
+#. Progress through a game's achievements, weighted by point value. {0:d} is a percentage
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35288"
+msgid "{0:d}% complete"
+msgstr ""
+
+#. Date an achievement was earned. {0:s} is a localised date
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35289"
+msgid "Unlocked {0:s}"
+msgstr ""
+
+#. Rarity category of an achievement earned by more than half of players
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35290"
+msgid "Common"
+msgstr ""
+
+#. Rarity category of an achievement earned by 10% to 50% of players
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35291"
+msgid "Uncommon"
+msgstr ""
+
+#. Rarity category of an achievement earned by 2% to 10% of players
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35292"
+msgid "Rare"
+msgstr ""
+
+#. Rarity category of an achievement earned by fewer than 2% of players
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35293"
+msgid "Ultra rare"
+msgstr ""
+
+#. Point value of an achievement, abbreviated to fit the list. {0:d} is the number of points
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35294"
+msgid "{0:d} pts"
+msgstr ""
+
+#. Notification shown after signing in to RetroAchievements. {0:s} is the account name
+#: xbmc/games/GameSettings.cpp
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35295"
+msgid "Logged in as {0:s}"
+msgstr ""
+
+#. Notification shown when RetroAchievements becomes unreachable during play
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35296"
+msgid "Unlocks will be submitted when the connection returns."
+msgstr ""
+
+#. Notification shown when RetroAchievements becomes reachable again
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35297"
+msgid "Pending unlocks have been submitted."
+msgstr ""
+
+#. Error message shown when trying to load a compressed savestate in an unsupported version of Kodi
+#: xbmc/games/dialogs/osd/DialogInGameSaves.cpp
+msgctxt "#35298"
+msgid "This savestate is compressed and can't be loaded by this version of Kodi."
+msgstr ""
+
+#. Shown when the achievements dialog is opened before the game has been identified
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35299"
+msgid "Still looking this game up..."
+msgstr ""
+
+#. Shown when hardware rendering fails. {0:s} is the requested API/version, such as "OpenGL 4.3"; {1:s} is the available API, such as "OpenGL".
+#: xbmc/games/addons/GameClient.cpp
+msgctxt "#35300"
+msgid "Kodi couldn't initialize {0:s} rendering for this game. This display supports {1:s}."
+msgstr ""
+
+#. Shown when a game needs the graphics card directly but the display can't provide it
+#: xbmc/games/addons/GameClient.cpp
+msgctxt "#35301"
+msgid "Kodi couldn't initialize {0:s} rendering for this game on this display."
+msgstr ""
+
+#. Help text for the hardcore mode setting
+#: system/settings/settings.xml
+msgctxt "#35302"
+msgid "Earn achievements worth double points. Rewind, loading save states, slow motion and cheats are unavailable while this is on, and turning it on restarts the game."
+msgstr ""
+
+#. Label of the setting that enables RetroAchievements encore mode
+#: system/settings/settings.xml
+msgctxt "#35303"
+msgid "Encore mode"
+msgstr ""
+
+#. Help text for the encore mode setting
+#: system/settings/settings.xml
+msgctxt "#35304"
+msgid "Allow achievements you have already earned to be triggered again.[CR][CR]Applies the next time you load the game."
+msgstr ""
+
+#. Notification shown when hardcore mode refuses something, {0:s} is the feature
+#: xbmc/games/GameUtils.cpp
+msgctxt "#35305"
+msgid "{0:s} is not available"
+msgstr ""
+
+#. Notification shown when resuming a save state turns hardcore mode off
+#: xbmc/cores/RetroPlayer/RetroPlayer.cpp
+msgctxt "#35306"
+msgid "Hardcore mode turned off. Achievements will be earned in casual mode."
+msgstr ""
+
+#. Notification shown when all achievements of a subset are earned, {0:s} is the subset
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+msgctxt "#35307"
+msgid "Subset completed"
+msgstr ""
+
+#. Name of the feature hardcore mode refused, used with #35305
+#: xbmc/cores/RetroPlayer/playback/ReversiblePlayback.cpp
+msgctxt "#35308"
+msgid "Loading save states"
+msgstr ""
+
+#. Name of the feature hardcore mode refused, used with #35305
+#: xbmc/cores/RetroPlayer/RetroPlayer.cpp
+#: xbmc/cores/RetroPlayer/playback/ReversiblePlayback.cpp
+msgctxt "#35309"
+msgid "Rewind"
+msgstr ""
+
+#. Label of the Manual button in the game OSD, which shows the game's instruction booklet
+#: addons/skin.estuary/xml/GameOSD.xml
+msgctxt "#35310"
+msgid "Manual"
+msgstr ""
+
+#empty strings from id 35311 to 35319
+
+#. Label of the Cheats button in the game OSD, heading of the cheats dialog, and
+#. of the cheats group in settings
+msgctxt "#35320"
+msgid "Cheats"
+msgstr ""
+
+#. Label of the setting that points at the folder holding cheat files
+msgctxt "#35321"
+msgid "Cheats folder"
+msgstr ""
+
+#. Help text for the cheats folder setting
+msgctxt "#35322"
+msgid "Set a custom folder containing libretro cheats, or install cheats in the Add-on Manager."
+msgstr ""
+
+#. Shown when no cheat pack matches the current game
+msgctxt "#35323"
+msgid "No cheats found for this game"
+msgstr ""
+
+#. Cheat-pack button and heading of the pack-selection dialog
+#: xbmc/games/cheats/dialogs/DialogGameCheats.cpp
+msgctxt "#35324"
+msgid "Cheat pack..."
+msgstr ""
+
+#. Multiple packs contain the current game's exact cheat filename
+#: xbmc/games/cheats/dialogs/DialogGameCheats.cpp
+msgctxt "#35325"
+msgid "Multiple cheat packs match this game. Choose one to load its cheats."
+msgstr ""
+
+#. Enabled-cheat count, singular
+#: xbmc/games/cheats/dialogs/DialogGameCheats.cpp
+msgctxt "#35326"
+msgid "1 cheat enabled"
+msgstr ""
+
+#. Enabled-cheat count, including zero
+#: xbmc/games/cheats/dialogs/DialogGameCheats.cpp
+#, c++-format
+msgctxt "#35327"
+msgid "{0:d} cheats enabled"
+msgstr ""
+
+#. Shown when a matching pack has no usable cheats
+#: xbmc/games/cheats/dialogs/DialogGameCheats.cpp
+msgctxt "#35328"
+msgid "0 cheats available"
+msgstr ""
+
+#empty strings from id 35329 to 35330
+
+#. Label of the game OSD button that opens the leaderboards
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35331"
+msgid "Leaderboards"
+msgstr ""
+
+#. Shown in the leaderboards dialog: scores cannot be submitted yet
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35332"
+msgid "Leaderboards are read-only until this emulator is approved for hardcore mode"
+msgstr ""
+
+#. Shown when the player is not signed in
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35333"
+msgid "Sign in to RetroAchievements to see leaderboards"
+msgstr ""
+
+#. Shown when the game defines none
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35334"
+msgid "This game has no leaderboards"
+msgstr ""
+
+#. How a time-based leaderboard ranks, lowest first
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35335"
+msgid "Fastest time"
+msgstr ""
+
+#. How a time-based leaderboard ranks, highest first
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35336"
+msgid "Longest time"
+msgstr ""
+
+#. How a scored leaderboard ranks, lowest first
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35337"
+msgid "Lowest score"
+msgstr ""
+
+#. How a scored leaderboard ranks, highest first
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35338"
+msgid "Highest score"
+msgstr ""
+
+#. How many players have submitted to a leaderboard, {0:d} is the number of entries
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35339"
+msgid "{0:d} entries"
+msgstr ""
+
+#. Where the player stands on a leaderboard, {0:d} is their rank
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35340"
+msgid "Your rank: {0:d}"
+msgstr ""
+
+#. Shown when the player has never submitted to a leaderboard
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35341"
+msgid "Not ranked"
+msgstr ""
+
+#. Shown while a leaderboard's entries are being fetched
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35342"
+msgid "Loading standings..."
+msgstr ""
+
+#. Shown when the request for a leaderboard's entries failed
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35343"
+msgid "The standings could not be loaded"
+msgstr ""
+
+#. Column heading for a player's position on a leaderboard
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35344"
+msgid "Rank"
+msgstr ""
+
+#. Column heading for a leaderboard value
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35345"
+msgid "Score"
+msgstr ""
+
+#. A leaderboard entry submitted one day ago
+#: xbmc/games/dialogs/osd/LeaderboardUtils.cpp
+msgctxt "#35346"
+msgid "Yesterday"
+msgstr ""
+
+#. How long ago a leaderboard entry was submitted, {0:d} is the number of days
+#: xbmc/games/dialogs/osd/LeaderboardUtils.cpp
+msgctxt "#35347"
+msgid "{0:d} days ago"
+msgstr ""
+
+#. How long ago a leaderboard entry was submitted, {0:d} is the number of months
+#: xbmc/games/dialogs/osd/LeaderboardUtils.cpp
+msgctxt "#35348"
+msgid "{0:d} months ago"
+msgstr ""
+
+#. How long ago a leaderboard entry was submitted, {0:d} is the number of years
+#: xbmc/games/dialogs/osd/LeaderboardUtils.cpp
+msgctxt "#35349"
+msgid "{0:d} years ago"
+msgstr ""
+
+#. Heading for the player's own standing on a leaderboard
+#: xbmc/games/dialogs/osd/LeaderboardUtils.cpp
+msgctxt "#35350"
+msgid "Your best"
+msgstr ""
+
+#empty string with ID 35351
+
+#. A leaderboard entry submitted last month
+msgctxt "#35352"
+msgid "Last month"
+msgstr ""
+
+#. A leaderboard entry submitted last year
+msgctxt "#35353"
+msgid "Last year"
+msgstr ""
+
+#. Notification heading when a leaderboard attempt begins
+msgctxt "#35354"
+msgid "Leaderboard attempt started"
+msgstr ""
+
+#. Notification heading when a leaderboard attempt is abandoned
+msgctxt "#35355"
+msgid "Leaderboard attempt failed"
+msgstr ""
+
+#. Notification heading when a leaderboard score is sent to the server
+msgctxt "#35356"
+msgid "Leaderboard attempt submitted"
+msgstr ""
+
+#. Where a submitted leaderboard score placed, {0:d} is the rank and {1:d} the number of entries
+msgctxt "#35357"
+msgid "Your rank: {0:d} of {1:d}"
+msgstr ""
+
+#. Shown when a submitted score did not beat the player's existing best, {0:s} is that best
+msgctxt "#35358"
+msgid "Your best is still {0:s}"
+msgstr ""
+
+#. Setting to show the achievement being attempted over the game
+msgctxt "#35364"
+msgid "Challenge indicator"
+msgstr ""
+
+#. Short form of "Challenge indicator" for the in-game achievements dialog
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35365"
+msgid "Indicator"
+msgstr ""
+
+#. Help text for the challenge indicator setting
+msgctxt "#35366"
+msgid "Show a challenge indicator in the corner of the screen while an achievement attempt is active."
+msgstr ""
+
+#. Shown in the achievements dialog to someone without a RetroAchievements account
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35367"
+msgid "Scan to create a free RetroAchievements account"
+msgstr ""
+
+#. Says what an account is for, under the sign-up QR code
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35368"
+msgid "Earn achievements, track your progress and compare with other players."
+msgstr ""
+
+#. Shown in place of a leaderboard's standings when nobody has entered it
+#: xbmc/games/dialogs/osd/DialogGameLeaderboardEntries.cpp
+msgctxt "#35369"
+msgid "Nobody has submitted an entry to this leaderboard yet"
+msgstr ""
+
+#. Shown when the list of a game's leaderboards could not be fetched
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35370"
+msgid "The leaderboards could not be loaded"
+msgstr ""
+
+#. Settings action that opens the RetroAchievements account sign-up QR code
+#: system/settings/settings.xml
+msgctxt "#35371"
+msgid "Create a free account"
+msgstr ""
+
+#. Leaderboard participation count; {0} is a number formatted for the current region
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35372"
+msgid "{0} entry"
+msgstr ""
+
+#. Leaderboard participation count; {0} is a number formatted for the current region
+#: xbmc/games/dialogs/osd/DialogGameLeaderboards.cpp
+msgctxt "#35373"
+msgid "{0} entries"
+msgstr ""
+
+#. Heading for the player's standing in the leaderboard
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35374"
+msgid "Your entry"
+msgstr ""
+
+#. Leaderboard column heading for time since submission
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35375"
+msgid "Submitted"
+msgstr ""
+
+#. Player standing when the leaderboard has loaded and the player has no entry
+#: xbmc/games/dialogs/osd/DialogGameLeaderboardEntries.cpp
+msgctxt "#35376"
+msgid "Not submitted"
+msgstr ""
+
+#. Label introducing the signed-in player's leaderboard standing
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35377"
+msgid "You:"
+msgstr ""
+
+#empty strings from id 35378 to 35504
 
 #. connection state "host unreachable"
 #: xbmc/pvr/addons/PVRClients.cpp
@@ -19329,7 +20003,87 @@ msgctxt "#35509"
 msgid "Connecting to backend."
 msgstr ""
 
-#empty strings from id 35510 to 35999
+#. Context menu item, and heading of the dialog it opens, for choosing the
+#. emulator a game or a folder of games is opened with
+#: xbmc/games/windows/GUIWindowGames.cpp
+msgctxt "#35510"
+msgid "Default emulator"
+msgstr ""
+
+#. Marks the emulator already set as the default in the list of emulators
+#: xbmc/games/GameUtils.cpp
+msgctxt "#35511"
+msgid "Current"
+msgstr ""
+
+#empty strings from id 35512 to 35699
+
+#. Label of the setting that enables RetroAchievements hardcore mode
+#: system/settings/settings.xml
+msgctxt "#35700"
+msgid "Hardcore mode"
+msgstr ""
+
+#. Name of the feature hardcore mode refused, used with #35305
+#: xbmc/cores/RetroPlayer/RetroPlayer.cpp
+msgctxt "#35701"
+msgid "Slow motion"
+msgstr ""
+
+#. Confirmation shown before turning hardcore mode on during a game, followed by #19194
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35702"
+msgid "Starting a hardcore session restarts the game. Any unsaved progress will be lost."
+msgstr ""
+
+#. Shown as a game with achievements starts in hardcore mode, {0:d} earned of {1:d}
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+#, c++-format
+msgctxt "#35703"
+msgid "Hardcore mode: {0:d} of {1:d} achievements unlocked"
+msgstr ""
+
+#empty strings from id 35704 to 35709
+
+#. Marks a locked achievement that can be missed for good
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35710"
+msgid "Missable"
+msgstr ""
+
+#. Button that picks which of a game's achievement sets is shown
+#: addons/skin.estuary/xml/Includes_Games.xml
+msgctxt "#35711"
+msgid "Achievement set"
+msgstr ""
+
+#. An achievement set whose progression and win achievements are all earned
+#: xbmc/games/addons/cheevos/GameClientCheevos.cpp
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35712"
+msgid "Beaten"
+msgstr ""
+
+#. How close an achievement set is to being beaten, {0:d} earned of {1:d} needed
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+#, c++-format
+msgctxt "#35713"
+msgid "{0:d} of {1:d} to beat"
+msgstr ""
+
+#. An achievement set the player turned off
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35714"
+msgid "Turned off"
+msgstr ""
+
+#. The game's own achievement set, as opposed to its subsets
+#: xbmc/games/dialogs/osd/DialogGameAchievements.cpp
+msgctxt "#35715"
+msgid "Main Set"
+msgstr ""
+
+#empty strings from id 35716 to 35999
 
 #: xbmc/peripherals/devices/PeripheralCecAdapter.cpp
 msgctxt "#36000"
@@ -19616,7 +20370,43 @@ msgctxt "#36053"
 msgid "Tuner Device"
 msgstr ""
 
-#empty strings from id 36054 to 36095
+#. Label of CEC setting double_tap_timeout_ms: a repeated identical button press within this many ms is treated as a duplicate and dropped (double-tap dedup). 0 disables it.
+#: system/peripherals.xml
+msgctxt "#36054"
+msgid "Remote button double press timeout (ms) (0 = off)"
+msgstr ""
+
+#. Item list value of setting with label #36009 "Put devices in standby mode when activating the screensaver"
+#: system/peripherals.xml
+msgctxt "#36055"
+msgid "Always"
+msgstr ""
+
+#. Item list value of setting with label #36009 "Put devices in standby mode when activating the screensaver"
+#: system/peripherals.xml
+msgctxt "#36056"
+msgid "Unless media is playing"
+msgstr ""
+
+#. Label of CEC setting volume_control: whether Kodi's volume keys adjust the volume of the amplifier or TV over CEC instead of Kodi's own mixer
+#: system/peripherals.xml
+msgctxt "#36057"
+msgid "Send volume commands over CEC"
+msgstr ""
+
+#. Item list value of setting with label #36057 "Send volume commands over CEC": send them to an amplifier, or to a TV that reports CEC 2.0
+#: system/peripherals.xml
+msgctxt "#36058"
+msgid "Automatic"
+msgstr ""
+
+#. Description of setting with label #13602 "Image adjustment granularity"
+#: system/settings/settings.xml
+msgctxt "#36059"
+msgid "Step size of the brightness, contrast, hue and saturation sliders in the video settings."
+msgstr ""
+
+#empty strings from id 36060 to 36095
 
 #. Label of setting "System / Display / Use system HDR/SDR brightness balance"
 #: system/settings/settings.xml
@@ -19744,7 +20534,16 @@ msgctxt "#36116"
 msgid "Choose which character set is used for displaying text in the user interface. This doesn't change the character set used for subtitles, for that go to Player > Language."
 msgstr ""
 
-#empty strings from id 36117 to 36118
+#: system/settings/win32.xml
+msgctxt "#36117"
+msgid "Render on high-performance GPU"
+msgstr ""
+
+#. Description of setting with label #36117 "Render on high-performance GPU"
+#: system/settings/win32.xml
+msgctxt "#36118"
+msgid "On laptops with two GPUs, render on the high-performance GPU even when the display is connected to the other GPU. Frees the CPU's power and memory bandwidth for decoding, but uses more power. Exclusive fullscreen is not available in this mode."
+msgstr ""
 
 #. Description of setting with label #285 "Preferred audio language"
 #: system/settings/settings.xml
@@ -20184,11 +20983,7 @@ msgctxt "#36193"
 msgid "This category contains the settings for how DVD's, Blu-ray, & CD's are handled."
 msgstr ""
 
-#. Description of setting with label #14088 "Play DVDs automatically"
-#: system/settings/settings.xml
-msgctxt "#36194"
-msgid "Autorun DVD video when inserted in drive."
-msgstr ""
+#empty strings from id 36194
 
 #. Description of setting with label #21372 "Forced DVD player region"
 #: system/settings/settings.xml
@@ -20482,10 +21277,7 @@ msgctxt "#36251"
 msgid "This category contains the settings for your PVR backend specifically, if supported by the PVR add-on and backend."
 msgstr ""
 
-#: system/settings/settings.xml
-msgctxt "#36252"
-msgid "This option will bring you to any specific settings for your PVR backend, if supported by the PVR add-on and backend."
-msgstr ""
+#empty string with id 36252
 
 #. Description of settings section with label #2 "Music"
 #: system/settings/settings.xml
@@ -20575,16 +21367,16 @@ msgctxt "#36267"
 msgid "Read the ReplayGain information encoded in your audio files by a program such as MP3Gain and normalise the sound levels accordingly."
 msgstr ""
 
-#. Description of setting with label #641 "Files with ReplayGain information"
+#. Description of setting with label #641 "Preamplification level to use for files with encoded ReplayGain information"
 #: system/settings/settings.xml
 msgctxt "#36268"
-msgid "Reference volume (PreAmp level) to use for files with encoded ReplayGain information. Default is 89dB as per standard. Change with caution."
+msgid "Preamplification level to use for files with encoded ReplayGain information."
 msgstr ""
 
-#. Description of setting with label #642 "PreAmp Level - Non ReplayGained files"
+#. Description of setting with label #642 "Preamplification level to use for files without encoded ReplayGain information"
 #: system/settings/settings.xml
 msgctxt "#36269"
-msgid "Reference volume (PreAmp level) to use for files without encoded ReplayGain information. Default is 89dB as per standard. Change with caution."
+msgid "Preamplification level to use for files without encoded ReplayGain information."
 msgstr ""
 
 #. Description of setting with label #643 "Avoid clipping protection on ReplayGained files"
@@ -20662,11 +21454,7 @@ msgctxt "#36282"
 msgid "This category contains the settings for how CDs are handled."
 msgstr ""
 
-#. Description of setting with label #14097 "Audio CD Insert Action"
-#: system/settings/settings.xml
-msgctxt "#36283"
-msgid "Autorun CDs when inserted in drive."
-msgstr ""
+#empty strings from id 36283
 
 #. Description of setting with label #227 "Load audio CD information from online service"
 #: system/settings/settings.xml
@@ -21444,7 +22232,13 @@ msgctxt "#36415"
 msgid "No info available yet."
 msgstr ""
 
-#empty strings from id 36416 to 36417
+#. Description of setting with label #1451 "Restart playback after waking up"
+#: system/settings/settings.xml
+msgctxt "#36416"
+msgid "Restarts playback of the last played file when woken up."
+msgstr ""
+
+#empty strings from id 36417 to 36417
 
 #. Description of setting with label #295 "Low latency mode"
 #: system/settings/settings.xml
@@ -21575,7 +22369,17 @@ msgctxt "#36439"
 msgid "Enable automatic playback of the next programme when playing past programmes (catchup) or for Video On Demand (VOD) channels. Please note that catchup and VOD only work if supported by the channel provider."
 msgstr ""
 
-#empty strings from id 36440 to 36441
+#. Description of setting with label #14085 "Video disc insert action"
+#: system/settings/settings.xml
+msgctxt "#36440"
+msgid "Action to take when a video disc is inserted."
+msgstr ""
+
+#. Description of setting with label #14097 "Audio CD Insert Action"
+#: system/settings/settings.xml
+msgctxt "#36441"
+msgid "Action to take when an audio CD is inserted."
+msgstr ""
 
 #. Description of setting "System -> Audio output -> Volume control steps" with label #1302
 #: system/settings/settings.xml
@@ -21601,7 +22405,25 @@ msgctxt "#36445"
 msgid "Select this option to allow using double refresh rates (playing 29.97 FPS video on a 59.94 Hz monitor or playing 30 FPS video on a 60 Hz monitor). You may want to use this option if your monitor doesn't have a 29.97 Hz or 30 Hz mode."
 msgstr ""
 
-#empty strings from id 36446 to 36459
+#. Value of the track order settings #36448 #36450 #36452
+#: system/settings/settings.xml
+msgctxt "#36446"
+msgid "Sorted"
+msgstr ""
+
+#. Name of the setting of the stream order in the stream selection screen and the OSD for video files
+#: system/settings/settings.xml
+msgctxt "#36447"
+msgid "Video file stream display order"
+msgstr ""
+
+#. Description of setting with label #36447 "Video file stream display order"
+#: system/settings/settings.xml
+msgctxt "#36448"
+msgid "Video files only: display order in the stream selection dialogs. [Media] stream order in the media, [Sorted] sorted using the stream attributes[CR]"
+msgstr ""
+
+#empty strings from id 36449 to 36459
 
 #. Description of settings with label #14112 "Enable event logging"
 #: system/settings/settings.xml
@@ -21615,7 +22437,13 @@ msgctxt "#36461"
 msgid "Notification event describe regular processes and actions performed by the system or the user."
 msgstr ""
 
-#empty strings from id 36462 to 36499
+#. Description of setting with label #19358 "Show channels by provider in channel OSD"
+#: system/settings/settings.xml
+msgctxt "#36462"
+msgid "Show only channels from the selected provider and group in the channel OSD. Switching groups also cycles through providers. Switching to the next or previous channel stays within the provider of the playing channel. Disable to use the standard channel group list."
+msgstr ""
+
+#empty strings from id 36463 to 36499
 #end reservation
 
 #. label of a setting for the stereoscopic 3D mode of the GUI that is/should be applied
@@ -22116,7 +22944,7 @@ msgstr ""
 #. Description of setting with label #36100 "Dither depth"
 #: system/settings/settings.xml
 msgctxt "#36599"
-msgid "Video dithering output precision in bits. Use the highest setting that doesn't show banding. The default of 8 is recommended for most systems. If your GPU is set to scale the output RGB levels or you use a laptop screen, a 7 or 6 bit setting may eliminate more banding. Lower settings are available for testing purposes only to make it easy to see whether dithering is applied and that the dither noise pixel size matches the display resolution."
+msgid "Video dithering output precision in bits. Auto enables dithering only when beneficial (limited- / full-range mismatch, bit depth reduction, downscaling, or HDR tone mapping) and uses 8- or 10-bit depth based on what the display supports. Lower settings are available for testing purposes only."
 msgstr ""
 
 #reserved strings 365XX
@@ -22373,7 +23201,21 @@ msgctxt "#36642"
 msgid "No orphaned add-ons to remove."
 msgstr ""
 
-#empty strings from id 36643 to 36898
+#empty strings from id 36643 to 36644
+
+#. Label of setting "Pictures -> Slideshow -> Show date and time metadata on screen"
+#: system/settings/settings.xml
+msgctxt "#36645"
+msgid "Show date and time metadata on screen"
+msgstr ""
+
+#. Description of setting "Pictures -> Slideshow -> Show date and time metadata on screen" with label #36645
+#: system/settings/settings.xml
+msgctxt "#36646"
+msgid "During a slideshow, show the date and time from a picture's EXIF metadata, if it has them. Not every skin supports this."
+msgstr ""
+
+#empty strings from id 36647 to 36898
 
 #. Description of setting with label #729 "Enable SSL"
 #: system/settings/settings.xml
@@ -22844,7 +23686,13 @@ msgctxt "#37116"
 msgid "Adaptive"
 msgstr ""
 
-#empty strings from id 37117 to 37119
+#. Description of setting #13558 Maximum smooth fast-forward speed
+#: system/settings/settings.xml
+msgctxt "#37117"
+msgid "Cutoff of the analog fast-forward mode that shows every picture. Some hardware may not be able to keep up with the higher demand of the higher speeds."
+msgstr ""
+
+#empty strings from id 37118 to 37119
 
 #. Value of setting - Byte
 #: xbmc/settings/SevicesSettings.cpp
@@ -24390,7 +25238,138 @@ msgctxt "#39210"
 msgid "If enabled, Dolby Vision files will have level 5 (active area) metadata overridden to zero offsets. Enable if your display has issues with incorrectly cropped image in Dolby Vision playback."
 msgstr ""
 
-#empty strings from id 39211 to 39999
+#. Title of the setting that skips subtitles whose language matches the audio language
+#: system/settings/settings.xml
+msgctxt "#39211"
+msgid "Don't show subtitles matching the audio language"
+msgstr ""
+
+#. Help text for setting "Don't show subtitles matching the audio language" of label #39211
+#: system/settings/settings.xml
+msgctxt "#39212"
+msgid "Do not turn on subtitles that are in the same language as the audio being played. Forced subtitles in that language are turned on instead, where the video has them."
+msgstr ""
+
+#. Title of the setting that chooses which audio stream a library list describes
+#: system/settings/settings.xml
+msgctxt "#39213"
+msgid "Language details to display"
+msgstr ""
+
+#. Help text for setting "Language details to display" of label #39213
+#: system/settings/settings.xml
+msgctxt "#39214"
+msgid "Which audio stream the language, codec and channel count shown against an item describe.[CR][Player][Default] The language that will normally be played.[CR][Media default] The default language for the media. If not set, then the best audio stream is shown.[CR][Best] The best audio stream as determined by codec quality and channel count."
+msgstr ""
+
+#. Value of the setting "Language details to display" - describe the stream that will be played
+#: system/settings/settings.xml
+msgctxt "#39215"
+msgid "Player"
+msgstr ""
+
+#. Value of the setting "Language details to display" - describe the media's default stream
+#: system/settings/settings.xml
+msgctxt "#39216"
+msgid "Media default"
+msgstr ""
+
+#. Value of the setting "Language details to display" - describe the technically best stream
+#: system/settings/settings.xml
+msgctxt "#39217"
+msgid "Best"
+msgstr ""
+
+#. Title of the setting that chooses if the Dolby Vision extensions is used
+#: system/settings/settings.xml
+msgctxt "#39218"
+msgid "Use Dolby Vision extensions"
+msgstr ""
+
+#. Help text for setting "Dolby Vision extensions" of label #39218
+#: system/settings/settings.xml
+msgctxt "#39219"
+msgid "Use the system Dolby Vision extensions to correctly display Dolby Vision profile 5, 7 (excludes FEL reconstruction), 8 and 10 video."
+msgstr ""
+
+#empty strings from id 39220 to 39799
+
+#. Video collections library section label
+#: xbmc/filesystem/VideoDatabaseDirectory/DirectoryNodeCollections.cpp
+msgctxt "#39800"
+msgid "Collections"
+msgstr ""
+
+#. Manage context menu item — add/remove this media item from a collection
+#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+msgctxt "#39801"
+msgid "Set collection"
+msgstr ""
+
+#. Context menu item — set the saga timeline order for a collection
+#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+msgctxt "#39802"
+msgid "Set timeline order"
+msgstr ""
+
+#. Sort method label — sort collection items by custom timeline order
+#: xbmc/video/GUIViewStateVideo.cpp
+msgctxt "#39803"
+msgid "Timeline order"
+msgstr ""
+
+#empty strings from id 39804 to 39899
+
+#. List formatting: pattern used to join a list of exactly two items, e.g. "A and B"
+#. STR_LIST_AND_TWO
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39900"
+msgid "{0} and {1}"
+msgstr ""
+
+#. List formatting: pattern used to join the first item to the rest of a list of three or more items, e.g. "A" + "B, and C" -> "A, B, and C"
+#. Note the "B, and C" is used here as an example - the actual formatting of the last two item(s) of a list of three of more is determined by STR_LIST_AND_END
+#. STR_LIST_AND_START
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39901"
+msgid "{0}, {1}"
+msgstr ""
+
+#. List formatting: pattern used to join an already-combined partial list to the next item, for the interior items of a list of four or more, e.g. "A, B" + "C" -> "A, B, C"
+#. STR_LIST_AND_MIDDLE
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39902"
+msgid "{0}, {1}"
+msgstr ""
+
+#. List formatting: pattern used to join the already-combined partial list to the final item in a list of three or more items, e.g. "A, B" + "C" -> "A, B, and C"
+#. STR_LIST_AND_END
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39903"
+msgid "{0}, and {1}"
+msgstr ""
+
+# 39904 to 39909 are reserved for language formatting
+
+#. List formatting: pattern used to join a list of exactly two items, e.g. "A or B"
+#. STR_LIST_OR_TWO
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39910"
+msgid "{0} or {1}"
+msgstr ""
+
+#. List formatting: pattern used to join the already-combined partial list to the final item in a list of three or more items, e.g. "A, B" + "C" -> "A, B, or C"
+#. Note: the "or"-type list uses only TWO and END patterns; the START and MIDDLE joins for lists of three or more still use the AND-type comma pattern 
+#. (STR_LIST_AND_START / STR_LIST_AND_MIDDLE), with only the very last join switching to "or"
+#. STR_LIST_OR_END
+#: xbmc/language/i18n/ListFormatter.h
+msgctxt "#39911"
+msgid "{0}, or {1}"
+msgstr ""
+
+# 39912 to 39949 are reserved for language formatting
+
+#empty strings from id 39950 to 39999
 
 # 40000 to 40800 are reserved for Video Versions feature
 
@@ -24523,7 +25502,7 @@ msgstr ""
 #. Remove video version dialog text
 #: xbmc/video/dialogs/GUIDialogVideoManager.cpp
 msgctxt "#40020"
-msgid "Are you sure to remove version \"{0:s}\"?"
+msgid "Are you sure to remove version \"{0:s}\" from the library?"
 msgstr ""
 
 #. Remove item from library text if item has multiple versions
@@ -24653,7 +25632,111 @@ msgctxt "#40041"
 msgid "Assign playlist to current movie version?"
 msgstr ""
 
-#empty strings with id 40042 to 40201
+#. Different video version found dialog text for blurays
+#: xbmc/video/dialogs/GUIDialogVideoManagerVersions.cpp
+msgctxt "#40042"
+msgid "Found a different version of the movie \"{0:s}\" in playlist {1:s} of {2:s} - length {3:s}. Would you like to convert it into an additional version of the original?"
+msgstr ""
+
+#. Ungroup video version dialog title
+#: xbmc/video/dialogs/GUIDialogVideoManagerVersions.cpp
+msgctxt "#40043"
+msgid "Ungroup video version"
+msgstr ""
+
+#. Manage versions, ungroup: ungrouping the default version of a movie is not allowed.
+#: xbmc/video/dialogs/GUIDialogVideoManagerVersions.cpp
+msgctxt "#40044"
+msgid "The default version of a movie cannot be ungrouped. Set a different default version and try again."
+msgstr ""
+
+#. Ungroup video version dialog text
+#: xbmc/video/dialogs/GUIDialogVideoManagerVersions.cpp
+msgctxt "#40045"
+msgid "Are you sure to ungroup version \"{0:s}\"?[CR]It will be turned into a library movie entry."
+msgstr ""
+
+#. Button name for video version ungroup function of the manage versions dialog
+#: xbmc/video/dialogs/GUIDialogVideoManagerVersions.cpp
+msgctxt "#40046"
+msgid "Ungroup"
+msgstr ""
+
+#. Shown when the playlist chosen for a movie version already belongs to another version of it
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+#: xbmc/video/dialogs/GUIDialogVideoManager.cpp
+msgctxt "#40047"
+msgid "This playlist already belongs to another version of this movie."
+msgstr ""
+
+#. Asked before a playlist already assigned to another episode is taken away from it
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40048"
+msgid "The selected playlist is already assigned to another episode. Reassign it?"
+msgstr ""
+
+#. Asked before a playlist already assigned to another movie version is taken away from it
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40049"
+msgid "The selected playlist is already assigned to another movie version. Reassign it?"
+msgstr ""
+
+#. Asked before an episode joins a playlist that several episodes already share
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40050"
+msgid "The selected playlist is shared by several episodes. Use it for this item as well?"
+msgstr ""
+
+#. Shown when a playlist cannot be given up because a movie version still uses its file
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40051"
+msgid "This playlist is still in use by another movie version and could not be reassigned."
+msgstr ""
+
+#. Asked before choosing one of a disc's playlists for an extra that plays the whole disc
+#: xbmc/video/dialogs/GUIDialogVideoManagerExtras.cpp
+msgctxt "#40052"
+msgid "Assign a playlist to this extra?"
+msgstr ""
+
+#. Asked before choosing an extra from the playlists of the movie's own disc
+#: xbmc/video/dialogs/GUIDialogVideoManagerExtras.cpp
+msgctxt "#40053"
+msgid "Add an extra from this disc?"
+msgstr ""
+
+#. Asked when a disc is picked as an extra, to add one of its playlists rather than the whole disc
+#: xbmc/video/dialogs/GUIDialogVideoManagerExtras.cpp
+msgctxt "#40054"
+msgid "Choose a playlist from this disc?"
+msgstr ""
+
+#. Shown when a playlist chosen for an extra already belongs to the same movie, or one chosen for a version is already its extra
+#: xbmc/video/dialogs/GUIDialogVideoManager.cpp
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40055"
+msgid "This playlist already belongs to this movie."
+msgstr ""
+
+#. Asked before taking a playlist away from another movie's extra that uses it
+#: xbmc/dialogs/GUIDialogSimpleMenu.cpp
+msgctxt "#40056"
+msgid "The selected playlist is already assigned to another extra. Reassign it?"
+msgstr ""
+
+#. Manage video extras context menu item
+#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+msgctxt "#40057"
+msgid "Manage extras"
+msgstr ""
+
+#. Asked when adding an extra while an extra on a disc is selected
+#: xbmc/video/dialogs/GUIDialogVideoManagerExtras.cpp
+msgctxt "#40058"
+msgid "Add another extra from this disc?"
+msgstr ""
+
+#empty strings with id 40059 to 40201
 
 #. Ignore different video versions settting
 #: system/settings/settings.xml
@@ -24664,7 +25747,7 @@ msgstr ""
 #. Help for Ignore different video versions settting
 #: system/settings/settings.xml
 msgctxt "#40203"
-msgid "Select scanner action for different video versions.[CR][Enabled] Add different video versions to library seperately without confirmation.[CR][Disabled] Prompt for converting different video versions into additional versions of the original."
+msgid "Select the scanner action for different versions of a video.[CR][Off] Add versions of a video to the library as separate entries.[CR][Ask] Prompt if different versions should be added separately or grouped with the original.[CR][Auto] Automatically create and group the additional versions with the original."
 msgstr ""
 
 #. Ignore video extras settting
@@ -24676,10 +25759,10 @@ msgstr ""
 #. Help for ignore video extras settting
 #: system/settings/settings.xml
 msgctxt "#40205"
-msgid "Select scanner action for video extras in \"extras\" folder.[CR][Enabled] Scan video extras like regular videos.[CR][Disabled] Add video extras to library for associated video."
+msgid "Select scanner action for video extras, in an \"extras\" folder or named by a Blu-ray disc.[CR][Enabled] Leave video extras out of the library, other than those a movie's nfo records.[CR][Disabled] Add video extras to library for associated video."
 msgstr ""
 
-#empty strings from id 40206 to 40208
+#empty strings from id 40206 to 40208 freed in v22
 
 #. Button label for video assets
 #: xbmc/filesystem/VideoDatabaseDirectory.cpp
@@ -24699,6 +25782,8 @@ msgstr ""
 #. Button label for video extras
 #: addons/skin.estuary/xml/DialogVideoInfo.xml
 #: xbmc/filesystem/VideoDatabaseDirectory.cpp
+#: xbmc/video/windows/GUIWindowVideoNav.cpp
+#: xbmc/video/ContextMenus.h
 #: addons/skin.estuary/xml/Variables.xml
 msgctxt "#40211"
 msgid "Extras"
@@ -24716,7 +25801,7 @@ msgctxt "#40213"
 msgid "If selected the remote player volume level will be synchronized with the volume of this application.[CR]Warning: Global system volume level may be different than the application volume level - they are controlled independently.[CR]This may lead the remote player to be set to 100% volume level if the application has 100% volume level but the overall system volume level is smaller."
 msgstr ""
 
-#empty string id 40214
+#empty string id 40214 freed in v22
 
 #. Title of the dialog for version rename action from Versions Manager
 #: xbmc/video/dialogs/GUIDialogVideoManager.cpp
@@ -24754,7 +25839,75 @@ msgctxt "#40220"
 msgid "New extra name"
 msgstr ""
 
-#empty strings from id 40221 to 40399
+#empty string id 40221 freed in v22
+
+#. "Create separate versions of the same movie" setting
+#: system/settings/settings.xml
+msgctxt "#40222"
+msgid "Group the different versions of videos"
+msgstr ""
+
+#. "The newly scanned versions replace the default versions of movies" setting
+#: system/settings/settings.xml
+msgctxt "#40223"
+msgid "Make the most recent version the default version"
+msgstr ""
+
+#. Help for setting New versions replace the default versions
+#: system/settings/settings.xml
+msgctxt "#40224"
+msgid "Make the most recently scanned version of a movie the movie's default version.[CR]Helps identify new movie versions as recently added and locate them when the \"Unwatched\" filter of the library is turned on."
+msgstr ""
+
+#. Setting to determine when art is retrieved - during or after scrape
+#: system/settings/settings.xml
+msgctxt "#40225"
+msgid "Retrieve art"
+msgstr ""
+
+#. Help for retrieve art during/after scrape setting
+#: system/settings/settings.xml
+msgctxt "#40226"
+msgid "Determines whether art is retrieved synchronously during scrape or in the background afterwards.[CR][During scrape] Art is retrieved synchronously during scrape. This significantly extends time taken to scrape.[CR][After scrape][Default] Art is retrieved in the background after scrape. Actor thumbnails may take a while to appear."
+msgstr ""
+
+#. Option for the retrieve art during/after scrape setting
+#: system/settings/settings.xml
+msgctxt "#40227"
+msgid "During scrape"
+msgstr ""
+
+#. Option for the retrieve art during/after scrape setting
+#: system/settings/settings.xml
+msgctxt "#40228"
+msgid "After scrape"
+msgstr ""
+
+#. "Flatten movie versions" setting
+#: system/settings/settings.xml
+msgctxt "#40229"
+msgid "Flatten movie versions"
+msgstr ""
+
+#. Help for setting Flatten movie versions
+#: system/settings/settings.xml
+msgctxt "#40230"
+msgid "Turn on to show individual versions in the movies view, turn off to group them"
+msgstr ""
+
+#. Setting to retrieve art not cached yet when the video library is exported
+#: system/settings/settings.xml
+msgctxt "#40231"
+msgid "Retrieve all art during export"
+msgstr ""
+
+#. Help for the retrieve all art during export setting
+#: system/settings/settings.xml
+msgctxt "#40232"
+msgid "When exporting the library with images, retrieve art that isn't cached yet. Turn off to only export art that is already cached."
+msgstr ""
+
+#empty strings from id 40233 to 40399
 
 # Video versions
 
@@ -24900,6 +26053,124 @@ msgctxt "#40436"
 msgid "50th Anniversary Edition"
 msgstr ""
 
+#empty strings from id 40437 to 40499
+
+# Video extras
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40500"
+msgid "Deleted scenes"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40501"
+msgid "Music videos"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40502"
+msgid "Sing-alongs"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40503"
+msgid "Trailers"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40504"
+msgid "Commercials"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40505"
+msgid "Promos"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40506"
+msgid "Behind the scenes"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40507"
+msgid "Cast"
+msgstr ""
+
+#. Name of a kind of video extra, like "Deleted scenes"
+#: xbmc/video/VideoDatabase.cpp
+msgctxt "#40508"
+msgid "Play all"
+msgstr ""
+
+#empty strings from id 40509 to 40699
+
+# Names of video extras of a kind, which are not types
+
+#. Name of a deleted scene found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40700"
+msgid "Deleted scene: {0:s}"
+msgstr ""
+
+#. Name of a music video found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40701"
+msgid "Music video: {0:s}"
+msgstr ""
+
+#. Name of a sing-along found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40702"
+msgid "Sing-along: {0:s}"
+msgstr ""
+
+#. Name of a trailer found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40703"
+msgid "Trailer: {0:s}"
+msgstr ""
+
+#. Name of a commercial found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40704"
+msgid "Commercial: {0:s}"
+msgstr ""
+
+#. Name of a promo found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40705"
+msgid "Promo: {0:s}"
+msgstr ""
+
+#. Name of a behind the scenes extra found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40706"
+msgid "Behind the scenes: {0:s}"
+msgstr ""
+
+#. Name of an extra about a member of the cast found on a disc - {0:s} is what the disc calls it
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40707"
+msgid "Cast: {0:s}"
+msgstr ""
+
+#. Name of a disc's playlist playing a group of extras one after the other - {0:s} is the group
+#: xbmc/filesystem/DiscDirectoryHelper.cpp
+msgctxt "#40708"
+msgid "{0:s} (play all)"
+msgstr ""
+
+#empty strings from id 40709 to 40800
+
 # 40000 to 40800 are reserved for Video Versions feature
 
 #. Confirm file deletion
@@ -24914,26 +26185,26 @@ msgctxt "#40802"
 msgid "If enabled, a confirmation dialog will be displayed when files shall be deleted. If disabled, files will be deleted without user confirmation."
 msgstr ""
 
-#. Video collections library section label
-#: xbmc/filesystem/VideoDatabaseDirectory/DirectoryNodeCollections.cpp
+#. Description of setting with label #246 "Monitor"
+#: system/settings/settings.xml
 msgctxt "#40803"
-msgid "Collections"
+msgid "Monitor change may require restart."
 msgstr ""
 
-#. Manage context menu item — add/remove this media item from a collection
-#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+# Value formatting for ReplayGain Preamp settings
+#: system/settings/settings.xml
 msgctxt "#40804"
-msgid "Set collection"
+msgid "{0:.1f} dB"
 msgstr ""
 
-#. Context menu item — set the saga timeline order for a collection
-#: xbmc/video/dialogs/GUIDialogVideoInfo.cpp
+#. Setting "audiooutput.passthroughvolumecontrol"
+#: system/settings/settings.xml
 msgctxt "#40805"
-msgid "Set timeline order"
+msgid "Volume control during passthrough"
 msgstr ""
 
-#. Sort method label — sort collection items by custom timeline order
-#: xbmc/video/GUIViewStateVideo.cpp
+#. Help of setting "audiooutput.passthroughvolumecontrol"
+#: system/settings/settings.xml
 msgctxt "#40806"
-msgid "Timeline order"
+msgid "Adjust and display the volume level while audio is passed through. The level is not applied to the bitstream, but every change is announced, so an add-on or automation can apply it to an external audio processor."
 msgstr ""

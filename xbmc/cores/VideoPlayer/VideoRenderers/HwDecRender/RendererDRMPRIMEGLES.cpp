@@ -9,10 +9,12 @@
 #include "RendererDRMPRIMEGLES.h"
 
 #include "ServiceBroker.h"
+#include "cores/VideoPlayer/Buffers/VideoBufferDRMPRIME.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
-#include "cores/VideoPlayer/VideoRenderers/RenderCapture.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFactory.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
+#include "cores/VideoPlayer/VideoRenderers/VideoShaders/YUV2RGBShaderGLES.h"
+#include "rendering/MatrixGL.h"
 #include "rendering/gles/RenderSystemGLES.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
@@ -30,13 +32,7 @@ using namespace KODI::UTILS::EGL;
 
 CRendererDRMPRIMEGLES::~CRendererDRMPRIMEGLES()
 {
-  Flush(false);
-
-  if (m_configured)
-  {
-    if (auto winSystem = CServiceBroker::GetWinSystem())
-      winSystem->SetVideoOutput(nullptr);
-  }
+  UnInit();
 }
 
 CBaseRenderer* CRendererDRMPRIMEGLES::Create(CVideoBuffer* buffer)
@@ -115,6 +111,8 @@ bool CRendererDRMPRIMEGLES::Configure(const VideoPicture& picture,
   if (!winSystem)
     return false;
 
+  m_configured = true;
+
   if (!winSystem->SetVideoOutput(&picture))
     CLog::Log(LOGWARNING, "RendererDRMPRIMEGLES::Configure: SetVideoOutput failed");
 
@@ -125,19 +123,156 @@ bool CRendererDRMPRIMEGLES::Configure(const VideoPicture& picture,
 
   EGLDisplay eglDisplay = winSystemEGL->GetEGLDisplay();
 
+  m_texturePool.ReleaseAll();
+  m_texturePool.Init(eglDisplay);
+
   for (auto&& buf : m_buffers)
   {
     if (!buf.fence)
-    {
-      buf.texture.Init(eglDisplay);
       buf.fence = std::make_unique<CEGLFence>(eglDisplay);
+  }
+
+  m_configured = true;
+
+  // Two render paths, selected per-frame in Render():
+  //  - Full-range: OES samplerExternalOES (always available).
+  //  - Limited-range: per-plane sampler2D + BaseYUV2RGBGLSLShader, built
+  //    here when the source fourcc is one we can per-plane import.
+  m_yuvShader.reset();
+
+  uint32_t sourceFourcc = 0;
+  auto* drmBuf = dynamic_cast<CVideoBufferDRMPRIME*>(picture.videoBuffer);
+  if (drmBuf && drmBuf->AcquireDescriptor())
+  {
+    auto* desc = drmBuf->GetDescriptor();
+    if (desc && desc->nb_layers == 1)
+      sourceFourcc = desc->layers[0].format;
+    drmBuf->ReleaseDescriptor();
+  }
+
+  if (CDRMPRIMETextureYUV::SupportsFormat(sourceFourcc))
+  {
+    using namespace Shaders::GLES;
+    // Both src and dst primaries equal disables the in-shader primary-matrix
+    // path (`if (dstPrimaries != srcPrimaries)`); we want pass-through, same
+    // as the OES path does. No tone mapping either.
+    //! @todo SHADER_YV12_10 is the WRONG token here for 8-bit YUV420 content.
+    //! The EShaderFormat enum conflates two things: the shader sampling
+    //! pattern (.r/.g/.a legacy CPU-upload vs .r/.r/.r per-plane R8/R16) and
+    //! the source bit depth. Per-plane EGL import always wants the
+    //! single-channel sampling pattern (XBMC_YV12_HI define) regardless of
+    //! bit depth, but the only way to get that today is to pick one of
+    //! SHADER_YV12_9 / _10 / _12 / _14 / _16. Picking _10 here just routes
+    //! through the right shader define; the actual bit depth is handled by
+    //! SetColParams below. Clean up by either (a) adding a
+    //! SHADER_YV12_PLANAR enum value that activates XBMC_YV12_HI without
+    //! implying a bit depth, or (b) dropping 3-plane YUV420 from this path
+    //! entirely (NV12/P010/P012/P016 via SHADER_NV12_RRG cover the realistic
+    //! DRMPRIME cases).
+    //! @todo SHADER_YV12_10 is the WRONG token here for 8-bit YUV420 content.
+    //! The EShaderFormat enum conflates two things: the shader sampling
+    //! pattern (.r/.g/.a legacy CPU-upload vs .r/.r/.r per-plane R8/R16) and
+    //! the source bit depth. Per-plane EGL import always wants the
+    //! single-channel sampling pattern (XBMC_YV12_HI define) regardless of
+    //! bit depth, but the only way to get that today is to pick one of
+    //! SHADER_YV12_9 / _10 / _12 / _14 / _16. Picking _10 here just routes
+    //! through the right shader define; the actual bit depth is handled by
+    //! SetColParams below. Clean up by either (a) adding a
+    //! SHADER_YV12_PLANAR enum value that activates XBMC_YV12_HI without
+    //! implying a bit depth, or (b) dropping 3-plane YUV420 from this path
+    //! entirely (NV12/P010/P012/P016 via SHADER_NV12_RRG cover the realistic
+    //! DRMPRIME cases).
+    const bool planar3 = (sourceFourcc == DRM_FORMAT_YUV420
+#if defined(DRM_FORMAT_S010)
+                          || sourceFourcc == DRM_FORMAT_S010
+#endif
+#if defined(DRM_FORMAT_S012)
+                          || sourceFourcc == DRM_FORMAT_S012
+#endif
+#if defined(DRM_FORMAT_S016)
+                          || sourceFourcc == DRM_FORMAT_S016
+#endif
+    );
+    EShaderFormat fmt = planar3 ? SHADER_YV12_10 : SHADER_NV12_RRG;
+    auto shader = std::make_unique<YUV2RGBProgressiveShader>(
+        fmt, picture.color_primaries, picture.color_primaries,
+        /*toneMap*/ false, VS_TONEMAPMETHOD_OFF, AVCOL_TRC_UNSPECIFIED, /*gamma*/ false);
+    if (shader->CompileAndLink())
+    {
+      // P010/P012/P016 are MSB-aligned -> textureBits=8 (no rescale).
+      // S010/S012/S016 are LSB-aligned -> textureBits=colorBits (matrix rescales).
+      const bool lsbAligned =
+#if defined(DRM_FORMAT_S010)
+          sourceFourcc == DRM_FORMAT_S010 ||
+#endif
+#if defined(DRM_FORMAT_S012)
+          sourceFourcc == DRM_FORMAT_S012 ||
+#endif
+#if defined(DRM_FORMAT_S016)
+          sourceFourcc == DRM_FORMAT_S016 ||
+#endif
+          false;
+      const int textureBits = lsbAligned ? picture.colorBits : 8;
+      shader->SetColParams(picture.color_space, picture.colorBits, picture.color_range != 1,
+                           textureBits);
+      m_yuvShader = std::move(shader);
+      CLog::Log(LOGINFO,
+                "RendererDRMPRIMEGLES::Configure: limited-range YUV path "
+                "available (src bits {}, src {} range, fourcc {:#x})",
+                picture.colorBits, picture.color_range ? "full" : "limited", sourceFourcc);
+    }
+    else
+    {
+      CLog::Log(LOGERROR, "RendererDRMPRIMEGLES::Configure: limited-range "
+                          "YUV shader compile/link failed");
     }
   }
 
-  m_clearColour = winSystem->UseLimitedColor() ? (16.0f / 0xff) : 0.0f;
+  if (!m_yuvShader && winSystem->UseLimitedColor())
+  {
+    CLog::Log(LOGERROR,
+              "RendererDRMPRIMEGLES::Configure: fourcc {:#x} cannot be converted to limited "
+              "range; switching videoscreen.limitedrange off so the GUI matches the video",
+              sourceFourcc);
+    CServiceBroker::GetSettingsComponent()->GetSettings()->SetBool(
+        CSettings::SETTING_VIDEOSCREEN_LIMITEDRANGE, false);
+  }
 
-  m_configured = true;
+  winSystem->SetColorimetry(&picture);
+  m_passthroughHDR = winSystem->SetHDR(&picture);
+  CLog::Log(LOGDEBUG, "RendererDRMPRIMEGLES::Configure: HDR passthrough: {}",
+            m_passthroughHDR ? "on" : "off");
+
+  m_hdrFboActive = m_passthroughHDR && winSystem->SetGuiCompositing(picture.color_transfer);
+  if (m_passthroughHDR && !m_hdrFboActive)
+    CLog::Log(LOGWARNING, "RendererDRMPRIMEGLES::Configure: HDR passthrough active but GUI "
+                          "compositing not supported by windowing system");
+
   return true;
+}
+
+bool CRendererDRMPRIMEGLES::IsGuiLayer()
+{
+  return !m_hdrFboActive;
+}
+
+void CRendererDRMPRIMEGLES::UnInit()
+{
+  Flush(false);
+
+  if (m_configured)
+  {
+    m_hdrFboActive = false;
+    CServiceBroker::GetWinSystem()->SetGuiCompositing(false);
+    CServiceBroker::GetWinSystem()->SetHDR(nullptr);
+    m_passthroughHDR = false;
+    CServiceBroker::GetWinSystem()->SetColorimetry(nullptr);
+    CServiceBroker::GetWinSystem()->SetVideoOutput(nullptr);
+  }
+
+  m_texturePool.ReleaseAll();
+  m_yuvShader.reset();
+  m_configured = false;
 }
 
 void CRendererDRMPRIMEGLES::AddVideoPicture(const VideoPicture& picture, int index)
@@ -148,11 +283,15 @@ void CRendererDRMPRIMEGLES::AddVideoPicture(const VideoPicture& picture, int ind
     CLog::LogF(LOGERROR, "unreleased video buffer");
     if (buf.fence)
       buf.fence->DestroyFence();
-    buf.texture.Unmap();
     buf.videoBuffer->Release();
   }
   buf.videoBuffer = picture.videoBuffer;
   buf.videoBuffer->Acquire();
+
+  // CDVDVideoCodecDRMPRIME fills its buffers at decode; CVideoBufferDMA arrives unfilled
+  auto* drmBuffer = dynamic_cast<CVideoBufferDRMPRIME*>(picture.videoBuffer);
+  if (drmBuffer && !dynamic_cast<CVideoBufferDRMPRIMEFFmpeg*>(drmBuffer))
+    drmBuffer->SetPictureParams(picture);
 }
 
 bool CRendererDRMPRIMEGLES::Flush(bool saveBuffers)
@@ -170,8 +309,6 @@ void CRendererDRMPRIMEGLES::ReleaseBuffer(int index)
 
   if (buf.fence)
     buf.fence->DestroyFence();
-
-  buf.texture.Unmap();
 
   if (buf.videoBuffer)
   {
@@ -207,31 +344,6 @@ void CRendererDRMPRIMEGLES::DrawBlackBars()
 
   auto quads = windowRect.SubtractRect(m_destRect);
 
-  struct Svertex
-  {
-    float x, y;
-  };
-
-  std::vector<Svertex> vertices(6 * quads.size());
-
-  GLubyte count = 0;
-  for (const auto& quad : quads)
-  {
-    vertices[count + 1].x = quad.x1;
-    vertices[count + 1].y = quad.y1;
-
-    vertices[count + 0].x = vertices[count + 5].x = quad.x1;
-    vertices[count + 0].y = vertices[count + 5].y = quad.y2;
-
-    vertices[count + 2].x = vertices[count + 3].x = quad.x2;
-    vertices[count + 2].y = vertices[count + 3].y = quad.y1;
-
-    vertices[count + 4].x = quad.x2;
-    vertices[count + 4].y = quad.y2;
-
-    count += 6;
-  }
-
   glDisable(GL_BLEND);
 
   CRenderSystemGLES* renderSystem =
@@ -240,26 +352,14 @@ void CRendererDRMPRIMEGLES::DrawBlackBars()
     return;
 
   renderSystem->EnableGUIShader(ShaderMethodGLES::SM_DEFAULT);
-  GLint posLoc = renderSystem->GUIShaderGetPos();
   GLint uniCol = renderSystem->GUIShaderGetUniCol();
   GLint depthLoc = renderSystem->GUIShaderGetDepth();
 
-  glUniform4f(uniCol, m_clearColour / 255.0f, m_clearColour / 255.0f, m_clearColour / 255.0f, 1.0f);
+  glUniform4f(uniCol, 0.0f, 0.0f, 0.0f, 1.0f);
   glUniform1f(depthLoc, -1.0f);
 
-  GLuint vertexVBO;
-  glGenBuffers(1, &vertexVBO);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexVBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(Svertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
-
-  glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, sizeof(Svertex), 0);
-  glEnableVertexAttribArray(posLoc);
-
-  glDrawArrays(GL_TRIANGLES, 0, vertices.size());
-
-  glDisableVertexAttribArray(posLoc);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glDeleteBuffers(1, &vertexVBO);
+  for (const auto& quad : quads)
+    renderSystem->DrawGUIQuad(quad);
 
   renderSystem->DisableGUIShader();
 }
@@ -278,7 +378,8 @@ void CRendererDRMPRIMEGLES::RenderUpdate(
       DrawBlackBars();
     else
     {
-      glClearColor(m_clearColour, m_clearColour, m_clearColour, 0);
+      const float bg = CServiceBroker::GetWinSystem()->UseLimitedColor() ? (16.0f / 0xff) : 0.0f;
+      glClearColor(bg, bg, bg, 0);
       glClear(GL_COLOR_BUFFER_BIT);
       glClearColor(0, 0, 0, 0);
     }
@@ -298,13 +399,6 @@ void CRendererDRMPRIMEGLES::RenderUpdate(
 
   VerifyGLState();
   glEnable(GL_BLEND);
-}
-
-bool CRendererDRMPRIMEGLES::RenderCapture(int index, CRenderCapture* capture)
-{
-  capture->BeginRender();
-  capture->EndRender();
-  return true;
 }
 
 bool CRendererDRMPRIMEGLES::ConfigChanged(const VideoPicture& picture)
@@ -328,91 +422,111 @@ void CRendererDRMPRIMEGLES::Render(unsigned int flags, int index)
   if (!renderSystem)
     return;
 
-  if (!buf.texture.Map(buffer))
+  // Per-frame path selection. m_yuvShader is only alive if the source
+  // fourcc was importable; UseLimitedColor() is checked every frame so
+  // the user can toggle the setting at runtime and the next frame picks
+  // up the new path without any rebuild.
+  auto* winSystem = CServiceBroker::GetWinSystem();
+  CDRMPRIMETextureYUV* yuvTexture = nullptr;
+  if (m_yuvShader && winSystem && winSystem->UseLimitedColor())
+    yuvTexture = m_texturePool.GetYUV(buffer);
+
+  if (yuvTexture)
+  {
+    // Limited-range YUV path: per-plane sampler2D + BaseYUV2RGBGLSLShader.
+    // Vertex/cord array setup is taken from CLinuxRendererGLES::RenderSinglePass
+    // (LinuxRendererGLES.cpp:1100-1183). The texture-unit binding pattern is
+    // taken from CRendererVAAPIGLES::UploadTexture (RendererVAAPIGLES.cpp:270-282)
+    // -- specifically, the SHADER_NV12_RRG case binds the UV texture to BOTH
+    // U and V samplers so .r returns U and .g returns V via the GR88 / GR1616
+    // import.
+    const int numPlanes = yuvTexture->GetNumPlanes();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, yuvTexture->GetTexture(0));
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, yuvTexture->GetTexture(1));
+    glActiveTexture(GL_TEXTURE2);
+    // 3-plane (YV12_HI): plane 2 is V. 2-plane (NV12_RRG): rebind plane 1
+    // (UV) so sampV samples the same texture as sampU.
+    glBindTexture(GL_TEXTURE_2D, yuvTexture->GetTexture(numPlanes == 3 ? 2 : 1));
+    glActiveTexture(GL_TEXTURE0);
+
+    const CSizeInt texSize = yuvTexture->GetTextureSize();
+    m_yuvShader->SetWidth(texSize.Width());
+    m_yuvShader->SetHeight(texSize.Height());
+    m_yuvShader->SetAlpha(1.0f);
+    m_yuvShader->SetMatrices(glMatrixProject.Get(), glMatrixModview.Get());
+    // Per-plane texcoords stay at their 0..1 default; each EGL-imported texture covers the
+    // whole plane regardless of chroma subsampling.
+    m_yuvShader->SetQuadTransform(KODI::UTILS::GL::QuadTransform(
+        m_rotatedDestCoords[0], m_rotatedDestCoords[1], m_rotatedDestCoords[3]));
+    // SetConvertFullColorRange(false) was set at Configure time -> matrix
+    // produces limited-range RGB. No per-frame setter needed.
+    m_yuvShader->Enable();
+
+    GLint vertLoc = m_yuvShader->GetVertexLoc();
+    GLint yLoc = m_yuvShader->GetYcoordLoc();
+    GLint uLoc = m_yuvShader->GetUcoordLoc();
+    GLint vLoc = m_yuvShader->GetVcoordLoc();
+
+    renderSystem->BindGUIUnitQuad();
+    for (GLint loc : {vertLoc, yLoc, uLoc, vLoc})
+    {
+      glVertexAttribPointer(loc, 2, GL_FLOAT, 0, 0, 0);
+      glEnableVertexAttribArray(loc);
+    }
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    glDisableVertexAttribArray(vertLoc);
+    glDisableVertexAttribArray(yLoc);
+    glDisableVertexAttribArray(uLoc);
+    glDisableVertexAttribArray(vLoc);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    m_yuvShader->Disable();
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    buf.fence->DestroyFence();
+    buf.fence->CreateFence();
+    return;
+  }
+
+  // Full-range OES path (unchanged).
+  CDRMPRIMETexture* texture = m_texturePool.GetOES(buffer);
+  if (!texture)
     return;
 
-  glBindTexture(GL_TEXTURE_EXTERNAL_OES, buf.texture.GetTexture());
-
-  renderSystem->EnableGUIShader(ShaderMethodGLES::SM_TEXTURE_RGBA_OES);
-
-  GLubyte idx[4] = {0, 1, 3, 2}; // Determines order of triangle strip
-  GLuint vertexVBO;
-  GLuint indexVBO;
-  struct PackedVertex
-  {
-    float x, y, z;
-    float u1, v1;
-  };
-
-  std::array<PackedVertex, 4> vertex;
-
-  GLint vertLoc = renderSystem->GUIShaderGetPos();
-  GLint loc = renderSystem->GUIShaderGetCoord0();
-  GLint depthLoc = renderSystem->GUIShaderGetDepth();
-
-  // top left
-  vertex[0].x = m_rotatedDestCoords[0].x;
-  vertex[0].y = m_rotatedDestCoords[0].y;
-  vertex[0].z = 0.0f;
-  vertex[0].u1 = 0.0f;
-  vertex[0].v1 = 0.0f;
-
-  // top right
-  vertex[1].x = m_rotatedDestCoords[1].x;
-  vertex[1].y = m_rotatedDestCoords[1].y;
-  vertex[1].z = 0.0f;
-  vertex[1].u1 = 1.0f;
-  vertex[1].v1 = 0.0f;
-
-  // bottom right
-  vertex[2].x = m_rotatedDestCoords[2].x;
-  vertex[2].y = m_rotatedDestCoords[2].y;
-  vertex[2].z = 0.0f;
-  vertex[2].u1 = 1.0f;
-  vertex[2].v1 = 1.0f;
-
-  // bottom left
-  vertex[3].x = m_rotatedDestCoords[3].x;
-  vertex[3].y = m_rotatedDestCoords[3].y;
-  vertex[3].z = 0.0f;
-  vertex[3].u1 = 0.0f;
-  vertex[3].v1 = 1.0f;
-
-  glGenBuffers(1, &vertexVBO);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexVBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(PackedVertex) * vertex.size(), vertex.data(),
-               GL_STATIC_DRAW);
-
-  glVertexAttribPointer(vertLoc, 3, GL_FLOAT, 0, sizeof(PackedVertex),
-                        reinterpret_cast<const GLvoid*>(offsetof(PackedVertex, x)));
-  glVertexAttribPointer(loc, 2, GL_FLOAT, 0, sizeof(PackedVertex),
-                        reinterpret_cast<const GLvoid*>(offsetof(PackedVertex, u1)));
-
-  glEnableVertexAttribArray(vertLoc);
-  glEnableVertexAttribArray(loc);
-
-  glGenBuffers(1, &indexVBO);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte) * 4, idx, GL_STATIC_DRAW);
-
-  glUniform1f(depthLoc, -1.0f);
-
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
-
-  glDisableVertexAttribArray(vertLoc);
-  glDisableVertexAttribArray(loc);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glDeleteBuffers(1, &vertexVBO);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  glDeleteBuffers(1, &indexVBO);
-
-  renderSystem->DisableGUIShader();
-
-  glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
+  DrawTexture(*renderSystem, texture->GetTexture(), m_rotatedDestCoords);
 
   buf.fence->DestroyFence();
   buf.fence->CreateFence();
+}
+
+void CRendererDRMPRIMEGLES::DrawTexture(CRenderSystemGLES& renderSystem,
+                                        GLuint texture,
+                                        const CPoint dest[4])
+{
+  glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture);
+
+  renderSystem.EnableGUIShader(ShaderMethodGLES::SM_TEXTURE_RGBA_OES);
+
+  glUniform1f(renderSystem.GUIShaderGetDepth(), -1.0f);
+
+  // dest holds the corners of a (possibly rotated) rectangle: top left, top right, bottom right,
+  // bottom left.
+  const CRect texCoords(0.0f, 0.0f, 1.0f, 1.0f);
+  renderSystem.DrawGUIQuad(dest[0], dest[1], dest[3], &texCoords);
+
+  renderSystem.DisableGUIShader();
+
+  glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 }
 
 bool CRendererDRMPRIMEGLES::Supports(ERENDERFEATURE feature) const

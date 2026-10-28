@@ -6,6 +6,7 @@
  *  See LICENSES/README.md for more information.
  */
 
+#include "CompileInfo.h"
 #include "addons/Repository.h"
 #include "addons/addoninfo/AddonInfo.h"
 #include "addons/addoninfo/AddonInfoBuilder.h"
@@ -13,6 +14,7 @@
 #include "utils/XBMCTinyXML2.h"
 
 #include <set>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -48,6 +50,29 @@ const std::string addonXML = R"xml(
   </extension>
 </addon>
 )xml";
+
+namespace
+{
+AddonInfoPtr GenerateWithLibrary(const std::string& libraryName)
+{
+  const std::string xml = R"xml(
+<addon id="binary.blablabla.org"
+       name="The Binary Bla Bla Bla Addon"
+       version="1.2.3"
+       provider-name="Team Kodi">
+  <extension point="xbmc.python.module" library=")xml" +
+                          libraryName + R"xml("/>
+  <extension point="kodi.addon.metadata">
+    <platform>all</platform>
+  </extension>
+</addon>
+)xml";
+
+  CXBMCTinyXML2 doc;
+  EXPECT_TRUE(doc.Parse(xml));
+  return CAddonInfoBuilder::Generate(doc.RootElement(), RepositoryDirInfo{});
+}
+} // namespace
 
 class TestAddonInfoBuilder : public ::testing::Test
 {
@@ -128,6 +153,29 @@ TEST_F(TestAddonInfoBuilder, TestGenerate_Repo)
   EXPECT_EQ(info->second, "marsian");
 }
 
+TEST_F(TestAddonInfoBuilder, BinaryDetection_AcceptsPlatformSharedLibrary)
+{
+  const std::string suffix = CCompileInfo::GetSharedLibrarySuffix();
+
+  EXPECT_TRUE(GenerateWithLibrary("libfoo" + suffix)->IsBinary());
+  // linux is different and has the version number after the suffix
+  EXPECT_TRUE(GenerateWithLibrary("libfoo" + suffix + ".1")->IsBinary());
+  EXPECT_TRUE(GenerateWithLibrary("libfoo" + suffix + ".1.2.3")->IsBinary());
+}
+
+TEST_F(TestAddonInfoBuilder, BinaryDetection_RejectsNonSharedLibrary)
+{
+  const std::string suffix = CCompileInfo::GetSharedLibrarySuffix();
+  ASSERT_TRUE(suffix.starts_with('.')); // the escaping in the regex depends on this
+
+  // the dot of the suffix must be matched literally, not as "any character"
+  EXPECT_FALSE(GenerateWithLibrary("libfooX" + suffix.substr(1))->IsBinary());
+  EXPECT_FALSE(GenerateWithLibrary("libfoo_" + suffix.substr(1))->IsBinary());
+
+  EXPECT_FALSE(GenerateWithLibrary("blablabla.xml")->IsBinary());
+  EXPECT_FALSE(GenerateWithLibrary("default.py")->IsBinary());
+}
+
 TEST_F(TestAddonInfoBuilder, TestGenerate_DBEntry)
 {
   CAddonInfoBuilderFromDB builder;
@@ -141,11 +189,6 @@ TEST_F(TestAddonInfoBuilder, TestGenerate_DBEntry)
   builder.SetSummary("Summary bla bla bla");
   builder.SetDescription("Description bla bla bla");
   builder.SetDisclaimer("Disclaimer bla bla bla");
-  builder.SetLicense("GPL v2.0");
-  builder.SetForum("https://forum.kodi.tv");
-  builder.SetWebsite("https://kodi.tv");
-  builder.SetEMail("a@a.dummy");
-  builder.SetSource("https://github.com/xbmc/xbmc");
   InfoMap extrainfo;
   extrainfo["language"] = "marsian";
   builder.SetExtrainfo(extrainfo);
@@ -167,11 +210,6 @@ TEST_F(TestAddonInfoBuilder, TestGenerate_DBEntry)
   EXPECT_EQ(addon->Summary(), "Summary bla bla bla");
   EXPECT_EQ(addon->Description(), "Description bla bla bla");
   EXPECT_EQ(addon->Disclaimer(), "Disclaimer bla bla bla");
-  EXPECT_EQ(addon->License(), "GPL v2.0");
-  EXPECT_EQ(addon->Forum(), "https://forum.kodi.tv");
-  EXPECT_EQ(addon->Website(), "https://kodi.tv");
-  EXPECT_EQ(addon->EMail(), "a@a.dummy");
-  EXPECT_EQ(addon->Source(), "https://github.com/xbmc/xbmc");
 
   auto info = addon->ExtraInfo().find("language");
   ASSERT_NE(info, addon->ExtraInfo().end());

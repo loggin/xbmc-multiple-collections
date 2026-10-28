@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2012-2018 Team Kodi
+ *  Copyright (C) 2012-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -26,6 +26,9 @@
 #include "guilib/guiinfo/GUIInfo.h"
 #include "guilib/guiinfo/GUIInfoHelper.h"
 #include "guilib/guiinfo/GUIInfoLabels.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
+#include "utils/ArtTypes.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
 #include "utils/Variant.h"
@@ -277,6 +280,17 @@ bool CPlayerGUIInfo::GetLabel(std::string& value,
         value = "+" + strSeekSize;
       return true;
     }
+    case PLAYER_SEEKSTEPVALUE:
+    {
+      const int seekStepValue = m_appPlayer->GetSeekHandler().GetSeekStepValue();
+      const std::string strSeekStepValue = StringUtils::SecondsToTimeString(
+          abs(seekStepValue), static_cast<TIME_FORMAT>(info.GetData1()));
+      if (seekStepValue < 0)
+        value = "-" + strSeekStepValue;
+      if (seekStepValue > 0)
+        value = "+" + strSeekStepValue;
+      return true;
+    }
     case PLAYER_SEEKNUMERIC:
       value = GetSeekTime(static_cast<TIME_FORMAT>(info.GetData1()));
       return !value.empty();
@@ -294,16 +308,17 @@ bool CPlayerGUIInfo::GetLabel(std::string& value,
       value = item->GetArt(info.GetData3());
       return true;
     case PLAYER_ICON:
-      value = item->GetArt("thumb");
+      value = item->GetArt(KODI::ART::TYPE::THUMB);
       if (value.empty())
-        value = item->GetArt("icon");
+        value = item->GetArt(KODI::ART::TYPE::ICON);
       if (fallback)
-        *fallback = item->GetArt("icon");
+        *fallback = item->GetArt(KODI::ART::TYPE::ICON);
       return true;
     case PLAYER_EDITLIST:
     case PLAYER_CUTS:
     case PLAYER_SCENE_MARKERS:
     case PLAYER_CHAPTERS:
+    case PLAYER_BOOKMARKS:
       value = GetContentRanges(info.GetInfo());
       return true;
 
@@ -345,6 +360,31 @@ bool CPlayerGUIInfo::GetLabel(std::string& value,
       return true;
     case PLAYER_PROCESS_AUDIOBITSPERSAMPLE:
       value = StringUtils::FormatNumber(CServiceBroker::GetDataCacheCore().GetAudioBitsPerSample());
+      return true;
+    case PLAYER_PROCESS_SUBTITLEDECODER:
+      value = CServiceBroker::GetDataCacheCore().GetSubtitleDecoderName();
+      return true;
+    case PLAYER_PROCESS_AUDIO_LIVE_BITRATE:
+      value = StringUtils::FormatNumber(CServiceBroker::GetDataCacheCore().GetAudioLiveBitRate() /
+                                        1024);
+      value += " " + CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(25019);
+      return true;
+    case PLAYER_PROCESS_AUDIO_QUEUE_LEVEL:
+      value = std::to_string(CServiceBroker::GetDataCacheCore().GetAudioQueueLevel());
+      return true;
+    case PLAYER_PROCESS_AUDIO_QUEUE_DATA_LEVEL:
+      value = std::to_string(CServiceBroker::GetDataCacheCore().GetAudioQueueDataLevel());
+      return true;
+    case PLAYER_PROCESS_VIDEO_LIVE_BITRATE:
+      value = StringUtils::Format(
+          "{:.1f}", CServiceBroker::GetDataCacheCore().GetVideoLiveBitRate() / 1048576.0);
+      value += " " + CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(25020);
+      return true;
+    case PLAYER_PROCESS_VIDEO_QUEUE_LEVEL:
+      value = std::to_string(CServiceBroker::GetDataCacheCore().GetVideoQueueLevel());
+      return true;
+    case PLAYER_PROCESS_VIDEO_QUEUE_DATA_LEVEL:
+      value = std::to_string(CServiceBroker::GetDataCacheCore().GetVideoQueueDataLevel());
       return true;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +440,18 @@ bool CPlayerGUIInfo::GetInt(int& value,
       return true;
     case PLAYER_AUDIO_DELAY:
       value = m_appPlayer->GetAudioDelay();
+      return true;
+    case PLAYER_PROCESS_AUDIO_QUEUE_LEVEL:
+      value = CServiceBroker::GetDataCacheCore().GetAudioQueueLevel();
+      return true;
+    case PLAYER_PROCESS_AUDIO_QUEUE_DATA_LEVEL:
+      value = CServiceBroker::GetDataCacheCore().GetAudioQueueDataLevel();
+      return true;
+    case PLAYER_PROCESS_VIDEO_QUEUE_LEVEL:
+      value = CServiceBroker::GetDataCacheCore().GetVideoQueueLevel();
+      return true;
+    case PLAYER_PROCESS_VIDEO_QUEUE_DATA_LEVEL:
+      value = CServiceBroker::GetDataCacheCore().GetVideoQueueDataLevel();
       return true;
     default:
       break;
@@ -561,6 +613,9 @@ bool CPlayerGUIInfo::GetBool(bool& value,
     case PLAYER_HAS_SCENE_MARKERS:
       value = !CServiceBroker::GetDataCacheCore().GetSceneMarkers().empty();
       return true;
+    case PLAYER_HAS_BOOKMARKS:
+      value = !CServiceBroker::GetDataCacheCore().GetBookmarks().empty();
+      return true;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     // PLAYLIST_*
@@ -679,6 +734,9 @@ std::string CPlayerGUIInfo::GetContentRanges(int iInfo) const
       case PLAYER_CHAPTERS:
         ranges = GetChapters(data, duration);
         break;
+      case PLAYER_BOOKMARKS:
+        ranges = GetBookmarks(data, duration);
+        break;
       default:
         CLog::Log(LOGERROR, "CPlayerGUIInfo::GetContentRanges({}) - unhandled guiinfo", iInfo);
         break;
@@ -700,6 +758,9 @@ std::vector<std::pair<float, float>> CPlayerGUIInfo::GetEditList(const CDataCach
 {
   std::vector<std::pair<float, float>> ranges;
 
+  if (duration == 0)
+    return ranges;
+
   const std::vector<EDL::Edit>& edits = data.GetEditList();
   for (const auto& edit : edits)
   {
@@ -715,12 +776,21 @@ std::vector<std::pair<float, float>> CPlayerGUIInfo::GetCuts(const CDataCacheCor
 {
   std::vector<std::pair<float, float>> ranges;
 
+  if (duration == 0)
+    return ranges;
+
   const std::vector<std::chrono::milliseconds>& cuts = data.GetCuts();
   float lastMarker = 0.0f;
   for (const auto& cut : cuts)
   {
-    float marker = cut.count() * 100.0f / duration;
-    if (marker != 0)
+    float marker = static_cast<float>(cut.count()) * 100.0f / static_cast<float>(duration);
+
+    if (marker >= 100.0f)
+      // Cut at or beyond end, no mark needed
+      // Break as cuts stored in time order
+      break;
+
+    if (marker != 0.0f)
       ranges.emplace_back(lastMarker, marker);
 
     lastMarker = marker;
@@ -732,6 +802,9 @@ std::vector<std::pair<float, float>> CPlayerGUIInfo::GetSceneMarkers(const CData
                                                                      std::time_t duration) const
 {
   std::vector<std::pair<float, float>> ranges;
+
+  if (duration == 0)
+    return ranges;
 
   const std::vector<std::chrono::milliseconds>& scenes = data.GetSceneMarkers();
   float lastMarker = 0.0f;
@@ -751,6 +824,9 @@ std::vector<std::pair<float, float>> CPlayerGUIInfo::GetChapters(const CDataCach
 {
   std::vector<std::pair<float, float>> ranges;
 
+  if (duration == 0)
+    return ranges;
+
   const std::vector<std::pair<std::string, int64_t>>& chapters = data.GetChapters();
   float lastMarker = 0.0f;
   for (const auto& [_, chapterEnd] : chapters)
@@ -758,6 +834,27 @@ std::vector<std::pair<float, float>> CPlayerGUIInfo::GetChapters(const CDataCach
     const float marker =
         static_cast<float>(chapterEnd * 1000) * 100.0f / static_cast<float>(duration);
     if (marker != 0.0f)
+      ranges.emplace_back(lastMarker, marker);
+
+    lastMarker = marker;
+  }
+  return ranges;
+}
+
+std::vector<std::pair<float, float>> CPlayerGUIInfo::GetBookmarks(const CDataCacheCore& data,
+                                                                  std::time_t duration) const
+{
+  std::vector<std::pair<float, float>> ranges;
+
+  if (duration == 0)
+    return ranges;
+
+  const std::vector<std::chrono::milliseconds>& bookmarks = data.GetBookmarks();
+  float lastMarker = 0.0f;
+  for (const auto& scene : bookmarks)
+  {
+    float marker = scene.count() * 100.0f / duration;
+    if (marker != 0)
       ranges.emplace_back(lastMarker, marker);
 
     lastMarker = marker;

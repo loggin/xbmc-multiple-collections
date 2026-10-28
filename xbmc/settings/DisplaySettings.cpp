@@ -13,6 +13,7 @@
 #include "dialogs/GUIDialogFileBrowser.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/StereoscopicsManager.h"
+#include "messaging/ApplicationMessenger.h"
 #include "messaging/helpers/DialogHelper.h"
 #include "rendering/RenderSystem.h"
 #include "resources/LocalizeStrings.h"
@@ -79,6 +80,15 @@ std::string ModeFlagsToString(unsigned int flags, bool identifier)
   else if(identifier)
     res += "std";
   return res;
+}
+
+// True when this mode is uncalibrated. Only works for live modes; dead or stale modes are
+// considered non-default always.
+bool IsDefaultCalibration(const RESOLUTION_INFO& info)
+{
+  return info.Overscan.left == 0 && info.Overscan.top == 0 && info.Overscan.right == info.iWidth &&
+         info.Overscan.bottom == info.iHeight && info.iSubtitles == info.iHeight &&
+         info.fPixelRatio == 1.0f;
 }
 } // unnamed namespace
 
@@ -341,6 +351,23 @@ bool CDisplaySettings::OnSettingChanging(const std::shared_ptr<const CSetting>& 
     return true;
 #endif
   }
+#ifdef TARGET_WINDOWS_DESKTOP
+  else if (settingId == CSettings::SETTING_VIDEOSCREEN_HIGHPERFORMANCEGPU)
+  {
+    // re-select the rendering GPU, then re-apply the fullscreen mode as exclusive fullscreen is
+    // not possible when rendering on a GPU that doesn't own the display.
+    // Posted as it recreates the device, which must happen on the application thread.
+    static ThreadMessageCallback callback{
+        [](void*)
+        {
+          DX::DeviceResources::Get()->OnGpuPreferenceChanged();
+          CGraphicContext& gfxContext = CServiceBroker::GetWinSystem()->GetGfxContext();
+          gfxContext.SetVideoResolution(gfxContext.GetVideoResolution(), true);
+        },
+        nullptr};
+    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
+  }
+#endif
 #if defined(HAVE_X11) || defined(TARGET_WINDOWS_DESKTOP) || defined(TARGET_DARWIN_OSX)
   else if (settingId == CSettings::SETTING_VIDEOSCREEN_BLANKDISPLAYS)
   {
@@ -533,6 +560,18 @@ void CDisplaySettings::ApplyCalibrations()
     {
       if (StringUtils::EqualsNoCase(itCal->strMode, m_resolutions[res].strMode))
       {
+        // HACK for #28406: limitguisize inadvertently got enabled for single-plane rendering and
+        // saved the resulting resolution as the calibrated resolution. Undo that here. This check
+        // theoretically could catch a user-calibrated resolution but it would be an extreme
+        // overscan that we are now disallowing.
+        //! @todo remove once guisettings.xml files written before #28321 are gone from the wild
+        if (m_resolutions[res].iScreenWidth > 1920 && m_resolutions[res].iScreenHeight > 1080 &&
+            itCal->Overscan.left == 0 && itCal->Overscan.top == 0 &&
+            itCal->iSubtitles == itCal->Overscan.bottom && itCal->fPixelRatio == 1.0f &&
+            ((itCal->Overscan.right == 1280 && itCal->Overscan.bottom == 720) ||
+             (itCal->Overscan.right == 1920 && itCal->Overscan.bottom == 1080)))
+          break;
+
         // overscan
         m_resolutions[res].Overscan.left = itCal->Overscan.left;
         if (m_resolutions[res].Overscan.left < -m_resolutions[res].iWidth/4)
@@ -589,16 +628,23 @@ void CDisplaySettings::UpdateCalibrations()
         m_calibrations.cend())
       m_calibrations.emplace_back(*res);
 
-  for (auto &cal : m_calibrations)
+  for (auto it = m_calibrations.begin(); it != m_calibrations.end();)
   {
-    ResolutionInfos::const_iterator res(std::find_if(m_resolutions.cbegin() + RES_DESKTOP, m_resolutions.cend(),
-    [&](const RESOLUTION_INFO& info) { return StringUtils::EqualsNoCase(cal.strMode, info.strMode); }));
+    const ResolutionInfos::const_iterator res(std::find_if(
+        m_resolutions.cbegin() + RES_DESKTOP, m_resolutions.cend(), [&](const RESOLUTION_INFO& info)
+        { return StringUtils::EqualsNoCase(it->strMode, info.strMode); }));
 
     if (res != m_resolutions.cend())
     {
-      //! @todo erase calibrations with default values
-      cal = *res;
+      // A calibration whose mode is live and still at its defaults holds no user adjustment.
+      if (IsDefaultCalibration(*res))
+      {
+        it = m_calibrations.erase(it);
+        continue;
+      }
+      *it = *res;
     }
+    ++it;
   }
 }
 

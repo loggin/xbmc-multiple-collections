@@ -10,6 +10,7 @@
 
 #include "SetInfoTag.h"
 #include "XBDateTime.h"
+#include "media/MediaType.h"
 #include "utils/EmbeddedArt.h"
 #include "utils/Fanart.h"
 #include "utils/ISortable.h"
@@ -93,6 +94,16 @@ public:
   void Archive(CArchive& ar) override;
   void Serialize(CVariant& value) const override;
   void ToSortable(SortItem& sortable, Field field) const override;
+
+  /*!
+   * \brief Get the index of the audio stream to describe this item by.
+   *
+   * Which stream that is follows the "Language details to display" setting, so the label a
+   * list shows and the key it sorts on are chosen once rather than in each caller.
+   *
+   * \return An index into m_streamDetails, as GetAudioCodec() and friends take
+   */
+  int GetDescribedAudioStreamIndex() const;
   int GetDatabaseId() const;
   CRating GetRating(std::string type = "") const;
   const std::string& GetDefaultRating() const;
@@ -100,6 +111,7 @@ public:
   const std::map<std::string, std::string, std::less<>>& GetUniqueIDs() const;
   const std::string& GetDefaultUniqueID() const;
   bool HasUniqueID() const;
+  bool HasConflictingUniqueID(const CVideoInfoTag& other) const;
   virtual bool HasYear() const;
   virtual int GetYear() const;
   bool HasPremiered() const;
@@ -107,6 +119,11 @@ public:
   const CDateTime& GetFirstAired() const;
   std::string GetCast(const std::string& separator, bool bIncludeRole = false) const;
   bool HasStreamDetails() const;
+
+  //! \brief The media type m_type names, NONE where it names a node such as a genre, or is spelled otherwise.
+  KODI::MEDIA::TYPE GetMediaType() const;
+  void SetMediaType(KODI::MEDIA::TYPE type);
+  bool HasNFOStreamDetails() const;
   bool IsEmpty() const;
 
   const std::string& GetPath() const
@@ -374,14 +391,6 @@ public:
   void SetIsDefaultVideoVersion(bool isDefaultVideoVersion);
 
   /*!
-  * @brief Get whether the Set Overview should be updated. If an NFO contains a <name> but no <overview> then
-  * this allows the current Overview to be kept. Otherwise it is overwritten. Default is true - so if updated
-  * by a scraper the Overview will be overwritten.
-  */
-  bool GetUpdateSetOverview() const { return m_updateSetOverview; }
-  void SetUpdateSetOverview(const bool value) { m_updateSetOverview = value; }
-
-  /*!
    * @brief Set this videos's resume point.
    * @param timeInSeconds the time of the resume point
    * @param totalTimeInSeconds the total time of the video
@@ -447,7 +456,7 @@ public:
   CFanart m_fanart;
   CStreamDetails m_streamDetails;
   CDateTime m_dateAdded;
-  MediaType m_type;
+  std::string m_type; //!< the table m_iDbId is in: a media type, or a node such as genre
   int m_relevance; // Used for actors' number of appearances
   int m_parsedDetails;
   std::vector<EmbeddedArtInfo> m_coverArt; ///< art information
@@ -489,6 +498,5 @@ private:
   bool m_hasVideoExtras{false};
   bool m_isDefaultVideoVersion{false};
 
-  bool m_updateSetOverview{true};
   bool m_override{false};
 };

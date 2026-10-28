@@ -28,7 +28,48 @@
 using namespace DirectX::PackedVector;
 using namespace Microsoft::WRL;
 
+namespace
+{
+// HDR hue and saturation are applied to BT.2020, before any primaries conversion
+void SetHueSaturationParameters(CD3DEffect& effect,
+                                AVColorTransferCharacteristic transfer,
+                                float hue,
+                                float saturation,
+                                float peakLuminance,
+                                bool limited)
+{
+  const float peak = transfer == AVCOL_TRC_SMPTE2084 ? peakLuminance / 10000.0f : 1.0f;
+  Matrix4 hueSatMat(CConvertMatrix::GetLinearHueSatMat(AVCOL_SPC_BT2020_NCL, hue, saturation));
+  Matrix3x1 coefs = CConvertMatrix::GetRGBYuvCoefs(AVCOL_SPC_BT2020_NCL);
+  float range[2] = {limited ? 876.0f / 1023.0f : 1.0f, limited ? 64.0f / 1023.0f : 0.0f};
+
+  effect.SetMatrix("g_hsMat", hueSatMat.ToRaw());
+  effect.SetFloatArray("g_hsCoefs", coefs.data(), coefs.size());
+  effect.SetScalar("g_hsPeak", peak);
+  effect.SetFloatArray("g_hsRange", range, 2);
+}
+} // namespace
+
 //===================================================================
+
+CWinShader::~CWinShader()
+{
+  Unregister();
+}
+
+void CWinShader::OnDestroyDevice(bool fatal)
+{
+  // Nothing to save: the layout element descriptions cannot be retrieved from an existing input
+  // layout and were saved during the creation.
+  if (m_inputLayout != nullptr)
+    m_inputLayout.Reset();
+}
+
+void CWinShader::OnCreateDevice()
+{
+  if (!m_inputLayoutElementDesc.empty())
+    CreateInputLayoutResources(m_inputLayoutElementDesc);
+}
 
 bool CWinShader::CreateVertexBuffer(unsigned int count, unsigned int size)
 {
@@ -45,7 +86,7 @@ bool CWinShader::CreateVertexBuffer(unsigned int count, unsigned int size)
   return true;
 }
 
-bool CWinShader::CreateInputLayout(D3D11_INPUT_ELEMENT_DESC *layout, unsigned numElements)
+bool CWinShader::CreateInputLayoutResources(std::span<const D3D11_INPUT_ELEMENT_DESC> elementDesc)
 {
   D3DX11_PASS_DESC desc = {};
   if (FAILED(m_effect.Get()->GetTechniqueByIndex(0)->GetPassByIndex(0)->GetDesc(&desc)))
@@ -55,7 +96,20 @@ bool CWinShader::CreateInputLayout(D3D11_INPUT_ELEMENT_DESC *layout, unsigned nu
   }
 
   ComPtr<ID3D11Device> pDevice = DX::DeviceResources::Get()->GetD3DDevice();
-  return SUCCEEDED(pDevice->CreateInputLayout(layout, numElements, desc.pIAInputSignature, desc.IAInputSignatureSize, &m_inputLayout));
+  return pDevice && SUCCEEDED(pDevice->CreateInputLayout(
+                        elementDesc.data(), elementDesc.size(), desc.pIAInputSignature,
+                        desc.IAInputSignatureSize, m_inputLayout.ReleaseAndGetAddressOf()));
+}
+
+bool CWinShader::CreateInputLayout(std::span<const D3D11_INPUT_ELEMENT_DESC> elementDesc)
+{
+  if (CreateInputLayoutResources(elementDesc))
+  {
+    m_inputLayoutElementDesc = elementDesc;
+    Register();
+    return true;
+  }
+  return false;
 }
 
 void CWinShader::SetTarget(CD3DTexture* target, ID3D11DepthStencilView* dsv)
@@ -238,6 +292,19 @@ void COutputShader::ApplyEffectParameters(CD3DEffect &effect, unsigned sourceWid
     effect.SetScalar("g_toneP2", lumin_div100);
     m_toneMappingDebug = lumin;
   }
+  if (m_hueSatTransfer != AVCOL_TRC_UNSPECIFIED)
+    SetHueSaturationParameters(
+        effect, m_hueSatTransfer, m_hue, m_saturation,
+        CToneMappers::GetPeakLuminanceValue(m_hasDisplayMetadata, m_displayMetadata,
+                                            m_hasLightMetadata, m_lightMetadata),
+        DX::Windowing()->UseLimitedColor());
+  if (m_useGamma)
+  {
+    const bool limited = DX::Windowing()->UseLimitedColor();
+    float range[2] = {limited ? 876.0f / 1023.0f : 1.0f, limited ? 64.0f / 1023.0f : 0.0f};
+    effect.SetScalar("g_gammaInv", 1.0f / m_gammaExponent);
+    effect.SetFloatArray("g_gammaRange", range, 2);
+  }
 }
 
 void COutputShader::GetDefines(DefinesMap& map) const
@@ -266,6 +333,18 @@ void COutputShader::GetDefines(DefinesMap& map) const
   {
     map["KODI_HLG_TO_PQ"] = "";
   }
+  if (m_hueSatTransfer == AVCOL_TRC_SMPTE2084)
+  {
+    map["KODI_HUESAT_PQ"] = "";
+  }
+  else if (m_hueSatTransfer == AVCOL_TRC_ARIB_STD_B67)
+  {
+    map["KODI_HUESAT_HLG"] = "";
+  }
+  if (m_useGamma)
+  {
+    map["KODI_GAMMA"] = "";
+  }
 }
 
 bool COutputShader::Create(bool useLUT,
@@ -273,9 +352,13 @@ bool COutputShader::Create(bool useLUT,
                            int ditherDepth,
                            bool toneMapping,
                            ETONEMAPMETHOD toneMethod,
-                           bool HLGtoPQ)
+                           bool HLGtoPQ,
+                           AVColorTransferCharacteristic hueSatTransfer,
+                           bool gamma)
 {
   m_useLut = useLUT;
+  m_hueSatTransfer = hueSatTransfer;
+  m_useGamma = gamma;
   m_ditherDepth = ditherDepth;
   m_toneMapping = toneMapping;
   m_useHLGtoPQ = HLGtoPQ;
@@ -299,12 +382,11 @@ bool COutputShader::Create(bool useLUT,
   }
 
   // Create input layout
-  D3D11_INPUT_ELEMENT_DESC layout[] =
-  {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  static constexpr D3D11_INPUT_ELEMENT_DESC layout[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
   };
-  return CWinShader::CreateInputLayout(layout, ARRAYSIZE(layout));
+  return CWinShader::CreateInputLayout(layout);
 }
 
 void COutputShader::Render(CD3DTexture& sourceTexture, CRect sourceRect, const CPoint points[4]
@@ -340,6 +422,12 @@ void COutputShader::SetDisplayMetadata(bool hasDisplayMetadata, AVMasteringDispl
   m_displayMetadata = displayMetadata;
   m_hasLightMetadata = hasLightMetadata;
   m_lightMetadata = lightMetadata;
+}
+
+void COutputShader::SetHueSaturation(float hue, float saturation)
+{
+  m_hue = hue;
+  m_saturation = saturation;
 }
 
 void COutputShader::SetToneMapParam(ETONEMAPMETHOD method, float param)
@@ -540,11 +628,15 @@ std::string COutputShader::GetDebugInfo()
 
 //==================================================================================
 
-bool CYUV2RGBShader::Create(AVPixelFormat fmt, AVColorPrimaries dstPrimaries,
-                            AVColorPrimaries srcPrimaries, const std::shared_ptr<COutputShader>& pOutputShader)
+bool CYUV2RGBShader::Create(AVPixelFormat fmt,
+                            AVColorPrimaries dstPrimaries,
+                            AVColorPrimaries srcPrimaries,
+                            const std::shared_ptr<COutputShader>& pOutputShader,
+                            AVColorTransferCharacteristic hueSatTransfer)
 {
   m_format = fmt;
   m_pOutShader = pOutputShader;
+  m_hueSatTransfer = hueSatTransfer;
 
   DefinesMap defines;
 
@@ -580,6 +672,13 @@ bool CYUV2RGBShader::Create(AVPixelFormat fmt, AVColorPrimaries dstPrimaries,
     defines["XBMC_COL_CONVERSION"] = "";
   }
 
+  if (m_hueSatTransfer == AVCOL_TRC_SMPTE2084)
+    defines["KODI_HUESAT_PQ"] = "";
+  else if (m_hueSatTransfer == AVCOL_TRC_ARIB_STD_B67)
+    defines["KODI_HUESAT_HLG"] = "";
+  if (m_hueSatTransfer != AVCOL_TRC_UNSPECIFIED)
+    defines["KODI_HUESAT_YUV"] = "";
+
   if (m_pOutShader)
     m_pOutShader->GetDefines(defines);
 
@@ -593,14 +692,13 @@ bool CYUV2RGBShader::Create(AVPixelFormat fmt, AVColorPrimaries dstPrimaries,
 
   CWinShader::CreateVertexBuffer(4, sizeof(Vertex));
   // Create input layout
-  D3D11_INPUT_ELEMENT_DESC layout[] =
-  {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,    0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  static constexpr D3D11_INPUT_ELEMENT_DESC layout[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0},
   };
 
-  if (!CWinShader::CreateInputLayout(layout, ARRAYSIZE(layout)))
+  if (!CWinShader::CreateInputLayout(layout))
   {
     CLog::LogF(LOGERROR, "Failed to create input layout for Input Assembler.");
     return false;
@@ -618,11 +716,22 @@ void CYUV2RGBShader::Render(CRect sourceRect, CPoint dest[], CRenderBuffer* vide
   Execute({ &target }, 4);
 }
 
-void CYUV2RGBShader::SetParams(float contrast, float black, bool limited)
+void CYUV2RGBShader::SetParams(
+    float contrast, float black, float hue, float saturation, bool limited)
 {
   m_convMatrix.SetDestinationContrast(contrast * 0.02f)
       .SetDestinationBlack(black * 0.01f - 0.5f)
+      .SetDestinationHue((hue - 50.0f) * 3.6f)
+      .SetDestinationSaturation(saturation * 0.02f)
       .SetDestinationLimitedRange(limited);
+  m_limited = limited;
+}
+
+void CYUV2RGBShader::SetHueSaturation(float hue, float saturation, float peakLuminance)
+{
+  m_hue = hue;
+  m_saturation = saturation;
+  m_peakLuminance = peakLuminance;
 }
 
 void CYUV2RGBShader::SetColParams(AVColorSpace colSpace, int bits, bool limited, int texBits)
@@ -713,6 +822,10 @@ void CYUV2RGBShader::SetShaderParameters(CRenderBuffer* videoBuffer)
 
   Matrix4 yuvMat = m_convMatrix.GetYuvMat();
   m_effect.SetMatrix("g_ColorMatrix", yuvMat.ToRaw());
+
+  if (m_hueSatTransfer != AVCOL_TRC_UNSPECIFIED)
+    SetHueSaturationParameters(m_effect, m_hueSatTransfer, m_hue, m_saturation, m_peakLuminance,
+                               m_limited);
 
   if (m_colorConversion)
   {
@@ -843,12 +956,11 @@ bool CConvolutionShader1Pass::Create(ESCALINGMETHOD method, const std::shared_pt
     return false;
 
   // Create input layout
-  D3D11_INPUT_ELEMENT_DESC layout[] =
-  {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  static constexpr D3D11_INPUT_ELEMENT_DESC layout[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
   };
-  return CWinShader::CreateInputLayout(layout, ARRAYSIZE(layout));
+  return CWinShader::CreateInputLayout(layout);
 }
 
 void CConvolutionShader1Pass::Render(CD3DTexture& sourceTexture, CD3DTexture& target,
@@ -983,12 +1095,11 @@ bool CConvolutionShaderSeparable::Create(ESCALINGMETHOD method, const std::share
     return false;
 
   // Create input layout
-  D3D11_INPUT_ELEMENT_DESC layout[] =
-  {
-    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  static constexpr D3D11_INPUT_ELEMENT_DESC layout[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
   };
-  return CWinShader::CreateInputLayout(layout, ARRAYSIZE(layout));
+  return CWinShader::CreateInputLayout(layout);
 }
 
 void CConvolutionShaderSeparable::Render(CD3DTexture& sourceTexture, CD3DTexture& target,

@@ -29,7 +29,9 @@ CVideoSettings::CVideoSettings()
   m_SubtitleOn = true;
   m_Brightness = 50.0f;
   m_Contrast = 50.0f;
-  m_Gamma = 20.0f;
+  m_Hue = 50.0f;
+  m_Saturation = 50.0f;
+  m_Gamma = 50.0f;
   m_Sharpness = 0.0f;
   m_NoiseReduction = 0;
   m_PostProcess = false;
@@ -57,13 +59,13 @@ bool CVideoSettings::operator!=(const CVideoSettings &right) const
   if (m_AudioStream != right.m_AudioStream) return true;
   if (m_SubtitleStream != right.m_SubtitleStream) return true;
   if (m_SubtitleDelay != right.m_SubtitleDelay) return true;
-  if (m_subtitleVerticalPosition != right.m_subtitleVerticalPosition)
-    return true;
-  if (m_subtitleVerticalPositionSave != right.m_subtitleVerticalPositionSave)
-    return true;
   if (m_SubtitleOn != right.m_SubtitleOn) return true;
   if (m_Brightness != right.m_Brightness) return true;
   if (m_Contrast != right.m_Contrast) return true;
+  if (m_Hue != right.m_Hue)
+    return true;
+  if (m_Saturation != right.m_Saturation)
+    return true;
   if (m_Gamma != right.m_Gamma) return true;
   if (m_Sharpness != right.m_Sharpness) return true;
   if (m_NoiseReduction != right.m_NoiseReduction) return true;

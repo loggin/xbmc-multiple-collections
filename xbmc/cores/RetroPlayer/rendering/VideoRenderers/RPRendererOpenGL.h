@@ -21,6 +21,7 @@ namespace KODI
 {
 namespace SHADER
 {
+class CShaderTextureGL;
 class CShaderTextureGLRef;
 } // namespace SHADER
 
@@ -72,25 +73,12 @@ protected:
   struct RenderBufferTextures
   {
     std::shared_ptr<SHADER::CShaderTextureGLRef> sourceTexture;
-    std::shared_ptr<SHADER::CShaderTextureGLRef> targetTexture;
+    std::shared_ptr<SHADER::CShaderTextureGL> targetTexture;
   };
 
   // Implementation of CRPBaseRenderer
-  void RenderInternal(bool clear, uint8_t alpha) override;
+  void RenderInternal(uint8_t alpha) override;
   void FlushInternal() override;
-
-  /*!
-   * \brief Set the entire backbuffer to black
-   */
-  void ClearBackBuffer();
-
-  /*!
-   * \brief Draw black bars around the video quad
-   *
-   * This is more efficient than glClear() since it only sets pixels to
-   * black that aren't going to be overwritten by the game.
-   */
-  void DrawBlackBars();
 
   virtual void Render(uint8_t alpha);
 
@@ -100,11 +88,7 @@ protected:
   GLuint m_mainVertexVBO;
   GLuint m_mainIndexVBO;
 
-  GLuint m_blackbarsVAO;
-  GLuint m_blackbarsVertexVBO;
-
-  GLenum m_textureTarget = GL_TEXTURE_2D;
-  float m_clearColor = 0.0f;
+  const GLenum m_textureTarget = GL_TEXTURE_2D;
 };
 } // namespace RETRO
 } // namespace KODI

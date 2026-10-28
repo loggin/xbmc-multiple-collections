@@ -8,21 +8,26 @@
 
 #include "ViewDatabase.h"
 
-#include <utility>
-
-#include "dbwrappers/dataset.h"
+#include "DatabaseTypes.h"
 #include "SortFileItem.h"
+#include "dbwrappers/dataset.h"
 #include "utils/LegacyPathTranslation.h"
-#include "utils/log.h"
 #include "utils/SortUtils.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
+#include "utils/log.h"
 #include "view/ViewState.h"
+
+#include <utility>
+#include <vector>
 
 #ifdef TARGET_POSIX
 #include "platform/posix/ConvUtils.h"
 #endif
-CViewDatabase::CViewDatabase(void) = default;
+
+CViewDatabase::CViewDatabase() : CDatabase(KODI::DATABASE::TYPE_VIEWMODES)
+{
+}
 
 CViewDatabase::~CViewDatabase(void) = default;
 
@@ -68,7 +73,7 @@ void CViewDatabase::UpdateTables(int version)
         std::string path = originalPath;
         if (StringUtils::StartsWithNoCase(path, "musicdb://"))
           path = CLegacyPathTranslation::TranslateMusicDbPath(path);
-        else if (StringUtils::StartsWithNoCase(path, "videodb://"))
+        else if (URIUtils::IsVideoDb(path))
           path = CLegacyPathTranslation::TranslateVideoDbPath(path);
 
         if (!StringUtils::EqualsNoCase(path, originalPath))

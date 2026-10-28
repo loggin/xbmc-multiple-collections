@@ -389,6 +389,14 @@ private:
   bool Load(CDVDStreamInfo videoHint, CDVDStreamInfo audioHint);
 
   /**
+   * @brief Updates the render picture from the video hint and (re)configures the renderer.
+   * @param videoHint Video stream information.
+   * @param fps Frame rate, 0 if unknown.
+   * @return True if the renderer was configured.
+   */
+  bool ConfigureRenderer(const CDVDStreamInfo& videoHint, double fps);
+
+  /**
    * @brief Unloads the media pipeline for cleanup.
    * @param sync If true, wait for unload to complete.
    */
@@ -409,10 +417,10 @@ private:
   void SetupBitstreamConverter(CDVDStreamInfo& hint);
 
   /**
-   * @brief Updates ActiveAE volume setting based on current audio state.
-   * @param playing True if media is currently playing, false otherwise.
+   * @brief Claims the audio device for the pipeline or hands it back to ActiveAE.
+   * @param pipelineOwns True while the pipeline needs exclusive access to the audio device.
    */
-  void UpdateGUISounds(bool playing);
+  void RequestAudioDevice(bool pipelineOwns);
 
   /**
    * @brief Callback for media events.
@@ -514,7 +522,10 @@ private:
   CRenderManager& m_renderManager;
   CDVDClock& m_clock;
   CDVDOverlayContainer& m_overlayContainer;
-  bool m_hasAudio{true};
+  std::atomic<bool> m_hasAudio{true};
+
+  std::mutex m_audioDeviceMutex;
+  bool m_ownsAudioDevice{false};
 
   std::atomic<bool> m_videoClosed{true};
   std::atomic<bool> m_audioClosed{true};

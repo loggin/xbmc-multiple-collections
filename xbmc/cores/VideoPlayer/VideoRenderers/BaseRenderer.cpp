@@ -306,7 +306,11 @@ void CBaseRenderer::CalculateFrameAspectRatio(unsigned int desired_width, unsign
 
 void CBaseRenderer::ManageRenderArea()
 {
-  m_viewRect = CServiceBroker::GetWinSystem()->GetGfxContext().GetViewWindow();
+  const CRect newRect = CServiceBroker::GetWinSystem()->GetGfxContext().GetViewWindow();
+  if (newRect.Width() != m_viewRect.Width() || newRect.Height() != m_viewRect.Height())
+    CLog::Log(LOGDEBUG, "CBaseRenderer::ManageRenderArea: viewRect {:.0f}x{:.0f} -> {:.0f}x{:.0f}",
+              m_viewRect.Width(), m_viewRect.Height(), newRect.Width(), newRect.Height());
+  m_viewRect = newRect;
 
   m_sourceRect.x1 = 0.0f;
   m_sourceRect.y1 = 0.0f;
@@ -354,17 +358,30 @@ EShaderFormat CBaseRenderer::GetShaderFormat()
 {
   EShaderFormat ret = SHADER_NONE;
 
-  if (m_format == AV_PIX_FMT_YUV420P)
+  // clang-format off
+  if (m_format == AV_PIX_FMT_YUV420P ||
+      m_format == AV_PIX_FMT_YUV422P ||
+      m_format == AV_PIX_FMT_YUV444P)
     ret = SHADER_YV12;
-  else if (m_format == AV_PIX_FMT_YUV420P9)
+  else if (m_format == AV_PIX_FMT_YUV420P9 ||
+           m_format == AV_PIX_FMT_YUV422P9 ||
+           m_format == AV_PIX_FMT_YUV444P9)
     ret = SHADER_YV12_9;
-  else if (m_format == AV_PIX_FMT_YUV420P10)
+  else if (m_format == AV_PIX_FMT_YUV420P10 ||
+           m_format == AV_PIX_FMT_YUV422P10 ||
+           m_format == AV_PIX_FMT_YUV444P10)
     ret = SHADER_YV12_10;
-  else if (m_format == AV_PIX_FMT_YUV420P12)
+  else if (m_format == AV_PIX_FMT_YUV420P12 ||
+           m_format == AV_PIX_FMT_YUV422P12 ||
+           m_format == AV_PIX_FMT_YUV444P12)
     ret = SHADER_YV12_12;
-  else if (m_format == AV_PIX_FMT_YUV420P14)
+  else if (m_format == AV_PIX_FMT_YUV420P14 ||
+           m_format == AV_PIX_FMT_YUV422P14 ||
+           m_format == AV_PIX_FMT_YUV444P14)
     ret = SHADER_YV12_14;
-  else if (m_format == AV_PIX_FMT_YUV420P16)
+  else if (m_format == AV_PIX_FMT_YUV420P16 ||
+           m_format == AV_PIX_FMT_YUV422P16 ||
+           m_format == AV_PIX_FMT_YUV444P16)
     ret = SHADER_YV12_16;
   else if (m_format == AV_PIX_FMT_NV12)
     ret = SHADER_NV12;
@@ -372,8 +389,10 @@ EShaderFormat CBaseRenderer::GetShaderFormat()
     ret = SHADER_YUY2;
   else if (m_format == AV_PIX_FMT_UYVY422)
     ret = SHADER_UYVY;
+  // clang-format on
   else
-    CLog::Log(LOGERROR, "CBaseRenderer::GetShaderFormat - unsupported format {}", m_format);
+    CLog::Log(LOGERROR, "CBaseRenderer::GetShaderFormat - unsupported format {}",
+              m_format == AV_PIX_FMT_NONE ? "none" : av_get_pix_fmt_name(m_format));
 
   return ret;
 }
@@ -395,6 +414,8 @@ void CBaseRenderer::SetViewMode(int viewMode)
 
   bool is43 = (sourceFrameRatio < 8.f/(3.f*sqrt(3.f)) &&
               m_videoSettings.m_ViewMode == ViewModeNormal);
+  const int stretch43 = CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
+      CSettings::SETTING_VIDEOPLAYER_STRETCH43);
 
   // Splitres scaling factor
   float xscale = (float)info.iScreenWidth  / (float)info.iWidth;
@@ -406,8 +427,7 @@ void CBaseRenderer::SetViewMode(int viewMode)
   CDisplaySettings::GetInstance().SetVerticalShift(0.0f);
   CDisplaySettings::GetInstance().SetNonLinearStretched(false);
 
-  if (m_videoSettings.m_ViewMode == ViewModeZoom ||
-       (is43 && CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_STRETCH43) == ViewModeZoom))
+  if (m_videoSettings.m_ViewMode == ViewModeZoom || (is43 && stretch43 == ViewModeZoom))
   { // zoom image so no black bars
     CDisplaySettings::GetInstance().SetPixelRatio(1.0);
     // calculate the desired output ratio
@@ -431,7 +451,7 @@ void CBaseRenderer::SetViewMode(int viewMode)
     CDisplaySettings::GetInstance().SetPixelRatio((4.0f / 3.0f) / sourceFrameRatio);
   }
   else if (m_videoSettings.m_ViewMode == ViewModeWideZoom ||
-           (is43 && CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_STRETCH43) == ViewModeWideZoom))
+           (is43 && stretch43 == ViewModeWideZoom))
   { // super zoom
     float stretchAmount = (screenWidth / screenHeight) * info.fPixelRatio / sourceFrameRatio;
     CDisplaySettings::GetInstance().SetPixelRatio(pow(stretchAmount, float(2.0/3.0)));
@@ -440,15 +460,14 @@ void CBaseRenderer::SetViewMode(int viewMode)
     CDisplaySettings::GetInstance().SetNonLinearStretched(true);
   }
   else if (m_videoSettings.m_ViewMode == ViewModeStretch16x9 ||
-            m_videoSettings.m_ViewMode == ViewModeStretch16x9Nonlin ||
-           (is43 && (CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_STRETCH43) == ViewModeStretch16x9 ||
-                     CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_STRETCH43) == ViewModeStretch16x9Nonlin)))
+           m_videoSettings.m_ViewMode == ViewModeStretch16x9Nonlin ||
+           (is43 && (stretch43 == ViewModeStretch16x9 || stretch43 == ViewModeStretch16x9Nonlin)))
   { // stretch image to 16:9 ratio
     CDisplaySettings::GetInstance().SetZoomAmount(1.0);
     // stretch to the limits of the 16:9 screen.
     // incorrect behaviour, but it's what the users want, so...
     CDisplaySettings::GetInstance().SetPixelRatio((screenWidth / screenHeight) * info.fPixelRatio / sourceFrameRatio);
-    bool nonlin = (is43 && CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_STRETCH43) == ViewModeStretch16x9Nonlin) ||
+    bool nonlin = (is43 && stretch43 == ViewModeStretch16x9Nonlin) ||
                   m_videoSettings.m_ViewMode == ViewModeStretch16x9Nonlin;
     CDisplaySettings::GetInstance().SetNonLinearStretched(nonlin);
   }

@@ -24,6 +24,7 @@
 #include "application/ApplicationPlayer.h"
 #include "application/ApplicationPowerHandling.h"
 #include "cores/playercorefactory/PlayerCoreFactory.h"
+#include "filesystem/File.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIWindowManager.h"
 #include "input/actions/Action.h"
@@ -32,6 +33,7 @@
 #include "messaging/ApplicationMessenger.h"
 #include "music/MusicDatabase.h"
 #include "music/MusicFileItemClassify.h"
+#include "music/tags/MusicInfoTag.h"
 #include "pictures/SlideShowDelegator.h"
 #include "pvr/PVRManager.h"
 #include "pvr/PVRPlaybackState.h"
@@ -48,6 +50,7 @@
 #include "settings/MediaSettings.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "utils/ItemProperties.h"
 #include "utils/MathUtils.h"
 #include "utils/PlayerUtils.h"
 #include "utils/URIUtils.h"
@@ -76,6 +79,44 @@ void AppendSubtitleStreamFlagsAsBooleans(CVariant& list, StreamFlags flags)
   list["isdefault"] = ((flags & StreamFlags::FLAG_DEFAULT) != 0);
   list["isforced"] = ((flags & StreamFlags::FLAG_FORCED) != 0);
   list["isimpaired"] = ((flags & StreamFlags::FLAG_HEARING_IMPAIRED) != 0);
+}
+
+bool IsReachable(const CFileItem& item)
+{
+  const std::string& path = item.GetDynPath();
+
+  // Only plain files can be cheaply verified. Anything resolved by a plugin, served
+  // over the network as a stream, or addressed as a container is left to the player.
+  // Stacks in particular have no CFileFactory loader, so CFile::Exists() would always
+  // report them missing.
+  if (item.IsFolder() || path.empty() || URIUtils::IsPlugin(path) || URIUtils::IsUPnP(path) ||
+      URIUtils::IsInternetStream(path) || URIUtils::IsBlurayPath(path) || URIUtils::IsStack(path))
+    return true;
+
+  // Bypass the directory cache; a cached hit would mask a share that has gone away.
+  return XFILE::CFile::Exists(path, false);
+}
+
+void OverlayCurrentSongTag(CFileItem& item)
+{
+  const MUSIC_INFO::CMusicInfoTag* current{
+      CServiceBroker::GetGUI()->GetInfoManager().GetCurrentSongTag()};
+  if (!current)
+    return;
+
+  // Only copy what the source actually supplied, so anything the item already carries in its
+  // own right survives.
+  MUSIC_INFO::CMusicInfoTag& tag{*item.GetMusicInfoTag()};
+  if (!current->GetTitle().empty())
+    tag.SetTitle(current->GetTitle());
+  if (!current->GetArtist().empty())
+    tag.SetArtist(current->GetArtist());
+  if (!current->GetAlbum().empty())
+    tag.SetAlbum(current->GetAlbum());
+  if (!current->GetGenre().empty())
+    tag.SetGenre(current->GetGenre());
+  if (!current->GetStationName().empty())
+    tag.SetStationName(current->GetStationName());
 }
 
 } // namespace
@@ -187,7 +228,12 @@ JSONRPC_STATUS CPlayerOperations::GetItem(const std::string &method, ITransportL
     {
       fileItem = std::make_shared<CFileItem>(g_application.CurrentFileItem());
       if (IsPVRChannel())
+      {
+        // Metadata that arrives mid-stream reaches only the item held by the GUI, so overlay
+        // it here. The channel item stays authoritative for identity, path and artwork.
+        OverlayCurrentSongTag(*fileItem);
         break;
+      }
 
       if (player == Video)
       {
@@ -506,9 +552,9 @@ JSONRPC_STATUS CPlayerOperations::SetTempo(const std::string& method,
       else if (parameterObject["tempo"].isString())
       {
         if (parameterObject["tempo"].asString().compare("increment") == 0)
-          CPlayerUtils::AdvanceTempoStep(appPlayer, TempoStepChange::INCREASE);
+          CPlayerUtils::AdvanceTempoStep(*appPlayer, TempoStepChange::INCREASE);
         else
-          CPlayerUtils::AdvanceTempoStep(appPlayer, TempoStepChange::DECREASE);
+          CPlayerUtils::AdvanceTempoStep(*appPlayer, TempoStepChange::DECREASE);
       }
       else
         return InvalidParams;
@@ -546,7 +592,7 @@ void HandleResumeOption(const CVariant& optionResume, CFileItem& item)
   if (optionResume.isBoolean() && optionResume.asBoolean())
     item.SetStartOffset(STARTOFFSET_RESUME);
   else if (optionResume.isDouble())
-    item.SetProperty("StartPercent", optionResume);
+    item.SetProperty(ITEM::PROPERTY::START_PERCENT, optionResume);
   else if (optionResume.isObject())
     item.SetStartOffset(CUtil::ConvertSecsToMilliSecs(ParseTimeInSeconds(optionResume)));
 }
@@ -892,6 +938,9 @@ JSONRPC_STATUS CPlayerOperations::Open(const std::string &method, ITransportLaye
   }
   else if (parameterObject["item"].isMember("broadcastid"))
   {
+    if (!CServiceBroker::GetPVRManager().IsStarted())
+      return FailedToExecute;
+
     const std::shared_ptr<CPVREpgInfoTag> epgTag =
         CServiceBroker::GetPVRManager().EpgContainer().GetTagByDatabaseId(
             static_cast<unsigned int>(parameterObject["item"]["broadcastid"].asInteger()));
@@ -906,6 +955,10 @@ JSONRPC_STATUS CPlayerOperations::Open(const std::string &method, ITransportLaye
   }
   else if (parameterObject["item"].isMember("channelid"))
   {
+    // the containers exist before PVR has loaded them, and are not safe to search until then
+    if (!CServiceBroker::GetPVRManager().IsStarted())
+      return FailedToExecute;
+
     const std::shared_ptr<const CPVRChannelGroupsContainer> channelGroupContainer =
         CServiceBroker::GetPVRManager().ChannelGroups();
     if (!channelGroupContainer)
@@ -929,6 +982,9 @@ JSONRPC_STATUS CPlayerOperations::Open(const std::string &method, ITransportLaye
   }
   else if (parameterObject["item"].isMember("recordingid"))
   {
+    if (!CServiceBroker::GetPVRManager().IsStarted())
+      return FailedToExecute;
+
     const std::shared_ptr<const CPVRRecordings> recordingsContainer =
         CServiceBroker::GetPVRManager().Recordings();
     if (!recordingsContainer)
@@ -974,11 +1030,16 @@ JSONRPC_STATUS CPlayerOperations::Open(const std::string &method, ITransportLaye
       }
       else if (list.Size() == 1 && URIUtils::IsPVRChannel(list[0]->GetPath()))
       {
+        if (!CServiceBroker::GetPVRManager().IsStarted())
+          return FailedToExecute;
         if (!CServiceBroker::GetPVRManager().Get<PVR::GUI::Playback>().PlayMedia(*list[0]))
           return FailedToExecute;
       }
       else if (list.Size() == 1 && URIUtils::IsPVRRecording(list[0]->GetPath()))
       {
+        if (!CServiceBroker::GetPVRManager().IsStarted())
+          return FailedToExecute;
+
         const std::shared_ptr<const CPVRRecordings> recordingsContainer{
             CServiceBroker::GetPVRManager().Recordings()};
         if (!recordingsContainer)
@@ -1044,6 +1105,11 @@ JSONRPC_STATUS CPlayerOperations::Open(const std::string &method, ITransportLaye
         // Handle "resume" option
         if (list.Size() == 1)
           HandleResumeOption(optionResume, *list[0]);
+
+        // Playback is posted asynchronously, so nothing after this point can be reported
+        // back to the caller. Report an addressable single item that cannot be reached.
+        if (list.Size() == 1 && !IsReachable(*list[0]))
+          return Unavailable;
 
         auto l = new CFileItemList(); //don't delete
         l->Copy(list);
@@ -1281,6 +1347,7 @@ JSONRPC_STATUS CPlayerOperations::SetAudioStream(const std::string &method, ITra
   switch (GetPlayer(parameterObject["playerid"]))
   {
     case Video:
+    case Audio:
     {
       auto& components = CServiceBroker::GetAppComponents();
       const auto appPlayer = components.GetComponent<CApplicationPlayer>();
@@ -1318,7 +1385,6 @@ JSONRPC_STATUS CPlayerOperations::SetAudioStream(const std::string &method, ITra
       break;
     }
 
-    case Audio:
     case Picture:
     default:
       return FailedToExecute;
@@ -1989,7 +2055,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
 
             result["index"] = index;
             result["name"] = info.name;
-            result["language"] = info.language;
+            result["language"] = info.language.AsBcp47();
             result["codec"] = info.codecName;
             result["bitrate"] = info.bitrate;
             result["channels"] = info.channels;
@@ -2029,7 +2095,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
             CVariant audioStream(CVariant::VariantTypeObject);
             audioStream["index"] = index;
             audioStream["name"] = info.name;
-            audioStream["language"] = info.language;
+            audioStream["language"] = info.language.AsBcp47();
             audioStream["codec"] = info.codecName;
             audioStream["bitrate"] = info.bitrate;
             audioStream["channels"] = info.channels;
@@ -2065,7 +2131,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
 
         result["index"] = index;
         result["name"] = info.name;
-        result["language"] = info.language;
+        result["language"] = info.language.AsBcp47();
         result["codec"] = info.codecName;
         result["width"] = info.width;
         result["height"] = info.height;
@@ -2101,7 +2167,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
           CVariant videoStream(CVariant::VariantTypeObject);
           videoStream["index"] = index;
           videoStream["name"] = info.name;
-          videoStream["language"] = info.language;
+          videoStream["language"] = info.language.AsBcp47();
           videoStream["codec"] = info.codecName;
           videoStream["width"] = info.width;
           videoStream["height"] = info.height;
@@ -2155,7 +2221,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
 
             result["index"] = index;
             result["name"] = info.name;
-            result["language"] = info.language;
+            result["language"] = info.language.AsBcp47();
             AppendSubtitleStreamFlagsAsBooleans(result, info.flags);
           }
         }
@@ -2190,7 +2256,7 @@ JSONRPC_STATUS CPlayerOperations::GetPropertyValue(PlayerType player, const std:
             CVariant subtitle(CVariant::VariantTypeObject);
             subtitle["index"] = index;
             subtitle["name"] = info.name;
-            subtitle["language"] = info.language;
+            subtitle["language"] = info.language.AsBcp47();
             AppendSubtitleStreamFlagsAsBooleans(subtitle, info.flags);
 
             result.append(subtitle);

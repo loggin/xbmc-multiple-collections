@@ -38,7 +38,7 @@ void CGUIDialogCollectionTimeline::SetCollection(int idCollection, const CFileIt
 void CGUIDialogCollectionTimeline::OnInitWindow()
 {
   CGUIDialog::OnInitWindow();
-  SET_CONTROL_LABEL(2, CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40805));
+  SET_CONTROL_LABEL(2, CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(39802));
   RefreshList(0);
   SET_CONTROL_FOCUS(CONTROL_LIST, 0);
 }

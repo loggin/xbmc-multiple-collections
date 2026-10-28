@@ -11,8 +11,8 @@
 #include "ServiceBroker.h"
 #include "cores/VideoPlayer/Buffers/VideoBufferDRMPRIME.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
+#include "cores/VideoPlayer/VideoRenderers/HwDecRender/DRMPRIMECaptureGLES.h"
 #include "cores/VideoPlayer/VideoRenderers/HwDecRender/VideoLayerBridgeDRMPRIME.h"
-#include "cores/VideoPlayer/VideoRenderers/RenderCapture.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFactory.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "settings/DisplaySettings.h"
@@ -29,6 +29,14 @@ using namespace KODI::WINDOWING::GBM;
 CRendererDRMPRIME::~CRendererDRMPRIME()
 {
   Flush(false);
+
+  auto* winSystem = static_cast<CWinSystemGbm*>(CServiceBroker::GetWinSystem());
+
+  // Clear the scanout colorspace and HDR metadata set during Configure so
+  // the GUI after playback falls back to Default / SDR.
+  winSystem->SetGuiCompositing(false);
+  winSystem->SetHDR(nullptr);
+  winSystem->SetColorimetry(nullptr);
 }
 
 CBaseRenderer* CRendererDRMPRIME::Create(CVideoBuffer* buffer)
@@ -108,6 +116,24 @@ bool CRendererDRMPRIME::Configure(const VideoPicture& picture, float fps, unsign
              GetFlagsColorPrimaries(picture.color_primaries) |
              GetFlagsStereoMode(picture.stereoMode);
 
+  // Signal source colorimetry and HDR metadata on the scanout via the DRM
+  // Colorspace and HDR_OUTPUT_METADATA connector properties. The direct-to-
+  // plane scanout path bypasses GL video rendering entirely.
+  if (auto* winSystem = CServiceBroker::GetWinSystem())
+  {
+    winSystem->SetColorimetry(&picture);
+
+    const bool passthroughHDR = winSystem->SetHDR(&picture);
+    CLog::Log(LOGDEBUG, "CRendererDRMPRIME::Configure: HDR passthrough: {}",
+              passthroughHDR ? "on" : "off");
+
+    const bool hdrFboActive =
+        passthroughHDR && winSystem->SetGuiCompositing(picture.color_transfer);
+    if (passthroughHDR && !hdrFboActive)
+      CLog::Log(LOGWARNING, "CRendererDRMPRIME::Configure: HDR passthrough active but "
+                            "GUI compositing not supported by windowing system");
+  }
+
   // Calculate the input frame aspect ratio.
   CalculateFrameAspectRatio(picture.iDisplayWidth, picture.iDisplayHeight);
   SetViewMode(m_videoSettings.m_ViewMode);
@@ -147,6 +173,11 @@ void CRendererDRMPRIME::AddVideoPicture(const VideoPicture& picture, int index)
   }
   buf.videoBuffer = picture.videoBuffer;
   buf.videoBuffer->Acquire();
+
+  // CDVDVideoCodecDRMPRIME fills its buffers at decode; CVideoBufferDMA arrives unfilled
+  auto* drmBuffer = dynamic_cast<CVideoBufferDRMPRIME*>(picture.videoBuffer);
+  if (drmBuffer && !dynamic_cast<CVideoBufferDRMPRIMEFFmpeg*>(drmBuffer))
+    drmBuffer->SetPictureParams(picture);
 }
 
 bool CRendererDRMPRIME::Flush(bool saveBuffers)
@@ -175,6 +206,19 @@ bool CRendererDRMPRIME::NeedBuffer(int index)
     return true;
 
   return false;
+}
+
+bool CRendererDRMPRIME::CaptureVideoFrame(const KODI::RENDERING::CAPTURE::CaptureSpec& spec,
+                                          KODI::RENDERING::CAPTURE::CaptureResult& result)
+{
+  if (m_iLastRenderBuffer < 0)
+    return false;
+
+  auto* buffer = dynamic_cast<CVideoBufferDRMPRIME*>(m_buffers[m_iLastRenderBuffer].videoBuffer);
+  if (!buffer || !buffer->IsValid())
+    return false;
+
+  return CaptureDRMPRIMEVideo(buffer, spec, result);
 }
 
 CRenderInfo CRendererDRMPRIME::GetRenderInfo()
@@ -222,13 +266,6 @@ void CRendererDRMPRIME::RenderUpdate(
   m_videoLayerBridge->SetVideoPlane(buffer, m_planeDestRect);
 
   m_iLastRenderBuffer = index;
-}
-
-bool CRendererDRMPRIME::RenderCapture(int index, CRenderCapture* capture)
-{
-  capture->BeginRender();
-  capture->EndRender();
-  return true;
 }
 
 bool CRendererDRMPRIME::ConfigChanged(const VideoPicture& picture)

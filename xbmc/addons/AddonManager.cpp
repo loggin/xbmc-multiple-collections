@@ -11,7 +11,6 @@
 #include "CompileInfo.h"
 #include "FileItem.h"
 #include "FileItemList.h"
-#include "LangInfo.h"
 #include "ServiceBroker.h"
 #include "addons/AddonBuilder.h"
 #include "addons/AddonDatabase.h"
@@ -30,6 +29,7 @@
 #include "filesystem/Directory.h"
 #include "filesystem/SpecialProtocol.h"
 #include "jobs/JobManager.h"
+#include "language/LangInfo.h"
 #include "resources/LocalizeStrings.h"
 #include "resources/ResourcesComponent.h"
 #include "utils/FileUtils.h"
@@ -138,7 +138,14 @@ bool CAddonMgr::Init()
   }
 
   if (!m_database->Open())
+  {
     CLog::Log(LOGFATAL, "ADDONS: Failed to open database");
+    m_installedAddons.clear();
+    m_disabled.clear();
+    m_updateableAddons.clear();
+    m_updateRules = std::make_unique<CAddonUpdateRules>();
+    return false;
+  }
 
   FindAddons();
 

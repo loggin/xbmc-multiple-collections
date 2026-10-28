@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -186,6 +186,8 @@ public:
   virtual float GetHeight() const;
   virtual void AssignDepth();
 
+  static const unsigned int DIRTY_STATE_CONTROL = 1; //This control is dirty
+  static const unsigned int DIRTY_STATE_CHILD = 2; //One / more children are dirty
   void MarkDirtyRegion(const unsigned int dirtyState = DIRTY_STATE_CONTROL);
   bool IsControlDirty() const { return m_controlDirtyState != 0; }
 
@@ -377,6 +379,7 @@ protected:
   // enable/disable state
   INFO::InfoPtr m_enableCondition;
   bool m_enabled;
+  bool m_enabledFromSkinCondition;
 
   bool m_pushedUpdates;
 
@@ -388,9 +391,6 @@ protected:
   TransformMatrix m_transform;
   TransformMatrix m_cachedTransform; // Contains the absolute transform the control
   bool m_isCulled{true};
-
-  static const unsigned int DIRTY_STATE_CONTROL = 1; //This control is dirty
-  static const unsigned int DIRTY_STATE_CHILD = 2; //One / more children are dirty
 
   unsigned int  m_controlDirtyState;
   CRect m_renderRegion;         // In screen coordinates

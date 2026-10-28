@@ -108,6 +108,12 @@ bool CWinSystemWin32DX::DestroyRenderSystem()
   return true;
 }
 
+bool CWinSystemWin32DX::CanUseExclusiveFullscreen() const
+{
+  // a GPU that doesn't own the display can't take it into exclusive mode
+  return !m_deviceResources || !m_deviceResources->IsCrossAdapter();
+}
+
 void CWinSystemWin32DX::SetDeviceFullScreen(bool fullScreen, RESOLUTION_INFO& res)
 {
   if (m_deviceResources->SetFullScreen(fullScreen, res))
@@ -419,6 +425,23 @@ HDR_STATUS CWinSystemWin32DX::ToggleHDR()
 bool CWinSystemWin32DX::IsHDROutput() const
 {
   return m_deviceResources->IsHDROutput();
+}
+
+KODI::UTILS::Eotf CWinSystemWin32DX::GetEotf() const
+{
+  return IsTransferPQ() ? KODI::UTILS::Eotf::PQ : KODI::UTILS::Eotf::TRADITIONAL_SDR;
+}
+
+KODI::UTILS::Colorimetry CWinSystemWin32DX::GetColorimetry() const
+{
+  return IsTransferPQ() ? KODI::UTILS::Colorimetry::BT2020_RGB : KODI::UTILS::Colorimetry::DEFAULT;
+}
+
+int CWinSystemWin32DX::GetOutputBitDepth() const
+{
+  const bool is10bit =
+      m_deviceResources->GetBackBuffer().GetFormat() == DXGI_FORMAT_R10G10B10A2_UNORM;
+  return is10bit ? 10 : 8;
 }
 
 bool CWinSystemWin32DX::IsTransferPQ() const

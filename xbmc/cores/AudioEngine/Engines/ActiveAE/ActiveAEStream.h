@@ -66,6 +66,16 @@ public:
     }
   }
 
+  // The error averaged so far, before the interval of Get() is over.
+  bool GetSoFar(double& error) const
+  {
+    if (!m_count)
+      return false;
+
+    error = Get();
+    return true;
+  }
+
   double GetLastError(unsigned int &time)
   {
     time = m_timer.GetStartTime().time_since_epoch().count();
@@ -117,6 +127,8 @@ public:
   bool HasWork();
   std::unique_ptr<CActiveAEBufferPool> GetResampleBuffers();
   std::unique_ptr<CActiveAEBufferPool> GetAtempoBuffers();
+
+  bool IsAtempoActive() const;
 
   AEAudioFormat m_inputFormat;
   std::deque<CSampleBuffer*> m_outputSamples;
@@ -244,6 +256,8 @@ protected:
   CSyncError m_syncError;
   double m_lastSyncError;
   CAESyncInfo::AESyncState m_syncState;
+  // Whether late audio was left to the player's clock and no error was averaged since
+  bool m_lateStartHandedOver{false};
 };
 }
 

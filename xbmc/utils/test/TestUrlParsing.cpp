@@ -64,14 +64,8 @@
  * @see xbmc/utils/test/testdata/
  */
 
-#include "ServiceBroker.h"
 #include "URL.h"
-#include "filesystem/MultiPathDirectory.h"
-#include "settings/AdvancedSettings.h"
-#include "settings/SettingsComponent.h"
 #include "utils/URIUtils.h"
-
-#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -116,7 +110,6 @@ struct TestURLParseDetailsData
   std::string expectedGetRedacted = "";
   bool expectedIsLocal = false;
   bool expectedIsLocalHost = false;
-  bool expectedIsFileOnly = false;
   bool expectedIsFullPath = false;
   std::string expectedDecode = "";
   std::string expectedDecodeFileName = "";
@@ -218,7 +211,6 @@ struct TestURLParseDetailsData
   std::string expectedCreateRARArchivePath = "";
   std::string expectedCreateAPKArchivePath = "";
   std::string expectedGetRealPath = "";
-  std::string expectedUpdateUrlEncoding = "";
 };
 
 void read(bool& output, const CVariant& jsonObj, const char* key)
@@ -296,7 +288,6 @@ TestURLParseDetailsData CreateParamFromJson(std::string filename)
     read(param.expectedGetRedacted, json, "expectedGetRedacted");
     read(param.expectedIsLocal, json, "expectedIsLocal");
     read(param.expectedIsLocalHost, json, "expectedIsLocalHost");
-    read(param.expectedIsFileOnly, json, "expectedIsFileOnly");
     read(param.expectedIsFullPath, json, "expectedIsFullPath");
     read(param.expectedDecode, json, "expectedDecode");
     read(param.expectedDecodeFileName, json, "expectedDecodeFileName");
@@ -399,7 +390,6 @@ TestURLParseDetailsData CreateParamFromJson(std::string filename)
     read(param.expectedCreateRARArchivePath, json, "expectedCreateRARArchivePath");
     read(param.expectedCreateAPKArchivePath, json, "expectedCreateAPKArchivePath");
     read(param.expectedGetRealPath, json, "expectedGetRealPath");
-    read(param.expectedUpdateUrlEncoding, json, "expectedUpdateUrlEncoding");
   }
   return param;
 }
@@ -430,10 +420,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   URIUtils::RemoveSlashAtEnd(tmp1);
   const auto removedEndSlash = tmp1;
 
-  tmp1 = p;
-  URIUtils::UpdateUrlEncoding(tmp1);
-  const auto updatedURLEncoding = tmp1;
-
   //EXPECT_EQ(URIUtils::GetFileName(p), splitCurlFileName) << p;
   //EXPECT_EQ(URIUtils::GetFileName(p), curl.GetFileNameWithoutPath()) << p;
 
@@ -458,7 +444,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   EXPECT_EQ(param.expectedGetRedacted, curl.GetRedacted());
   EXPECT_EQ(param.expectedIsLocal, curl.IsLocal());
   EXPECT_EQ(param.expectedIsLocalHost, curl.IsLocalHost());
-  EXPECT_EQ(param.expectedIsFileOnly, CURL::IsFileOnly(p));
   EXPECT_EQ(param.expectedIsFullPath, CURL::IsFullPath(p));
   EXPECT_EQ(param.expectedDecode, CURL::Decode(p));
   EXPECT_EQ(param.expectedDecodeFileName, CURL::Decode(curl.GetFileName()));
@@ -475,7 +460,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   EXPECT_EQ(param.expectedSplitFileName, splitFileName);
   EXPECT_EQ(param.expectedHasParentInHostname, URIUtils::HasParentInHostname(curl));
   EXPECT_EQ(param.expectedHasParentInHostname, curl.HasParentInHostname());
-  EXPECT_EQ(param.expectedHasEncodedHostname, URIUtils::HasEncodedHostname(curl));
   EXPECT_EQ(param.expectedHasEncodedHostname, curl.HasEncodedHostname());
   EXPECT_EQ(param.expectedHasEncodedFilename, URIUtils::HasEncodedFilename(curl));
   EXPECT_EQ(param.expectedHasEncodedFilename, curl.HasEncodedFilename());
@@ -486,7 +470,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   EXPECT_EQ(param.expectedGetDiscBasePath, URIUtils::GetDiscBasePath(p));
   EXPECT_EQ(param.expectedGetDiscUnderlyingFile, URIUtils::GetDiscUnderlyingFile(curl));
   EXPECT_EQ(param.expectedGetBlurayFile, URIUtils::GetDiscFile(p));
-  EXPECT_EQ(param.expectedGetBlurayRootPath, URIUtils::GetBlurayRootPath(p));
   EXPECT_EQ(param.expectedGetBlurayTitlesPath, URIUtils::GetBlurayTitlesPath(p));
   EXPECT_EQ(param.expectedGetBlurayEpisodePath, URIUtils::GetBlurayEpisodePath(p, 1, 2));
   EXPECT_EQ(param.expectedGetBlurayAllEpisodesPath, URIUtils::GetBlurayAllEpisodesPath(p));
@@ -592,7 +575,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   EXPECT_EQ(param.expectedCreateAPKArchivePath,
             URIUtils::CreateArchivePath("apk", curl, "/my/archived/path", "passwd").Get());
   EXPECT_EQ(param.expectedGetRealPath, URIUtils::GetRealPath(p));
-  EXPECT_EQ(param.expectedUpdateUrlEncoding, updatedURLEncoding);
 
 #ifdef GENERATE_JSON_TEST_FILES
   CVariant jsonObj;
@@ -619,7 +601,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   write(jsonObj, "expectedGetRedacted", curl.GetRedacted());
   write(jsonObj, "expectedIsLocal", curl.IsLocal());
   write(jsonObj, "expectedIsLocalHost", curl.IsLocalHost());
-  write(jsonObj, "expectedIsFileOnly", CURL::IsFileOnly(p));
   write(jsonObj, "expectedIsFullPath", CURL::IsFullPath(p));
   write(jsonObj, "expectedDecode", CURL::Decode(p));
   write(jsonObj, "expectedDecodeFileName", CURL::Decode(curl.GetFileName()));
@@ -633,7 +614,7 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   write(jsonObj, "expectedSplitPath", splitPath);
   write(jsonObj, "expectedSplitFileName", splitFileName);
   write(jsonObj, "expectedHasParentInHostname", URIUtils::HasParentInHostname(curl));
-  write(jsonObj, "expectedHasEncodedHostname", URIUtils::HasEncodedHostname(curl));
+  write(jsonObj, "expectedHasEncodedHostname", curl.HasEncodedHostname());
   write(jsonObj, "expectedHasEncodedFilename", URIUtils::HasEncodedFilename(curl));
   write(jsonObj, "expectedHasParentPath", URIUtils::GetParentPath(p));
   write(jsonObj, "expectedGetParentPath", parentPath);
@@ -642,7 +623,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   write(jsonObj, "expectedGetDiscBasePath", URIUtils::GetDiscBasePath(p));
   write(jsonObj, "expectedGetDiscUnderlyingFile", URIUtils::GetDiscUnderlyingFile(curl));
   write(jsonObj, "expectedGetBlurayFile", URIUtils::GetDiscFile(p));
-  write(jsonObj, "expectedGetBlurayRootPath", URIUtils::GetBlurayRootPath(p));
   write(jsonObj, "expectedGetBlurayTitlesPath", URIUtils::GetBlurayTitlesPath(p));
   write(jsonObj, "expectedGetBlurayEpisodePath", URIUtils::GetBlurayEpisodePath(p, 1, 2));
   write(jsonObj, "expectedGetBlurayAllEpisodesPath", URIUtils::GetBlurayAllEpisodesPath(p));
@@ -725,7 +705,6 @@ void RunParseTest(const std::string& filename, const TestURLParseDetailsData& pa
   write(jsonObj, "expectedCreateAPKArchivePath",
         URIUtils::CreateArchivePath("apk", curl, "/my/archived/path", "passwd").Get());
   write(jsonObj, "expectedGetRealPath", URIUtils::GetRealPath(p));
-  write(jsonObj, "expectedUpdateUrlEncoding", updatedURLEncoding);
 
   std::string jsonString;
   CJSONVariantWriter::Write(jsonObj, jsonString, false);

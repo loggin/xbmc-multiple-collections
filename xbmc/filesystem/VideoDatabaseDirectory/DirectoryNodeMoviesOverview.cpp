@@ -31,7 +31,7 @@ Node MovieChildren[] = {
                         { NodeType::COUNTRY,      "countries",        20451 },
                         { NodeType::TAGS,         "tags",             20459 },
                         { NodeType::VIDEOVERSIONS,"videoversions",    40000 },
-                        { NodeType::COLLECTIONS,  "collections",      40803 },
+                        { NodeType::COLLECTIONS,  "collections",      39800 },
                        };
 // clang-format on
 

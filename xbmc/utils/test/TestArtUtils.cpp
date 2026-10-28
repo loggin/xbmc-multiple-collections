@@ -22,6 +22,7 @@
 
 #include <array>
 #include <fstream>
+#include <optional>
 #include <random>
 
 #include <fmt/format.h>
@@ -268,6 +269,14 @@ const ArtFilenameTest local_art_filename_tests[] = {
      "PLAYLIST/00800.mpls",
      "smb://somepath/tvshow-S03E04.iso", false, false, false,
      ART::AdditionalIdentifiers::SEASON_AND_EPISODE, -1, 3, 4},
+    {"rar://%2fhome%2fuser%2ftvshow.rar/foo.mkv", "/home/user/tvshow-S03E04.avi", false, false,
+     false, ART::AdditionalIdentifiers::SEASON_AND_EPISODE, -1, 3, 4},
+    {"zip://smb%3a%2f%2fhome%2fuser%2ftvshow.zip/foo.mkv", "smb://home/user/tvshow-S03E04.avi",
+     false, false, false, ART::AdditionalIdentifiers::SEASON_AND_EPISODE, -1, 3, 4},
+    {"rar://D%3a%5chome%5cuser%5ctvshow.rar/foo.mkv", "D:\\home\\user\\tvshow-S03E04.avi", false,
+     false, false, ART::AdditionalIdentifiers::SEASON_AND_EPISODE, -1, 3, 4},
+    {"zip://%5c%5cServer%5cuser%5ctvshow.zip/foo.mkv", "\\\\Server\\user\\tvshow-S03E04.avi", false,
+     false, false, ART::AdditionalIdentifiers::SEASON_AND_EPISODE, -1, 3, 4},
     // Playlists
     {"bluray://smb%3a%2f%2fsomepath%2f/BDMV/PLAYLIST/00800.mpls",
      "smb://somepath/BDMV/index-00800.bdmv", false, false, false,
@@ -283,7 +292,7 @@ TEST_P(GetLocalArtBaseFilenameTest, GetLocalArtBaseFilename)
   CVideoInfoTag* tag{item.GetVideoInfoTag()};
   tag->m_iSeason = GetParam().season;
   tag->m_iEpisode = GetParam().episode;
-  tag->m_iTrack = GetParam().playlist;
+  item.SetProperty("bluray_playlist", GetParam().playlist);
   bool useFolder = GetParam().force_use_folder ? true : GetParam().isFolder;
 
   const std::string res =
@@ -301,7 +310,8 @@ INSTANTIATE_TEST_SUITE_P(TestArtUtils,
 struct FanartTest
 {
   std::string path;
-  std::string result;
+  std::string result; //!< art file created in the temporary folder (empty for no folder at all)
+  std::optional<std::string> expected{}; //!< expected return value, if not the created art file
 };
 
 class GetLocalFanartTest : public testing::WithParamInterface<FanartTest>, public testing::Test
@@ -322,6 +332,14 @@ const FanartTest local_fanart_tests[] = {
     {"https://some.where/foo.avi", ""},
     {"upnp://some.where/123", ""},
     {"bluray://1", ""},
+    // Blu-ray folder - bluray:// path is converted to <path>/BDMV/index.bdmv and the art is
+    // looked for in the disc root
+    {"bluray://#URLENCODED_DIRECTORY#/BDMV/PLAYLIST/00800.mpls", "fanart.jpg"},
+    // ..but not inside the BDMV folder
+    {"bluray://#URLENCODED_DIRECTORY#/BDMV/PLAYLIST/00800.mpls", "BDMV/fanart.jpg", ""},
+    // Blu-ray ISO - bluray:// path is converted to <path>/movie.iso, so the art is
+    // looked for in the folder containing the ISO
+    {"bluray://udf%3a%2f%2f#DOUBLE_URLENCODED_ISO#%2f/BDMV/PLAYLIST/00800.mpls", "fanart.jpg"},
     {"/home/user/1.pvr", ""},
     {"plugin://random.video/1", ""},
     {"addons://plugins/video/1", ""},
@@ -359,6 +377,13 @@ TEST_P(GetLocalFanartTest, GetLocalFanart)
       file_path = GetParam().path;
       StringUtils::Replace(file_path, "#URLENCODED_DIRECTORY#", CURL::Encode(path));
     }
+    else if (GetParam().path.find("#DOUBLE_URLENCODED_ISO#") != std::string::npos)
+    {
+      // The ISO path is nested twice (bluray://udf://<iso>/), so needs encoding twice
+      const std::string iso{URIUtils::AddFileToFolder(path, "movie.iso")};
+      file_path = GetParam().path;
+      StringUtils::Replace(file_path, "#DOUBLE_URLENCODED_ISO#", CURL::Encode(CURL::Encode(iso)));
+    }
     else if (GetParam().path.starts_with("videodb://"))
     {
       file_path = GetParam().path;
@@ -366,6 +391,14 @@ TEST_P(GetLocalFanartTest, GetLocalFanart)
     else
       file_path =
           URIUtils::AddFileToFolder(URIUtils::AddFileToFolder(tmpdir, uniq), GetParam().path);
+
+    if (URIUtils::IsBlurayPath(file_path))
+    {
+      // Create the underlying disc file (<path>/BDMV/index.bdmv or <path>/movie.iso)
+      const std::string discFile{URIUtils::GetDiscFile(file_path)};
+      XFILE::CDirectory::Create(URIUtils::GetDirectory(discFile));
+      std::ofstream(discFile, std::ios::out);
+    }
   }
 
   CFileItem item(file_path, false);
@@ -375,7 +408,8 @@ TEST_P(GetLocalFanartTest, GetLocalFanart)
   }
   const std::string res = ART::GetLocalFanart(item);
 
-  EXPECT_EQ(URIUtils::GetFileName(res), URIUtils::GetFileName(GetParam().result));
+  const std::string expected{GetParam().expected.value_or(GetParam().result)};
+  EXPECT_EQ(URIUtils::GetFileName(res), URIUtils::GetFileName(expected));
 
   if (!GetParam().result.empty())
     XFILE::CDirectory::RemoveRecursive(path);
@@ -885,6 +919,18 @@ const LocalArtTest local_art_tests[] = {
     {"/home/user/tv_show/tv_show.iso", "thumb.jpg", false,
      "/home/user/tv_show/tv_show-S03E04-thumb.jpg", 3, 4, -1,
      ART::AdditionalIdentifiers::SEASON_AND_EPISODE},
+    {"rar://%2fhome%2fuser%2ftv_show.rar/foo.mkv", "thumb.jpg", false,
+     "/home/user/tv_show-S03E04-thumb.jpg", 3, 4, -1,
+     ART::AdditionalIdentifiers::SEASON_AND_EPISODE},
+    {"zip://smb%3a%2f%2fhome%2fuser%2ftv_show.zip/foo.mkv", "thumb.jpg", false,
+     "smb://home/user/tv_show-S03E04-thumb.jpg", 3, 4, -1,
+     ART::AdditionalIdentifiers::SEASON_AND_EPISODE},
+    {"rar://D%3a%5chome%5cuser%5ctv_show.rar/foo.mkv", "thumb.jpg", false,
+     "D:\\home\\user\\tv_show-S03E04-thumb.jpg", 3, 4, -1,
+     ART::AdditionalIdentifiers::SEASON_AND_EPISODE},
+    {"zip://%5c%5cServer%5cuser%5ctv_show.zip/foo.mkv", "thumb.jpg", false,
+     "\\\\Server\\user\\tv_show-S03E04-thumb.jpg", 3, 4, -1,
+     ART::AdditionalIdentifiers::SEASON_AND_EPISODE},
     // Playlists
     {"/home/user/movies/movie_name/BDMV/index.bdmv", "thumb.jpg", false,
      "/home/user/movies/movie_name/BDMV/index-00800-thumb.jpg", -1, -1, 800,
@@ -899,7 +945,7 @@ TEST_P(TestLocalArt, GetLocalArt)
   CVideoInfoTag* tag{item.GetVideoInfoTag()};
   tag->m_iSeason = GetParam().season;
   tag->m_iEpisode = GetParam().episode;
-  tag->m_iTrack = GetParam().playlist;
+  item.SetProperty("bluray_playlist", GetParam().playlist);
   std::string path = ART::GetLocalArt(item, GetParam().art, GetParam().use_folder,
                                       GetParam().additionalIdentifiers);
   EXPECT_EQ(path, GetParam().base);
@@ -1104,7 +1150,14 @@ const TbnTest tbn_tests[] = {
      "smb://somepath/BDMV/index-S03E04.tbn", false, 3, 4},
     {"bluray://udf%3a%2f%2fsmb%253a%252f%252fsomepath%252ftvshow.iso%2f/BDMV/"
      "PLAYLIST/00800.mpls",
-     "smb://somepath/tvshow-S03E04.tbn", false, 3, 4}};
+     "smb://somepath/tvshow-S03E04.tbn", false, 3, 4},
+    {"rar://%2fhome%2fuser%2ftvshow.rar/foo.mkv", "/home/user/tvshow-S03E04.tbn", false, 3, 4},
+    {"zip://smb%3a%2f%2fhome%2fuser%2ftvshow.zip/foo.mkv", "smb://home/user/tvshow-S03E04.tbn",
+     false, 3, 4},
+    {"rar://D%3a%5chome%5cuser%5ctvshow.rar/foo.mkv", "D:\\home\\user\\tvshow-S03E04.tbn", false, 3,
+     4},
+    {"zip://%5c%5cServer%5cuser%5ctvshow.zip/foo.mkv", "\\\\Server\\user\\tvshow-S03E04.tbn", false,
+     3, 4}};
 
 TEST_P(GetTbnTest, TbnTest)
 {

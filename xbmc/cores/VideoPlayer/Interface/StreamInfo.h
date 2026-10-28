@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "language/LanguageTag.h"
 #include "utils/Geometry.h"
 
 #include <cstdint>
@@ -46,7 +47,7 @@ struct StreamInfo
 {
   bool valid = false;
   int bitrate = 0;
-  std::string language;
+  KODI::LANGUAGE::CLanguageTag language;
   std::string name;
   std::string codecName;
   std::string codecDesc;

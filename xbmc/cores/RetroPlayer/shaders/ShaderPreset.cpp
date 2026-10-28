@@ -17,7 +17,7 @@
 #include "utils/URIUtils.h"
 #include "utils/log.h"
 
-#include <regex>
+#include <cmath>
 
 using namespace KODI::SHADER;
 
@@ -39,44 +39,40 @@ bool CShaderPreset::ReadPresetFile(const std::string& presetPath)
   return CServiceBroker::GetGameServices().VideoShaders().LoadPreset(presetPath, *this);
 }
 
-bool CShaderPreset::RenderUpdate(const RETRO::ViewportCoordinates& dest,
-                                 const float2 fullDestSize,
-                                 IShaderTexture& sourceTexture,
-                                 IShaderTexture& targetTexture)
+bool CShaderPreset::RenderUpdate(IShaderTexture& sourceTexture, IShaderTexture& targetTexture)
 {
   // Save the viewport
   CRect viewPort;
   m_context.GetViewPort(viewPort);
 
-  // Handle resizing of the viewport (window)
-  UpdateViewPort(viewPort, fullDestSize);
+  // Handle target resizing
+  UpdateOutputSize({targetTexture.GetWidth(), targetTexture.GetHeight()});
 
   // Update shaders/shader textures if required
   if (!Update())
     return false;
 
-  PrepareParameters(dest, sourceTexture);
+  if (!PrepareParameters(sourceTexture))
+    return false;
 
-  // Apply all passes except the last one (which needs to be applied to the backbuffer)
+  // Apply all passes
   IShaderTexture* currentTexture = &sourceTexture;
   const auto numPasses = static_cast<unsigned int>(m_pShaders.size());
-  for (unsigned shaderIdx = 0; shaderIdx + 1 < numPasses; ++shaderIdx)
+  for (unsigned shaderIdx = 0; shaderIdx < numPasses; ++shaderIdx)
   {
     IShader& shader = *m_pShaders[shaderIdx];
-    IShaderTexture& nextTexture = *m_pShaderTextures[shaderIdx];
-    RenderShader(shader, *currentTexture, nextTexture);
-    currentTexture = &nextTexture;
+    IShaderTexture& texture =
+        shaderIdx + 1 == numPasses ? targetTexture : *m_pShaderTextures[shaderIdx];
+    RenderShader(shader, *currentTexture, texture);
+    currentTexture = &texture;
   }
 
   // Restore our viewport
   m_context.SetViewPort(viewPort);
   m_context.SetScissors(viewPort);
 
-  // Apply the last pass and write to target (backbuffer) instead of the last texture
-  IShader* lastShader = m_pShaders.back().get();
-  lastShader->Render(*currentTexture, targetTexture);
-
-  m_frameCount += static_cast<float>(m_speed);
+  // Frames played in reverse still pass
+  m_frameCount += static_cast<float>(std::abs(m_speed));
   return true;
 }
 
@@ -95,13 +91,12 @@ bool CShaderPreset::SetShaderPreset(const std::string& shaderPresetPath)
   auto updateFailed = [this](const std::string& msg)
   {
     m_failedPaths.insert(m_presetPath);
-    CLog::Log(LOGWARNING, "CShaderPreset::SetShaderPreset: {}", msg);
+    CLog::Log(LOGWARNING, "CShaderPreset::SetShaderPreset: {}: preset={}", msg, m_presetPath);
     DisposeShaders();
     return false;
   };
 
   m_presetPath = shaderPresetPath;
-  m_bPresetNeedsUpdate = true;
 
   if (m_presetPath.empty())
     // No preset should load, just return false, we shouldn't add "" to the failed paths
@@ -132,6 +127,7 @@ bool CShaderPreset::SetShaderPreset(const std::string& shaderPresetPath)
   if (m_pShaders.empty())
     return false;
 
+  m_bPresetNeedsUpdate = true;
   return true;
 }
 
@@ -145,7 +141,7 @@ bool CShaderPreset::Update()
   auto updateFailed = [this](const std::string& msg)
   {
     m_failedPaths.insert(m_presetPath);
-    CLog::Log(LOGWARNING, "CShaderPreset::Update: {}", msg);
+    CLog::Log(LOGWARNING, "CShaderPreset::Update: {}: preset={}", msg, m_presetPath);
     DisposeShaders();
     return false;
   };
@@ -154,24 +150,32 @@ bool CShaderPreset::Update()
   {
     if (!CreateShaderTextures())
       return updateFailed("A shader texture failed to init");
-  }
 
-  // Each pass except the last one must have its own texture and the opposite is also true
-  if (m_pShaders.size() != m_pShaderTextures.size() + 1)
-    return updateFailed("A shader or texture failed to init");
+    // Each pass except the last one must have its own texture and the opposite is also true
+    if (m_pShaders.size() != m_pShaderTextures.size() + 1)
+      return updateFailed("A shader or texture failed to init");
+  }
 
   m_bPresetNeedsUpdate = false;
   return true;
 }
 
-void CShaderPreset::UpdateViewPort(CRect viewPort, const float2 fullDestSize)
+void CShaderPreset::UpdateOutputSize(const float2 outputSize)
 {
-  const float2 currentViewPortSize = {viewPort.Width(), viewPort.Height()};
-  if (currentViewPortSize != m_outputSize || fullDestSize != m_fullDestSize)
+  if (outputSize != m_outputSize)
   {
-    m_outputSize = currentViewPortSize;
-    m_fullDestSize = fullDestSize;
-    m_bPresetNeedsUpdate = true;
+    m_outputSize = outputSize;
+
+    // Notify the last pass of new output size
+    if (!m_pShaders.empty())
+    {
+      m_pShaders.back()->SetSizes(outputSize);
+      m_pShaders.back()->UpdateMVP();
+    }
+
+    // If intermediate textures depend on output size, full update is needed
+    if (m_bTexturesNeedSizeUpdate)
+      m_bPresetNeedsUpdate = true;
   }
 }
 
@@ -181,17 +185,18 @@ void CShaderPreset::UpdateMVPs()
     videoShader->UpdateMVP();
 }
 
-void CShaderPreset::PrepareParameters(const RETRO::ViewportCoordinates& dest,
-                                      IShaderTexture& sourceTexture)
+bool CShaderPreset::PrepareParameters(IShaderTexture& sourceTexture)
 {
   // Prepare parameters for all shader passes
   const auto numPasses = static_cast<unsigned int>(m_pShaders.size());
   for (unsigned int shaderIdx = 0; shaderIdx < numPasses; ++shaderIdx)
   {
     std::unique_ptr<IShader>& videoShader = m_pShaders[shaderIdx];
-    videoShader->PrepareParameters(dest, m_fullDestSize, sourceTexture, m_pShaderTextures,
-                                   m_pShaders, static_cast<uint64_t>(m_frameCount));
+    if (!videoShader->PrepareParameters(sourceTexture, m_pShaderTextures, m_pShaders,
+                                        static_cast<uint64_t>(m_frameCount)))
+      return false;
   }
+  return true;
 }
 
 void CShaderPreset::CalculateScaledSize(const KODI::SHADER::ShaderPass& pass,
@@ -204,8 +209,9 @@ void CShaderPreset::CalculateScaledSize(const KODI::SHADER::ShaderPass& pass,
       scaledSize.x = static_cast<float>(pass.fbo.scaleX.abs);
       break;
     case ScaleType::VIEWPORT:
-      scaledSize.x = pass.fbo.scaleX.scale != 0.0f ? pass.fbo.scaleX.scale * m_fullDestSize.x
-                                                   : m_fullDestSize.x;
+      scaledSize.x =
+          pass.fbo.scaleX.scale != 0.0f ? pass.fbo.scaleX.scale * m_outputSize.x : m_outputSize.x;
+      m_bTexturesNeedSizeUpdate = true;
       break;
     case ScaleType::INPUT:
     default:
@@ -220,8 +226,9 @@ void CShaderPreset::CalculateScaledSize(const KODI::SHADER::ShaderPass& pass,
       scaledSize.y = static_cast<float>(pass.fbo.scaleY.abs);
       break;
     case ScaleType::VIEWPORT:
-      scaledSize.y = pass.fbo.scaleY.scale != 0.0f ? pass.fbo.scaleY.scale * m_fullDestSize.y
-                                                   : m_fullDestSize.y;
+      scaledSize.y =
+          pass.fbo.scaleY.scale != 0.0f ? pass.fbo.scaleY.scale * m_outputSize.y : m_outputSize.y;
+      m_bTexturesNeedSizeUpdate = true;
       break;
     case ScaleType::INPUT:
     default:
@@ -229,6 +236,11 @@ void CShaderPreset::CalculateScaledSize(const KODI::SHADER::ShaderPass& pass,
           pass.fbo.scaleY.scale != 0.0f ? pass.fbo.scaleY.scale * prevSize.y : prevSize.y;
       break;
   }
+
+  // The pass renders to a texture of whole pixels, so its shaders must be
+  // given that size rather than a fractional one
+  scaledSize.x = std::floor(scaledSize.x);
+  scaledSize.y = std::floor(scaledSize.y);
 }
 
 void CShaderPreset::DisposeShaders()
@@ -250,39 +262,19 @@ bool CShaderPreset::HasPathFailed(const std::string& path) const
 }
 
 ShaderParameterMap CShaderPreset::GetShaderParameters(
-    const std::vector<ShaderParameter>& parameters, const std::string& sourceStr) const
+    const std::vector<ShaderParameter>& parameters) const
 {
-  static const std::regex pragmaParamRegex("#pragma parameter ([a-zA-Z_][a-zA-Z0-9_]*)");
+  // Parameters belong to the whole preset, not just the pass that declares
+  // them with "#pragma parameter"
+  ShaderParameterMap shaderParams;
 
-  std::vector<std::string> validParams;
-  std::smatch matches;
-
-  auto searchStart(sourceStr.cbegin());
-  while (regex_search(searchStart, sourceStr.cend(), matches, pragmaParamRegex))
+  for (const ShaderParameter& parameter : parameters)
   {
-    validParams.push_back(matches[1].str());
-    searchStart += matches.position() + matches.length();
+    // The add-on has already handled parsing and overwriting default
+    // parameter values from the preset file. The final value we
+    // should use is in the 'current' field.
+    shaderParams[parameter.strId] = parameter.current;
   }
 
-  ShaderParameterMap matchParams;
-
-  // For each param found in the source code
-  for (const std::string& match : validParams)
-  {
-    // For each param found in the preset file
-    for (const ShaderParameter& parameter : parameters)
-    {
-      // Check if they match
-      if (match == parameter.strId)
-      {
-        // The add-on has already handled parsing and overwriting default
-        // parameter values from the preset file. The final value we
-        // should use is in the 'current' field.
-        matchParams[match] = parameter.current;
-        break;
-      }
-    }
-  }
-
-  return matchParams;
+  return shaderParams;
 }

@@ -128,12 +128,18 @@ public:
   static const SCALINGMETHOD DEFAULT_SCALING_METHOD = SCALINGMETHOD::NEAREST;
 
 protected:
-  // implementation of CRPBaseRenderer
-  bool ConfigureInternal() override;
-  void RenderInternal(bool clear, uint8_t alpha) override;
+  struct RenderBufferTextures
+  {
+    std::shared_ptr<SHADER::CShaderTextureDX> targetTexture;
+  };
 
-private:
-  void Render(CD3DTexture& target);
+  // Implementation of CRPBaseRenderer
+  bool ConfigureInternal() override;
+  void RenderInternal(uint8_t alpha) override;
+
+  void Render(CD3DTexture& target, uint8_t alpha);
+
+  std::map<CWinRenderBuffer*, std::unique_ptr<RenderBufferTextures>> m_RBTexturesMap;
 };
 } // namespace RETRO
 } // namespace KODI

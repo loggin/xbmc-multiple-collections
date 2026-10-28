@@ -9,9 +9,13 @@
 #pragma once
 
 #include "VideoLayerBridge.h"
+#include "drm/DRMObject.h"
 #include "drm/DRMUtils.h"
+#include "messaging/ApplicationMessenger.h"
+#include "settings/lib/ISettingCallback.h"
 #include "threads/CriticalSection.h"
 #include "threads/SystemClock.h"
+#include "utils/DisplayInfo.h"
 #include "windowing/WinSystem.h"
 
 #include "platform/linux/input/LibInputHandler.h"
@@ -33,7 +37,7 @@ namespace WINDOWING
 namespace GBM
 {
 
-class CWinSystemGbm : public CWinSystemBase
+class CWinSystemGbm : public CWinSystemBase, public ISettingCallback
 {
 public:
   CWinSystemGbm();
@@ -52,6 +56,8 @@ public:
   bool CanDoWindowed() override { return false; }
   void UpdateResolutions() override;
 
+  void OnSettingChanged(const std::shared_ptr<const CSetting>& setting) override;
+
   bool UseLimitedColor() override;
 
   bool Hide() override;
@@ -61,10 +67,14 @@ public:
 
   bool SetVideoOutput(const VideoPicture* videoPicture) override;
 
+  void SetColorimetry(const VideoPicture* videoPicture) override;
+  KODI::UTILS::Colorimetry GetColorimetry() const override { return m_colorimetry; }
+  KODI::UTILS::Eotf GetEotf() const override { return m_eotf; }
   bool SetHDR(const VideoPicture* videoPicture) override;
   bool IsHDRDisplay() override;
   CHDRCapabilities GetDisplayHDRCapabilities() const override;
 
+  // holding the returned reference defers video plane teardown until it is released
   std::shared_ptr<CVideoLayerBridge> GetVideoLayerBridge() const { return m_videoLayerBridge; }
   void RegisterVideoLayerBridge(std::shared_ptr<CVideoLayerBridge> bridge)
   {
@@ -78,6 +88,7 @@ public:
 
 protected:
   void OnLostDevice();
+  void OnResetDisplay();
 
   std::unique_ptr<CVideoSync> GetVideoSync(CVideoReferenceClock* clock) override;
 
@@ -93,7 +104,13 @@ protected:
   std::unique_ptr<CLibInputHandler> m_libinput;
 
 private:
-  uint32_t m_hdr_blob_id = 0;
+  static void ApplyLimitGuiSize(void* userptr);
+
+  KODI::MESSAGING::ThreadMessageCallback m_limitGuiSizeCallback{ApplyLimitGuiSize, this};
+
+  CDRMPropertyBlob m_hdrBlob;
+  KODI::UTILS::Eotf m_eotf = KODI::UTILS::Eotf::TRADITIONAL_SDR;
+  KODI::UTILS::Colorimetry m_colorimetry = KODI::UTILS::Colorimetry::DEFAULT;
 
   std::unique_ptr<UTILS::CDisplayInfo> m_info;
 };

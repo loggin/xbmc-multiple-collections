@@ -9,6 +9,7 @@
 #include "ShaderGLES.h"
 
 #include "ShaderTextureGLES.h"
+#include "ShaderTextureGLESRef.h"
 #include "ShaderUtilsGLES.h"
 #include "application/Application.h"
 #include "cores/RetroPlayer/rendering/RenderContext.h"
@@ -20,11 +21,19 @@
 
 using namespace KODI::SHADER;
 
+namespace
+{
+// Shaders take the frame count at medium precision on GLES, which need not
+// reach past 2^15 and on some drivers is a 16-bit float. A count past 65504
+// is then infinite, and the picture goes black after 18 minutes at 60 fps.
+constexpr uint64_t MEDIUMP_FRAME_COUNT_LIMIT = 1 << 15;
+} // namespace
+
 CShaderGLES::CShaderGLES() = default;
 
 CShaderGLES::~CShaderGLES()
 {
-  Destroy();
+  Delete();
 }
 
 bool CShaderGLES::Create(unsigned int passIdx,
@@ -73,8 +82,13 @@ bool CShaderGLES::Create(unsigned int passIdx,
     glGetShaderiv(vShader, GL_INFO_LOG_LENGTH, &maxLength);
     std::vector<GLchar> errorLog(maxLength);
     glGetShaderInfoLog(vShader, maxLength, &maxLength, errorLog.data());
-    CLog::Log(LOGERROR, "CShaderGLES::Create: Vertex shader compile error:\n{}",
-              std::string(errorLog.begin(), errorLog.end()));
+    CLog::Log(
+        LOGERROR,
+        "CShaderGLES::Create: Failed to compile vertex shader: pass={}, alias={}, shader={}\n{}",
+        m_passIdx, m_passAlias.empty() ? "<none>" : m_passAlias, m_shaderPath,
+        std::string(errorLog.begin(), errorLog.end()));
+    glDeleteShader(vShader);
+    return false;
   }
 
   fShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -88,8 +102,14 @@ bool CShaderGLES::Create(unsigned int passIdx,
     glGetShaderiv(fShader, GL_INFO_LOG_LENGTH, &maxLength);
     std::vector<GLchar> errorLog(maxLength);
     glGetShaderInfoLog(fShader, maxLength, &maxLength, errorLog.data());
-    CLog::Log(LOGERROR, "CShaderGLES::Create: Fragment shader compile error:\n{}",
-              std::string(errorLog.begin(), errorLog.end()));
+    CLog::Log(
+        LOGERROR,
+        "CShaderGLES::Create: Failed to compile fragment shader: pass={}, alias={}, shader={}\n{}",
+        m_passIdx, m_passAlias.empty() ? "<none>" : m_passAlias, m_shaderPath,
+        std::string(errorLog.begin(), errorLog.end()));
+    glDeleteShader(vShader);
+    glDeleteShader(fShader);
+    return false;
   }
 
   glAttachShader(m_shaderProgram, vShader);
@@ -112,9 +132,11 @@ bool CShaderGLES::Create(unsigned int passIdx,
     glGetProgramiv(m_shaderProgram, GL_INFO_LOG_LENGTH, &maxLength);
     std::vector<GLchar> errorLog(maxLength);
     glGetProgramInfoLog(m_shaderProgram, maxLength, &maxLength, errorLog.data());
-    CLog::Log(LOGERROR, "CShaderGLES::Create: Shader program link error:\n{}",
-              std::string(errorLog.begin(), errorLog.end()));
-    CLog::Log(LOGERROR, "CShaderGLES::Create: Failed to load video shader: {}", m_shaderPath);
+    CLog::Log(
+        LOGERROR,
+        "CShaderGLES::Create: Failed to link shader program: pass={}, alias={}, shader={}\n{}",
+        m_passIdx, m_passAlias.empty() ? "<none>" : m_passAlias, m_shaderPath,
+        std::string(errorLog.begin(), errorLog.end()));
     return false;
   }
 
@@ -129,6 +151,7 @@ bool CShaderGLES::Create(unsigned int passIdx,
 
   // Set up VBO
   glGenBuffers(3, m_shaderVertexVBO.data());
+  m_vertexDataSize.reset();
 
   glGenBuffers(1, &m_shaderIndexVBO);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_shaderIndexVBO);
@@ -142,27 +165,34 @@ bool CShaderGLES::Create(unsigned int passIdx,
 
 void CShaderGLES::Render(IShaderTexture& sourceTexture, IShaderTexture& targetTexture)
 {
-  auto& sourceGL = static_cast<CShaderTextureGLES&>(sourceTexture);
+  glDisable(GL_BLEND);
 
   glUseProgram(m_shaderProgram);
 
-  SetShaderParameters(sourceGL);
+  SetShaderParameters(sourceTexture);
+
+  // The preset's vertex shader expects these attributes as they are, so the quad is only
+  // re-uploaded when the output size changes.
+  if (m_vertexDataSize != m_outputSize)
+  {
+    glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(m_VertexCoords), m_VertexCoords.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[1]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(m_colors), m_colors.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[2]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(m_TexCoords), m_TexCoords.data(), GL_STATIC_DRAW);
+    m_vertexDataSize = m_outputSize;
+  }
 
   glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[0]);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(m_VertexCoords), m_VertexCoords.data(), GL_DYNAMIC_DRAW);
-
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
   glEnableVertexAttribArray(0);
 
   glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[1]);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(m_colors), m_colors.data(), GL_DYNAMIC_DRAW);
-
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
   glEnableVertexAttribArray(1);
 
   glBindBuffer(GL_ARRAY_BUFFER, m_shaderVertexVBO[2]);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(m_TexCoords), m_TexCoords.data(), GL_DYNAMIC_DRAW);
-
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
   glEnableVertexAttribArray(2);
 
@@ -180,59 +210,40 @@ void CShaderGLES::Render(IShaderTexture& sourceTexture, IShaderTexture& targetTe
   glUseProgram(0);
 }
 
-void CShaderGLES::SetSizes(const float2& prevSize,
-                           const float2& prevTextureSize,
-                           const float2& nextSize)
+void CShaderGLES::SetSizes(const float2& nextSize,
+                           const float2& prevSize,
+                           const float2& prevTextureSize)
 {
-  m_inputSize = prevSize;
-  m_inputTextureSize = prevTextureSize;
   m_outputSize = nextSize;
+
+  if (prevSize.x > 0 && prevSize.y > 0)
+    m_inputSize = prevSize;
+
+  if (prevTextureSize.x > 0 && prevTextureSize.y > 0)
+    m_inputTextureSize = prevTextureSize;
 }
 
-void CShaderGLES::PrepareParameters(
-    const RETRO::ViewportCoordinates& dest,
-    const float2 fullDestSize,
+bool CShaderGLES::PrepareParameters(
     IShaderTexture& sourceTexture,
     const std::vector<std::unique_ptr<IShaderTexture>>& pShaderTextures,
     const std::vector<std::unique_ptr<IShader>>& pShaders,
     uint64_t frameCount)
 {
-  if (m_passIdx + 1 != pShaders.size()) // Not last pass
-  {
-    // bottom left x,y
-    m_VertexCoords[0][0] = -m_outputSize.x / 2;
-    m_VertexCoords[0][1] = -m_outputSize.y / 2;
-    // bottom right x,y
-    m_VertexCoords[1][0] = m_outputSize.x / 2;
-    m_VertexCoords[1][1] = -m_outputSize.y / 2;
-    // top right x,y
-    m_VertexCoords[2][0] = m_outputSize.x / 2;
-    m_VertexCoords[2][1] = m_outputSize.y / 2;
-    // top left x,y
-    m_VertexCoords[3][0] = -m_outputSize.x / 2;
-    m_VertexCoords[3][1] = m_outputSize.y / 2;
+  // Set destination rectangle size
+  m_destSize = m_outputSize;
 
-    // Set destination rectangle size
-    m_destSize = m_outputSize;
-  }
-  else // Last pass
-  {
-    // bottom left x,y
-    m_VertexCoords[0][0] = dest[3].x - m_outputSize.x / 2;
-    m_VertexCoords[0][1] = dest[3].y - m_outputSize.y / 2;
-    // bottom right x,y
-    m_VertexCoords[1][0] = dest[2].x - m_outputSize.x / 2;
-    m_VertexCoords[1][1] = dest[2].y - m_outputSize.y / 2;
-    // top right x,y
-    m_VertexCoords[2][0] = dest[1].x - m_outputSize.x / 2;
-    m_VertexCoords[2][1] = dest[1].y - m_outputSize.y / 2;
-    // top left x,y
-    m_VertexCoords[3][0] = dest[0].x - m_outputSize.x / 2;
-    m_VertexCoords[3][1] = dest[0].y - m_outputSize.y / 2;
-
-    // Set destination rectangle size for the last pass
-    m_destSize = fullDestSize;
-  }
+  // bottom left x,y
+  m_VertexCoords[0][0] = -m_outputSize.x / 2;
+  m_VertexCoords[0][1] = -m_outputSize.y / 2;
+  // bottom right x,y
+  m_VertexCoords[1][0] = m_outputSize.x / 2;
+  m_VertexCoords[1][1] = -m_outputSize.y / 2;
+  // top right x,y
+  m_VertexCoords[2][0] = m_outputSize.x / 2;
+  m_VertexCoords[2][1] = m_outputSize.y / 2;
+  // top left x,y
+  m_VertexCoords[3][0] = -m_outputSize.x / 2;
+  m_VertexCoords[3][1] = m_outputSize.y / 2;
 
   // bottom left z, tu, tv, r, g, b
   m_VertexCoords[0][2] = 0;
@@ -264,6 +275,7 @@ void CShaderGLES::PrepareParameters(
   m_TexCoords[3][1] = 0.0f;
 
   UpdateUniformInputs(sourceTexture, pShaderTextures, pShaders, frameCount);
+  return true;
 }
 
 void CShaderGLES::UpdateMVP()
@@ -275,7 +287,7 @@ void CShaderGLES::UpdateMVP()
   m_MVP = {{{xScale, 0, 0, 0}, {0, yScale, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
 }
 
-void CShaderGLES::Destroy()
+void CShaderGLES::Delete()
 {
   glDeleteProgram(m_shaderProgram);
   m_shaderProgram = 0;
@@ -284,6 +296,7 @@ void CShaderGLES::Destroy()
   glDeleteBuffers(3, m_shaderVertexVBO.data());
   m_shaderIndexVBO = 0;
   m_shaderVertexVBO = {0, 0, 0};
+  m_vertexDataSize.reset();
 }
 
 void CShaderGLES::UpdateUniformInputs(
@@ -296,13 +309,13 @@ void CShaderGLES::UpdateUniformInputs(
 
   if (m_passIdx > 0) // Not first pass
   {
-    auto& shaderTextureGL = static_cast<CShaderTextureGLES&>(*pShaderTextures[m_passIdx - 1]);
-    m_uniformFrameInputs = GetFrameInputData(shaderTextureGL.GetTextureID());
+    auto& sourceGL = static_cast<CShaderTextureGLES&>(*pShaderTextures[m_passIdx - 1]);
+    m_uniformFrameInputs = GetFrameInputData(sourceGL.GetTextureID());
   }
   else // First pass
   {
-    auto& sourceTextureGL = static_cast<CShaderTextureGLES&>(sourceTexture);
-    m_uniformFrameInputs = GetFrameInputData(sourceTextureGL.GetTextureID());
+    auto& sourceGLRef = static_cast<CShaderTextureGLESRef&>(sourceTexture);
+    m_uniformFrameInputs = GetFrameInputData(sourceGLRef.GetTextureID());
   }
 
   // Set frame uniforms of previous passes
@@ -320,6 +333,7 @@ CShaderGLES::UniformInputs CShaderGLES::GetInputData(uint64_t frameCount) const
 {
   if (m_frameCountMod != 0)
     frameCount %= m_frameCountMod;
+  frameCount %= MEDIUMP_FRAME_COUNT_LIMIT;
 
   const UniformInputs input = {
       {m_inputSize}, // video_size
@@ -356,7 +370,7 @@ void CShaderGLES::GetUniformLocs()
   m_MVPMatrixLoc = glGetUniformLocation(m_shaderProgram, "MVPMatrix");
 }
 
-void CShaderGLES::SetShaderParameters(CShaderTextureGLES& sourceTexture)
+void CShaderGLES::SetShaderParameters(IShaderTexture& sourceTexture)
 {
   // Set shader uniforms
   glUniform1i(m_FrameDirectionLoc, m_uniformInputs.frame_direction);
@@ -375,12 +389,25 @@ void CShaderGLES::SetShaderParameters(CShaderTextureGLES& sourceTexture)
 
   // Set source texture
   unsigned int textureUnit = 0;
-  sourceTexture.BindToUnit(textureUnit);
-  textureUnit++;
 
-  // Regenerate source texture mipmaps
-  if (sourceTexture.IsMipmapped())
-    glGenerateMipmap(GL_TEXTURE_2D);
+  //! @todo Handle ref textures better
+  auto* sourceGL = dynamic_cast<CShaderTextureGLES*>(&sourceTexture);
+  auto* sourceGLRef = dynamic_cast<CShaderTextureGLESRef*>(&sourceTexture);
+
+  if (sourceGL != nullptr)
+  {
+    sourceGL->BindToUnit(textureUnit);
+    textureUnit++;
+
+    // Regenerate source texture mipmaps
+    if (sourceGL->IsMipmapped())
+      glGenerateMipmap(GL_TEXTURE_2D);
+  }
+  else if (sourceGLRef != nullptr)
+  {
+    sourceGLRef->BindToUnit(textureUnit);
+    textureUnit++;
+  }
 
   // Set lookup textures
   for (const std::shared_ptr<IShaderLut>& lut : m_luts)

@@ -92,6 +92,7 @@ protected:
   void Process() override;
 
   bool ProcessDecoderOutput(double &frametime, double &pts);
+  void UpdatePlayerInfo();
   void SendMessageBack(const std::shared_ptr<CDVDMsg>& pMsg, int priority = 0);
   MsgQueueReturnCode GetMessage(std::shared_ptr<CDVDMsg>& pMsg,
                                 std::chrono::milliseconds timeout,
@@ -118,6 +119,9 @@ protected:
   int m_iFrameRateErr;       //how many frames we couldn't calculate the framerate, we give up after a while
   int m_iFrameRateLength;    //how many seconds we should measure the framerate
                              //this is increased exponentially from CVideoPlayerVideo::CalcFrameRate()
+
+  bool m_seenKeyFrame{false}; // demuxer reports keyframes for this stream
+  bool m_skipToKeyFrame{false}; // too late, packets are skipped until the next keyframe
 
   bool m_bFpsInvalid;        // needed to ignore fps (e.g. dvd stills)
   bool m_bRenderSubs;

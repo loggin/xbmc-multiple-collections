@@ -61,6 +61,14 @@ struct SVertex
   float u, v;
   float u2, v2;
 };
+#elif defined(HAS_GLES)
+struct SVertex
+{
+  float x, y;
+  unsigned char r, g, b, a;
+  // Texture coordinates in texels, offset by half a texel so that the edges are whole numbers
+  uint16_t u, v;
+};
 #else
 struct SVertex
 {
@@ -164,7 +172,8 @@ protected:
                         std::span<const character_t> text,
                         uint32_t alignment,
                         float maxPixelWidth,
-                        bool scrolling,
+                        bool hScrolling,
+                        bool vScrolling,
                         float dx = 0.0f,
                         float dy = 0.0f);
 

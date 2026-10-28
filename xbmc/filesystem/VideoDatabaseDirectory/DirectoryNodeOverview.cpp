@@ -30,7 +30,7 @@ Node OverviewChildren[] = {
     {NodeType::RECENTLY_ADDED_EPISODES, "recentlyaddedepisodes", 20387},
     {NodeType::RECENTLY_ADDED_MUSICVIDEOS, "recentlyaddedmusicvideos", 20390},
     {NodeType::INPROGRESS_TVSHOWS, "inprogresstvshows", 626},
-    {NodeType::COLLECTION_ITEMS, "collections", 40803},
+    {NodeType::COLLECTION_ITEMS, "collections", 39800},
 };
 
 CDirectoryNodeOverview::CDirectoryNodeOverview(const std::string& strName, CDirectoryNode* pParent)
@@ -125,7 +125,7 @@ bool CDirectoryNodeOverview::GetContent(CFileItemList& items) const
       vec.emplace_back("recentlyaddedmusicvideos", 20390); // Recently Added Music Videos
   }
   if (hasCollections)
-    vec.emplace_back("collections", 40803); // Collections
+    vec.emplace_back("collections", 39800); // Collections
   std::string path = BuildPath();
   for (unsigned int i = 0; i < vec.size(); ++i)
   {

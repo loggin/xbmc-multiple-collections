@@ -24,7 +24,9 @@
 #include "utils/Archive.h"
 #include "utils/ArtUtils.h"
 #include "utils/Crc32.h"
+#include "utils/Digest.h"
 #include "utils/FileExtensionProvider.h"
+#include "utils/ItemProperties.h"
 #include "utils/Random.h"
 #include "utils/RegExp.h"
 #include "utils/StringUtils.h"
@@ -39,6 +41,7 @@
 #include <vector>
 
 using namespace KODI;
+using KODI::UTILITY::CDigest;
 using namespace XFILE;
 
 CFileItemList::CFileItemList() : CFileItem("", true)
@@ -208,12 +211,6 @@ void CFileItemList::Remove(const CFileItem* pItem)
   }
 }
 
-CFileItemList::Iterator CFileItemList::erase(Iterator first, Iterator last)
-{
-  std::unique_lock lock(m_lock);
-  return m_items.erase(first, last);
-}
-
 void CFileItemList::Remove(int iItem)
 {
   std::unique_lock lock(m_lock);
@@ -244,11 +241,12 @@ void CFileItemList::Assign(const CFileItemList& itemlist, bool append)
 
   Append(itemlist);
 
-  //! @todo Is it intentional not to copy CFileItem properties, except path, label and property map?
+  //! @todo Is it intentional not to copy CFileItem properties, except path, label, art and property map?
   //! This is different from CFileItemList::Copy. Why?
   SetPath(itemlist.GetPath());
   SetLabel(itemlist.GetLabel());
   SetProperties(itemlist.GetProperties());
+  SetArt(itemlist.GetArt());
 
   //! @todo Is it intentional not to copy m_ignoreURLOptions, m_fastLookup, m_sortIgnoreFolders, m_content?
   //! This is (partly) different from CFileItemList::Copy. Why?
@@ -365,10 +363,16 @@ void CFileItemList::Sort(SortDescription sortDescription)
             sortDescription.sortBy == SortBy::SORT_TITLE ||
             sortDescription.sortBy == SortBy::ORIGINAL_TITLE ||
             sortDescription.sortBy == SortBy::DATE_ADDED ||
-            sortDescription.sortBy == SortBy::RATING || sortDescription.sortBy == SortBy::YEAR ||
+            sortDescription.sortBy == SortBy::RATING ||
+            sortDescription.sortBy == SortBy::USER_RATING ||
+            sortDescription.sortBy == SortBy::MPAA || sortDescription.sortBy == SortBy::YEAR ||
             sortDescription.sortBy == SortBy::PLAYLIST_ORDER ||
             sortDescription.sortBy == SortBy::LAST_PLAYED ||
-            sortDescription.sortBy == SortBy::PLAYCOUNT) ||
+            sortDescription.sortBy == SortBy::PLAYCOUNT || sortDescription.sortBy == SortBy::TIME ||
+            sortDescription.sortBy == SortBy::TOP250 || sortDescription.sortBy == SortBy::VOTES ||
+            sortDescription.sortBy == SortBy::GENRE || sortDescription.sortBy == SortBy::COUNTRY ||
+            sortDescription.sortBy == SortBy::STUDIO || sortDescription.sortBy == SortBy::RANDOM ||
+            sortDescription.sortBy == SortBy::PATH) ||
            m_sortIgnoreFolders)
   {
     sortDescription.sortAttributes =
@@ -675,8 +679,11 @@ void ChangeFolderToFile(const std::shared_ptr<CFileItem>& item, const std::strin
 
 void ConvertDiscFoldersToFiles(std::vector<std::shared_ptr<CFileItem>> items)
 {
-  auto folderItems{items | std::views::filter([](const std::shared_ptr<CFileItem>& item)
-                                              { return item->IsFolder(); })};
+  auto folderItems{items | std::views::filter(
+                               [](const std::shared_ptr<CFileItem>& item) {
+                                 return item->IsFolder() &&
+                                        !item->GetProperty(PROPERTY_UNCHANGED).asBoolean();
+                               })};
   for (const auto& item : folderItems)
   {
     if (auto playPath{VIDEO::UTILS::GetOpticalMediaPath(*item)}; !playPath.empty())
@@ -698,7 +705,7 @@ void CFileItemList::Stack()
   if (IsVirtualDirectoryRoot() || IsLiveTV() || IsSourcesPath() || IsLibraryFolder())
     return;
 
-  SetProperty("isstacked", true);
+  SetProperty(ITEM::PROPERTY::IS_STACKED, true);
 
   // items needs to be sorted for stuff below to work properly
   Sort(SortBy::LABEL, SortOrder::ASCENDING);
@@ -747,6 +754,7 @@ void CFileItemList::Stack()
           continue;
 
         bool fileFound{true};
+        std::string playPath;
         if (item->IsFolder())
         {
           // Look for media files in the folder
@@ -759,7 +767,7 @@ void CFileItemList::Stack()
 
           // Only expect one media file per folder (if >1 should be a file stack)
           if (items.GetFileCount() == 1)
-            ChangeFolderToFile(item, items[0]->GetPath());
+            playPath = items[0]->GetPath();
           else
           {
             CLog::LogF(LOGDEBUG,
@@ -773,11 +781,15 @@ void CFileItemList::Stack()
         if (fileFound)
         {
           // Add to stack vector
+          // Folder expressions capture no remainder, so folder parts group on their title alone
           stackCandidates.emplace_back(StackCandidate{.type = StackCandidateType::FOLDER_CANDIDATE,
                                                       .title = regExp.GetMatch(1),
                                                       .volume = regExp.GetMatch(2),
+                                                      .remainder = {},
                                                       .size = item->GetSize(),
-                                                      .index = i});
+                                                      .index = i,
+                                                      .playPath = playPath,
+                                                      .pattern = regExp.GetPattern()});
           break;
         }
       }
@@ -802,8 +814,11 @@ void CFileItemList::Stack()
         stackCandidates.emplace_back(StackCandidate{.type = StackCandidateType::FILE_CANDIDATE,
                                                     .title = regExp.GetMatch(1),
                                                     .volume = regExp.GetMatch(2),
+                                                    .remainder = regExp.GetMatch(3),
                                                     .size = item->GetSize(),
-                                                    .index = i});
+                                                    .index = i,
+                                                    .playPath = {},
+                                                    .pattern = regExp.GetPattern()});
         break;
       }
     }
@@ -817,23 +832,43 @@ void CFileItemList::Stack()
   std::ranges::sort(stackCandidates);
 
   // Count stack candidates
+  // Parts of the same stack should differ only in their volume
   std::map<CountedStackCandidate, int> countedCandidates;
   for (const auto& s : stackCandidates)
-    ++countedCandidates[{s.type, s.title}];
+    ++countedCandidates[{s.type, s.title, s.remainder}];
 
   // Find stacks
   std::vector<int> deleteItems;
   for (const auto& [candidate, count] :
        countedCandidates | std::views::filter([](const auto& c) { return c.second > 1; }))
   {
-    // Find all items in this stack
+    // Find all the parts of this stack (sorted by volume)
+    std::vector<StackCandidate> parts;
+    std::ranges::copy(stackCandidates | std::views::filter(
+                                            [type = candidate.type, title = candidate.title,
+                                             remainder = candidate.remainder](const auto& item) {
+                                              return item.type == type && item.title == title &&
+                                                     item.remainder == remainder;
+                                            }),
+                      std::back_inserter(parts));
+
+    // Every part of a stack should be a different volume
+    if (std::ranges::adjacent_find(parts, {}, &StackCandidate::volume) != parts.end())
+    {
+      CLog::LogF(LOGDEBUG,
+                 "Skipping stack '{}' - {} parts found, but not all of a different volume",
+                 candidate.title, parts.size());
+      continue;
+    }
+
     std::vector<int> stack;
     int64_t size{0};
-    for (const auto& stackItem :
-         stackCandidates |
-             std::views::filter([type = candidate.type, title = candidate.title](const auto& item)
-                                { return item.type == type && item.title == title; }))
+    for (const auto& stackItem : parts)
     {
+      // Now the stack is known to have more than one part
+      if (!stackItem.playPath.empty())
+        ChangeFolderToFile(Get(stackItem.index), stackItem.playPath);
+
       stack.emplace_back(stackItem.index);
       size += stackItem.size;
       if (stack.size() > 1)
@@ -847,6 +882,9 @@ void CFileItemList::Stack()
                                     ? baseItem->GetPath()
                                     : CStackDirectory::ConstructStackPath(*this, stack)};
 
+    CLog::LogF(LOGDEBUG, "Stacked {} parts into '{}' (stack expression '{}')", stack.size(),
+               CURL::GetRedacted(stackPath), parts[0].pattern);
+
     // First item in stack becomes the stack
     std::string stackName{candidate.title};
     if (!CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
@@ -857,6 +895,22 @@ void CFileItemList::Stack()
     baseItem->SetPath(stackPath);
     baseItem->SetLabel(stackName);
     baseItem->SetSize(size);
+
+    // Record a digest of every part so that a change to any part is recognised in the scraper
+    CDigest partsDigest{CDigest::Type::MD5};
+    for (const int i : stack)
+    {
+      const auto& part{Get(i)};
+      partsDigest.Update(part->GetPath());
+
+      const int64_t partSize{part->GetSize()};
+      partsDigest.Update(&partSize, sizeof(partSize));
+
+      time_t partTime{0};
+      part->GetDateTime().GetAsTime(partTime);
+      partsDigest.Update(&partTime, sizeof(partTime));
+    }
+    baseItem->SetProperty(PROPERTY_STACK_DIGEST, partsDigest.Finalize());
   }
 
   // Delete unneeded items
@@ -910,7 +964,7 @@ bool CFileItemList::Save(int windowID)
     StringUtils::Replace(cachefile, "special://temp/archive_cache/", "");
     StringUtils::Replace(cachefile, ".fi", "");
     for (const auto& item : m_items)
-      item->SetProperty("cachefilename", cachefile);
+      item->SetProperty(ITEM::PROPERTY::CACHE_FILENAME, cachefile);
 
     CArchive ar(&file, CArchive::store);
     ar << *this;
@@ -988,7 +1042,7 @@ void CFileItemList::Swap(unsigned int item1, unsigned int item2)
     std::swap(m_items[item1], m_items[item2]);
 }
 
-bool CFileItemList::UpdateItem(const CFileItem* item)
+bool CFileItemList::UpdateItem(const CFileItem* item, bool replaceLabels /* = true */)
 {
   if (!item)
     return false;
@@ -997,7 +1051,7 @@ bool CFileItemList::UpdateItem(const CFileItem* item)
   const auto it =
       std::ranges::find_if(m_items, [&item](const auto& pItem) { return pItem->IsSamePath(item); });
   if (it != m_items.end())
-    (*it)->UpdateInfo(*item);
+    (*it)->UpdateInfo(*item, replaceLabels);
 
   return it != m_items.end();
 }
@@ -1018,6 +1072,8 @@ void CFileItemList::AddSortMethod(SortBy sortBy,
   SortDescription sorting;
   sorting.sortBy = sortBy;
   sorting.sortAttributes = sortAttributes;
+  // Left to the view, which sorts e.g. by date descending by default
+  sorting.sortOrder = SortOrder::NONE;
 
   AddSortMethod(sorting, buttonLabel, labelMasks);
 }

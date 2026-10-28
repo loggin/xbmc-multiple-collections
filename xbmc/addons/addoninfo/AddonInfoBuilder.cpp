@@ -9,13 +9,14 @@
 #include "AddonInfoBuilder.h"
 
 #include "CompileInfo.h"
-#include "LangInfo.h"
 #include "addons/Addon.h"
 #include "addons/Repository.h"
 #include "addons/addoninfo/AddonInfo.h"
 #include "addons/addoninfo/AddonType.h"
 #include "filesystem/File.h"
 #include "filesystem/SpecialProtocol.h"
+#include "language/LangInfo.h"
+#include "utils/ArtTypes.h"
 #include "utils/JSONVariantParser.h"
 #include "utils/JSONVariantWriter.h"
 #include "utils/StringUtils.h"
@@ -33,6 +34,18 @@ namespace
 {
 // Note that all of these characters are url-safe
 const std::string VALID_ADDON_IDENTIFIER_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@!$";
+
+std::string GetSharedLibraryNameRegexPattern()
+{
+  // in most cases suffix starts with a dot
+  // but even if it's not a dot, having a leading \ is still safe as it simply turns next character into literal match
+  std::string suffix = CCompileInfo::CCompileInfo::GetSharedLibrarySuffix();
+  if (!suffix.empty())
+    suffix.insert(suffix.cbegin(), '\\');
+
+  // linux is different and has the version number after the suffix
+  return "^.*" + suffix + R"(\.?\d*\.?\d*\.?\d*$)";
+}
 }
 
 namespace ADDON
@@ -50,11 +63,6 @@ void CAddonInfoBuilderFromDB::SetId(std::string id)
 void CAddonInfoBuilderFromDB::SetName(std::string name)
 {
   m_addonInfo->m_name = std::move(name);
-}
-
-void CAddonInfoBuilderFromDB::SetLicense(std::string license)
-{
-  m_addonInfo->m_license = std::move(license);
 }
 
 void CAddonInfoBuilderFromDB::SetSummary(std::string summary)
@@ -75,26 +83,6 @@ void CAddonInfoBuilderFromDB::SetDisclaimer(std::string disclaimer)
 void CAddonInfoBuilderFromDB::SetAuthor(std::string author)
 {
   m_addonInfo->m_author = std::move(author);
-}
-
-void CAddonInfoBuilderFromDB::SetSource(std::string source)
-{
-  m_addonInfo->m_source = std::move(source);
-}
-
-void CAddonInfoBuilderFromDB::SetWebsite(std::string website)
-{
-  m_addonInfo->m_website = std::move(website);
-}
-
-void CAddonInfoBuilderFromDB::SetForum(std::string forum)
-{
-  m_addonInfo->m_forum = std::move(forum);
-}
-
-void CAddonInfoBuilderFromDB::SetEMail(std::string email)
-{
-  m_addonInfo->m_email = std::move(email);
 }
 
 void CAddonInfoBuilderFromDB::SetIcon(std::string icon)
@@ -436,7 +424,7 @@ bool CAddonInfoBuilder::ParseXML(const AddonInfoPtr& addon,
              elementsAssets = elementsAssets->NextSiblingElement())
         {
           std::string value = elementsAssets->Value();
-          if (value == "icon")
+          if (value == KODI::ART::TYPE::ICON)
           {
             if (elementsAssets->GetText() != nullptr)
               addon->m_icon = URIUtils::AddFileToFolder(assetBasePath, elementsAssets->GetText());
@@ -446,12 +434,12 @@ bool CAddonInfoBuilder::ParseXML(const AddonInfoPtr& addon,
             if (elementsAssets->GetText() != nullptr)
               addon->m_screenshots.emplace_back(URIUtils::AddFileToFolder(assetBasePath, elementsAssets->GetText()));
           }
-          else if (value == "fanart")
+          else if (value == KODI::ART::TYPE::FANART)
           {
             if (elementsAssets->GetText() != nullptr)
               addon->m_art[value] = URIUtils::AddFileToFolder(assetBasePath, elementsAssets->GetText());
           }
-          else if (value == "banner")
+          else if (value == KODI::ART::TYPE::BANNER)
           {
             if (elementsAssets->GetText() != nullptr)
               addon->m_art[value] = URIUtils::AddFileToFolder(assetBasePath, elementsAssets->GetText());
@@ -461,7 +449,7 @@ bool CAddonInfoBuilder::ParseXML(const AddonInfoPtr& addon,
             if (elementsAssets->GetText() != nullptr)
               addon->m_art[value] = URIUtils::AddFileToFolder(assetBasePath, elementsAssets->GetText());
           }
-          else if (value == "thumb")
+          else if (value == KODI::ART::TYPE::THUMB)
           {
             if (elementsAssets->GetText() != nullptr)
               addon->m_art[value] =
@@ -653,10 +641,7 @@ bool CAddonInfoBuilder::ParseXMLTypes(CAddonType& addonType,
 
       try
       {
-        // linux is different and has the version number after the suffix
-        static const std::regex libRegex("^.*" +
-                                        CCompileInfo::CCompileInfo::GetSharedLibrarySuffix() +
-                                        "\\.?[0-9]*\\.?[0-9]*\\.?[0-9]*$");
+        static const std::regex libRegex{GetSharedLibraryNameRegexPattern()};
         if (std::regex_match(library, libRegex))
         {
           info->SetBinary(true);

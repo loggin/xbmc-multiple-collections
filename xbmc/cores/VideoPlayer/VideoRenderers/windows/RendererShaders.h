@@ -25,13 +25,15 @@ extern "C"
 #define PLANE_UV 1
 
 enum RenderMethod;
+class CDolbyVisionEffect;
 
 class CRendererShaders : public CRendererHQ
 {
   class CRenderBufferImpl;
 public:
-  ~CRendererShaders() = default;
+  ~CRendererShaders() override;
 
+  bool Supports(ERENDERFEATURE feature) const override;
   bool Supports(ESCALINGMETHOD method) const override;
   bool Configure(const VideoPicture& picture, float fps, unsigned orientation) override;
 
@@ -42,6 +44,7 @@ protected:
   explicit CRendererShaders(CVideoSettings& videoSettings);
   void RenderImpl(CD3DTexture& target, CRect& sourceRect, CPoint(&destPoints)[4], uint32_t flags) override;
   void CheckVideoParameters() override;
+  bool HueSaturationInConversion() const override { return true; }
   void UpdateVideoFilters() override;
   CRenderBuffer* CreateBuffer() override;
   static bool IsHWPicSupported(const VideoPicture& picture);
@@ -49,9 +52,21 @@ protected:
 private:
   static AVColorPrimaries GetSrcPrimaries(AVColorPrimaries srcPrimaries, unsigned int width, unsigned int height);
   DXGI_FORMAT CalcIntermediateTargetFormat() const;
+#if defined(TARGET_WINDOWS_STORE)
+  bool RenderDolbyVision(CD3DTexture& target, CRenderBuffer* buf);
+  void DisableDolbyVisionEffect(const char* reason);
+  bool UploadDolbyVisionFrame(CRenderBuffer* buf);
+
+  std::unique_ptr<CDolbyVisionEffect> m_dvEffect;
+  ID3D11Texture2D* m_dvOutput = nullptr;
+  uint64_t m_dvFrameIdx = UINT64_MAX; // last frame fed to the effect
+  bool m_dvEffectDolbyVisionOutput = false; // m_DolbyVisionOutput when the effect was opened
+  CD3DTexture m_dvUpload; // P010 copy of a software decoded frame
+#endif
 
   AVColorPrimaries m_srcPrimaries = AVCOL_PRI_BT709;
   std::unique_ptr<CYUV2RGBShader> m_colorShader;
+  AVColorTransferCharacteristic m_colorShaderHueSat = AVCOL_TRC_UNSPECIFIED;
 };
 
 class CRendererShaders::CRenderBufferImpl : public CRenderBuffer

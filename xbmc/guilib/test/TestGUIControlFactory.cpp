@@ -7,7 +7,6 @@
  */
 
 #include "GUIInfoManager.h"
-#include "LangInfo.h"
 #include "ServiceBroker.h"
 #include "guilib/GUIAction.h"
 #include "guilib/GUIColorManager.h"
@@ -16,6 +15,7 @@
 #include "guilib/GUILabelControl.h"
 #include "guilib/GUITexture.h"
 #include "guilib/guiinfo/GUIInfoLabel.h"
+#include "language/LangInfo.h"
 #include "resources/LocalizeStrings.h"
 #include "resources/ResourcesComponent.h"
 #include "utils/SystemInfo.h"
@@ -179,11 +179,13 @@ const auto AlignmentTests = std::array{
     AlignmentTest{R"(<root/>)"s, 0, false},
 };
 
-class TestGetAlignmentY : public testing::WithParamInterface<AlignmentTest>, public testing::Test
+class TestGetLabelAlignmentY : public testing::WithParamInterface<AlignmentTest>,
+                               public testing::Test
 {
 };
 
-const auto AlignmentYTests = std::array{
+const auto LabelAlignmentYTests = std::array{
+    AlignmentTest{R"(<root><test>top</test></root>)"s, 0},
     AlignmentTest{R"(<root><test>center</test></root>)"s, XBFONT_CENTER_Y},
     AlignmentTest{R"(<root><test>bottom</test></root>)"s, 0},
     AlignmentTest{R"(<root><test/></root>)"s, std::numeric_limits<uint32_t>::max(), false},
@@ -695,18 +697,18 @@ INSTANTIATE_TEST_SUITE_P(TestGUIControlFactory,
                          TestGetAlignment,
                          testing::ValuesIn(AlignmentTests));
 
-TEST_P(TestGetAlignmentY, GetAlignmentY)
+TEST_P(TestGetLabelAlignmentY, GetAlignmentY)
 {
   CXBMCTinyXML doc;
   doc.Parse(GetParam().def);
   uint32_t align = std::numeric_limits<uint32_t>::max();
-  EXPECT_EQ(CGFTestable::GetAlignmentY(doc.RootElement(), "test", align), GetParam().result);
+  EXPECT_EQ(CGFTestable::GetLabelAlignmentY(doc.RootElement(), "test", align), GetParam().result);
   EXPECT_EQ(align, GetParam().align);
 }
 
 INSTANTIATE_TEST_SUITE_P(TestGUIControlFactory,
-                         TestGetAlignmentY,
-                         testing::ValuesIn(AlignmentYTests));
+                         TestGetLabelAlignmentY,
+                         testing::ValuesIn(LabelAlignmentYTests));
 
 TEST_P(TestAspectRatio, GetAspectRatio)
 {
@@ -925,9 +927,53 @@ TEST_P(TestGetTexture, GetTexture)
   EXPECT_EQ(info.m_infill, GetParam().info.m_infill);
   EXPECT_EQ(info.orientation, GetParam().info.orientation);
   EXPECT_EQ(info.useLarge, GetParam().info.useLarge);
+  EXPECT_FALSE(info.m_mipmap);
+  EXPECT_FALSE(info.m_subpixel);
 }
 
 INSTANTIATE_TEST_SUITE_P(TestGUIControlFactory, TestGetTexture, testing::ValuesIn(TextureTests));
+
+TEST(TestGUIControlFactory, GetTextureMipmap)
+{
+  CGUITestComponent comp;
+  CXBMCTinyXML doc;
+  doc.Parse(R"(<root><test mipmap="true">foo.png</test></root>)"s);
+  CTextureInfo info;
+  EXPECT_TRUE(CGFTestable::GetTexture(doc.RootElement(), "test", info));
+  EXPECT_TRUE(info.m_mipmap);
+}
+
+TEST(TestGUIControlFactory, GetTextureMipmapFalse)
+{
+  CGUITestComponent comp;
+  CXBMCTinyXML doc;
+  doc.Parse(R"(<root><test mipmap="false">foo.png</test></root>)"s);
+  CTextureInfo info;
+  info.m_mipmap = true;
+  EXPECT_TRUE(CGFTestable::GetTexture(doc.RootElement(), "test", info));
+  EXPECT_FALSE(info.m_mipmap);
+}
+
+TEST(TestGUIControlFactory, GetTextureSubpixel)
+{
+  CGUITestComponent comp;
+  CXBMCTinyXML doc;
+  doc.Parse(R"(<root><test subpixel="true">foo.png</test></root>)"s);
+  CTextureInfo info;
+  EXPECT_TRUE(CGFTestable::GetTexture(doc.RootElement(), "test", info));
+  EXPECT_TRUE(info.m_subpixel);
+}
+
+TEST(TestGUIControlFactory, GetTextureSubpixelFalse)
+{
+  CGUITestComponent comp;
+  CXBMCTinyXML doc;
+  doc.Parse(R"(<root><test subpixel="false">foo.png</test></root>)"s);
+  CTextureInfo info;
+  info.m_subpixel = true;
+  EXPECT_TRUE(CGFTestable::GetTexture(doc.RootElement(), "test", info));
+  EXPECT_FALSE(info.m_subpixel);
+}
 
 TEST_P(TestGetType, GetType)
 {

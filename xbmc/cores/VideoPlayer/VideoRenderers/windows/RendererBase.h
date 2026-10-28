@@ -11,9 +11,11 @@
 #include "VideoRenderers/DebugInfo.h"
 #include "VideoRenderers/RenderInfo.h"
 #include "VideoRenderers/VideoShaders/WinVideoFilter.h"
+#include "cores/VideoPlayer/Interface/StreamInfo.h"
 #include "cores/VideoSettings.h"
 #include "guilib/D3DResource.h"
 
+#include <memory>
 #include <vector>
 
 #include <d3d11_4.h>
@@ -23,6 +25,7 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
+struct DoviRpu;
 struct VideoPicture;
 class CVideoBuffer;
 
@@ -51,7 +54,8 @@ enum class HDR_TYPE
   HDR_INVALID = -1,
   HDR_NONE_SDR = 0,
   HDR_HDR10 = 1,
-  HDR_HLG = 2
+  HDR_HLG = 2,
+  HDR_DOLBYVISION = 3
 };
 
 class CRenderBuffer
@@ -80,6 +84,7 @@ public:
   AVColorPrimaries primaries = AVCOL_PRI_BT709;
   AVColorSpace color_space = AVCOL_SPC_BT709;
   AVColorTransferCharacteristic color_transfer = AVCOL_TRC_BT709;
+  StreamHdrType hdrType = StreamHdrType::HDR_TYPE_NONE;
   bool full_range = false;
   int bits = 8;
   uint8_t texBits = 8;
@@ -90,6 +95,7 @@ public:
   AVContentLightMetadata lightMetadata = {};
   std::string stereoMode;
   uint64_t frameIdx = 0;
+  std::shared_ptr<const DoviRpu> doviRpu;
 
 protected:
   CRenderBuffer(AVPixelFormat av_pix_format, unsigned width, unsigned height);
@@ -153,6 +159,9 @@ protected:
   void DeleteRenderBuffer(int index);
 
   void ProcessHDR(CRenderBuffer* rb);
+#if defined(TARGET_WINDOWS_STORE)
+  void StopDolbyVisionOutput(CRenderBuffer* rb);
+#endif
   /*!
    * \brief Call before rendering begins to find out if rendering will be attempted as SDR or HDR.
    * \param picture description of the source
@@ -165,7 +174,8 @@ protected:
   */
   bool ActualRenderAsHDR()
   {
-    return m_HdrType == HDR_TYPE::HDR_HDR10 || m_HdrType == HDR_TYPE::HDR_HLG;
+    return m_HdrType == HDR_TYPE::HDR_HDR10 || m_HdrType == HDR_TYPE::HDR_HLG ||
+           m_HdrType == HDR_TYPE::HDR_DOLBYVISION;
   }
 
   virtual void RenderImpl(CD3DTexture& target, CRect& sourceRect, CPoint (&destPoints)[4], uint32_t flags) = 0;
@@ -174,6 +184,10 @@ protected:
   virtual CRenderBuffer* CreateBuffer() = 0;
   virtual void UpdateVideoFilters();
   virtual void CheckVideoParameters();
+  // HDR hue and saturation run in the output shader unless the renderer's own YUV conversion
+  // applies them before converting primaries
+  virtual bool HueSaturationInConversion() const { return false; }
+  virtual bool CanAdjustHDRHueSaturation() const { return true; }
   virtual void OnViewSizeChanged() {}
   virtual void OnOutputReset() {}
   virtual std::string GetRenderMethodDebugInfo() const { return {}; }
@@ -184,6 +198,11 @@ protected:
   bool m_lutIsLoading = false;
   bool m_useHLGtoPQ = false;
   ETONEMAPMETHOD m_toneMapMethod = VS_TONEMAPMETHOD_OFF;
+  // PQ/HLG streams get hue and saturation from the output shader instead of the YUV conversion
+  bool m_hdrStream = false;
+  AVColorTransferCharacteristic m_hueSatTransfer = AVCOL_TRC_UNSPECIFIED;
+  // SDR gamma is applied in the output shader
+  bool m_useGamma = false;
 
   int m_iBufferIndex = 0;
   int m_iNumBuffers = 0;
@@ -199,6 +218,28 @@ protected:
   float m_fps = 0.0f;
   uint64_t m_frameIdx = 0;
 
+  // what was last rendered into m_IntermediateTarget
+  struct IntermediateState
+  {
+    int bufferIndex = -1;
+    CRect sourceRect;
+    CRect destRect;
+    unsigned flags = 0;
+    float contrast = 0.0f;
+    float brightness = 0.0f;
+    float hue = 0.0f;
+    float saturation = 0.0f;
+    float gamma = 0.0f;
+    bool limitedColor = false;
+    float toneMapParam = 0.0f;
+    bool lutLoading = false;
+    bool operator==(const IntermediateState&) const = default;
+  };
+  IntermediateState m_intermediateState;
+  // same picture as last render, renderers that only convert the source picture into
+  // m_IntermediateTarget can skip RenderImpl work (e.g. 30 fps video on a 60 Hz display)
+  bool m_reuseIntermediate = false;
+
   AVPixelFormat m_format = AV_PIX_FMT_NONE;
   CD3DTexture m_IntermediateTarget;
   std::shared_ptr<COutputShader> m_outputShader;
@@ -211,5 +252,8 @@ protected:
   HDR_TYPE m_HdrType = HDR_TYPE::HDR_INVALID;
   bool m_AutoSwitchHDR = false;
   bool m_initialHdrEnabled = false;
+  bool m_DolbyVisionOutput = false;
+  bool m_canRenderDolbyVision = false;
+  bool m_dolbyVisionEffect = false; // frames are already display-referred RGB
   std::string m_renderMethodName;
 };

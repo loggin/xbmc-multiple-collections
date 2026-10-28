@@ -68,8 +68,10 @@ public:
   static constexpr auto SETTING_WINDOW_WIDTH = "window.width";
   static constexpr auto SETTING_WINDOW_HEIGHT = "window.height";
   static constexpr auto SETTING_VIDEOLIBRARY_SHOWUNWATCHEDPLOTS = "videolibrary.showunwatchedplots";
+  static constexpr auto SETTING_VIDEOLIBRARY_LANGUAGEDETAILS = "videolibrary.languagedetails";
   static constexpr auto SETTING_VIDEOLIBRARY_ACTORTHUMBS = "videolibrary.actorthumbs";
   static constexpr auto SETTING_MYVIDEOS_FLATTEN = "myvideos.flatten";
+  static constexpr auto SETTING_VIDEOLIBRARY_FLATTENVERSIONS = "videolibrary.flattenversions";
   static constexpr auto SETTING_VIDEOLIBRARY_FLATTENTVSHOWS = "videolibrary.flattentvshows";
   static constexpr auto SETTING_VIDEOLIBRARY_TVSHOWSSELECTFIRSTUNWATCHEDITEM =
       "videolibrary.tvshowsselectfirstunwatcheditem";
@@ -96,14 +98,19 @@ public:
       "videolibrary.musicvideoartwhitelist";
   static constexpr auto SETTING_VIDEOLIBRARY_SHOWPERFORMERS =
       "videolibrary.musicvideosallperformers";
-  static constexpr auto SETTING_VIDEOLIBRARY_IGNOREVIDEOVERSIONS =
-      "videolibrary.ignorevideoversions";
+  static constexpr auto SETTING_VIDEOLIBRARY_SIMILARVIDEOACTION = "videolibrary.similarvideoaction";
+  static constexpr auto SETTING_VIDEOLIBRARY_NEWVERSIONSAREDEFAULT =
+      "videolibrary.newversionsaredefault";
   static constexpr auto SETTING_VIDEOLIBRARY_IGNOREVIDEOEXTRAS = "videolibrary.ignorevideoextras";
+  static constexpr auto SETTING_VIDEOLIBRARY_ARTRETRIEVALTIMING = "videolibrary.artretrievaltiming";
+  static constexpr auto SETTING_VIDEOLIBRARY_RETRIEVEALLARTONEXPORT =
+      "videolibrary.retrieveallartonexport";
   static constexpr auto SETTING_LOCALE_AUDIOLANGUAGE = "locale.audiolanguage";
   static constexpr auto SETTING_VIDEOPLAYER_PREFERDEFAULTFLAG = "videoplayer.preferdefaultflag";
   static constexpr auto SETTING_VIDEOPLAYER_AUTOPLAYNEXTITEM = "videoplayer.autoplaynextitem";
   static constexpr auto SETTING_VIDEOPLAYER_SEEKSTEPS = "videoplayer.seeksteps";
   static constexpr auto SETTING_VIDEOPLAYER_SEEKDELAY = "videoplayer.seekdelay";
+  static constexpr auto SETTING_VIDEOPLAYER_MAX_SMOOTH_FF_SPEED = "videoplayer.maxsmoothff";
   static constexpr auto SETTING_VIDEOPLAYER_ADJUSTREFRESHRATE = "videoplayer.adjustrefreshrate";
   static constexpr auto SETTING_VIDEOPLAYER_USEDISPLAYASCLOCK = "videoplayer.usedisplayasclock";
   static constexpr auto SETTING_VIDEOPLAYER_ERRORINASPECT = "videoplayer.errorinaspect";
@@ -119,6 +126,8 @@ public:
   static constexpr auto SETTING_VIDEOPLAYER_HQSCALERPRECISION = "videoplayer.hqscalerprecision";
   static constexpr auto SETTING_VIDEOPLAYER_USESUPERRESOLUTION = "videoplayer.usesuperresolution";
   static constexpr auto SETTING_VIDEOPLAYER_HIGHPRECISIONPROCESSING = "videoplayer.highprecision";
+  static constexpr auto SETTING_VIDEOPLAYER_IMAGEADJUSTMENTGRANULARITY =
+      "videoplayer.imageadjustmentgranularity";
   static constexpr auto SETTING_VIDEOPLAYER_USEMEDIACODEC = "videoplayer.usemediacodec";
   static constexpr auto SETTING_VIDEOPLAYER_USEMEDIACODECSURFACE =
       "videoplayer.usemediacodecsurface";
@@ -139,6 +148,8 @@ public:
   static constexpr auto SETTING_VIDEOPLAYER_CONVERTDOVI = "videoplayer.convertdovi";
   static constexpr auto SETTING_VIDEOPLAYER_ALLOWEDHDRFORMATS = "videoplayer.allowedhdrformats";
   static constexpr auto SETTING_VIDEOPLAYER_DOVIZEROLEVEL5 = "videoplayer.dovizerolevel5";
+  static constexpr auto SETTING_VIDEOPLAYER_FILESTREAMDISPLAYORDER =
+      "videoplayer.filestreamdisplayorder";
   static constexpr auto SETTING_VIDEOPLAYER_QUEUETIMESIZE = "videoplayer.queuetimesize";
   static constexpr auto SETTING_VIDEOPLAYER_QUEUEDATASIZE = "videoplayer.queuedatasize";
   static constexpr auto SETTING_MYVIDEOS_SELECTACTION = "myvideos.selectaction";
@@ -150,6 +161,7 @@ public:
   static constexpr auto SETTING_MYVIDEOS_EXTRACTTHUMB = "myvideos.extractthumb";
   static constexpr auto SETTING_MYVIDEOS_STACKVIDEOS = "myvideos.stackvideos";
   static constexpr auto SETTING_LOCALE_SUBTITLELANGUAGE = "locale.subtitlelanguage";
+  static constexpr auto SETTING_SUBTITLES_HIDESAMEAUDIOLANGUAGE = "subtitles.hidesameaudiolanguage";
   static constexpr auto SETTING_SUBTITLES_PARSECAPTIONS = "subtitles.parsecaptions";
   static constexpr auto SETTING_SUBTITLES_CAPTIONSALIGN = "subtitles.captionsalign";
   static constexpr auto SETTING_SUBTITLES_CAPTIONSIMPAIRED = "subtitles.captionsimpaired";
@@ -181,7 +193,7 @@ public:
   static constexpr auto SETTING_SUBTITLES_DOWNLOADFIRST = "subtitles.downloadfirst";
   static constexpr auto SETTING_SUBTITLES_TV = "subtitles.tv";
   static constexpr auto SETTING_SUBTITLES_MOVIE = "subtitles.movie";
-  static constexpr auto SETTING_DVDS_AUTORUN = "dvds.autorun";
+  static constexpr auto SETTING_DVDS_AUTOACTION = "dvds.autoaction";
   static constexpr auto SETTING_DVDS_PLAYERREGION = "dvds.playerregion";
   static constexpr auto SETTING_DVDS_AUTOMENU = "dvds.automenu";
   static constexpr auto SETTING_DISC_PLAYBACK = "disc.playback";
@@ -211,6 +223,7 @@ public:
   static constexpr auto SETTING_PVRMANAGER_ADDONS = "pvrmanager.addons";
   static constexpr auto SETTING_PVRMENU_DISPLAYCHANNELINFO = "pvrmenu.displaychannelinfo";
   static constexpr auto SETTING_PVRMENU_CLOSECHANNELOSDONSWITCH = "pvrmenu.closechannelosdonswitch";
+  static constexpr auto SETTING_PVRMENU_PROVIDERCHANNELOSD = "pvrmenu.providerchannelosd";
   static constexpr auto SETTING_PVRMENU_ICONPATH = "pvrmenu.iconpath";
   static constexpr auto SETTING_PVRMENU_SEARCHICONS = "pvrmenu.searchicons";
   static constexpr auto SETTING_EPG_PAST_DAYSTODISPLAY = "epg.pastdaystodisplay";
@@ -253,7 +266,6 @@ public:
   static constexpr auto SETTING_PVRPARENTAL_ENABLED = "pvrparental.enabled";
   static constexpr auto SETTING_PVRPARENTAL_PIN = "pvrparental.pin";
   static constexpr auto SETTING_PVRPARENTAL_DURATION = "pvrparental.duration";
-  static constexpr auto SETTING_PVRCLIENT_MENUHOOK = "pvrclient.menuhook";
   static constexpr auto SETTING_PVRTIMERS_HIDEDISABLEDTIMERS = "pvrtimers.hidedisabledtimers";
   static constexpr auto SETTING_MUSICLIBRARY_SHOWCOMPILATIONARTISTS =
       "musiclibrary.showcompilationartists";
@@ -293,9 +305,9 @@ public:
   static constexpr auto SETTING_MUSICPLAYER_SEEKSTEPS = "musicplayer.seeksteps";
   static constexpr auto SETTING_MUSICPLAYER_SEEKDELAY = "musicplayer.seekdelay";
   static constexpr auto SETTING_MUSICPLAYER_REPLAYGAINTYPE = "musicplayer.replaygaintype";
-  static constexpr auto SETTING_MUSICPLAYER_REPLAYGAINPREAMP = "musicplayer.replaygainpreamp";
+  static constexpr auto SETTING_MUSICPLAYER_REPLAYGAINPREAMP = "musicplayer.replaygainpreampdb";
   static constexpr auto SETTING_MUSICPLAYER_REPLAYGAINNOGAINPREAMP =
-      "musicplayer.replaygainnogainpreamp";
+      "musicplayer.replaygainnogainpreampdb";
   static constexpr auto SETTING_MUSICPLAYER_REPLAYGAINAVOIDCLIPPING =
       "musicplayer.replaygainavoidclipping";
   static constexpr auto SETTING_MUSICPLAYER_CROSSFADE = "musicplayer.crossfade";
@@ -386,6 +398,7 @@ public:
   static constexpr auto SETTING_VIDEOSCREEN_LIMITEDRANGE = "videoscreen.limitedrange";
   static constexpr auto SETTING_VIDEOSCREEN_FRAMEPACKING = "videoscreen.framepacking";
   static constexpr auto SETTING_VIDEOSCREEN_10BITSURFACES = "videoscreen.10bitsurfaces";
+  static constexpr auto SETTING_VIDEOSCREEN_HIGHPERFORMANCEGPU = "videoscreen.highperformancegpu";
   static constexpr auto SETTING_VIDEOSCREEN_USESYSTEMSDRPEAKLUMINANCE =
       "videoscreen.usesystemsdrpeakluminance";
   static constexpr auto SETTING_VIDEOSCREEN_GUISDRPEAKLUMINANCE = "videoscreen.guipeakluminance";
@@ -406,6 +419,8 @@ public:
   static constexpr auto SETTING_AUDIOOUTPUT_GUISOUNDMODE = "audiooutput.guisoundmode";
   static constexpr auto SETTING_AUDIOOUTPUT_GUISOUNDVOLUME = "audiooutput.guisoundvolume";
   static constexpr auto SETTING_AUDIOOUTPUT_PASSTHROUGH = "audiooutput.passthrough";
+  static constexpr auto SETTING_AUDIOOUTPUT_PASSTHROUGHVOLUMECONTROL =
+      "audiooutput.passthroughvolumecontrol";
   static constexpr auto SETTING_AUDIOOUTPUT_PASSTHROUGHDEVICE = "audiooutput.passthroughdevice";
   static constexpr auto SETTING_AUDIOOUTPUT_AC3PASSTHROUGH = "audiooutput.ac3passthrough";
   static constexpr auto SETTING_AUDIOOUTPUT_AC3TRANSCODE = "audiooutput.ac3transcode";
@@ -430,7 +445,7 @@ public:
       "input.siriremotehorizontalsensitivity";
   static constexpr auto SETTING_INPUT_SIRIREMOTEVERTICALSENSITIVITY =
       "input.siriremoteverticalsensitivity";
-  static constexpr auto SETTING_INPUT_TVOSUSEKODIKEYBOARD = "input.tvosusekodikeyboard";
+  static constexpr auto SETTING_INPUT_USEAPPLICATIONKEYBOARD = "input.useapplicationkeyboard";
   static constexpr auto SETTING_NETWORK_USEHTTPPROXY = "network.usehttpproxy";
   static constexpr auto SETTING_NETWORK_HTTPPROXYTYPE = "network.httpproxytype";
   static constexpr auto SETTING_NETWORK_HTTPPROXYSERVER = "network.httpproxyserver";
@@ -443,6 +458,7 @@ public:
   static constexpr auto SETTING_POWERMANAGEMENT_SHUTDOWNSTATE = "powermanagement.shutdownstate";
   static constexpr auto SETTING_POWERMANAGEMENT_WAKEONACCESS = "powermanagement.wakeonaccess";
   static constexpr auto SETTING_POWERMANAGEMENT_WAITFORNETWORK = "powermanagement.waitfornetwork";
+  static constexpr auto SETTING_POWERMANAGEMENT_RESTARTPLAYER = "powermanagement.restartplayer";
   static constexpr auto SETTING_DEBUG_SHOWLOGINFO = "debug.showloginfo";
   static constexpr auto SETTING_DEBUG_EXTRALOGGING = "debug.extralogging";
   static constexpr auto SETTING_DEBUG_SETEXTRALOGLEVEL = "debug.setextraloglevel";
@@ -487,6 +503,11 @@ public:
   static const int VIDEOLIBRARY_PLOTS_SHOW_UNWATCHED_MOVIES = 0;
   static const int VIDEOLIBRARY_PLOTS_SHOW_UNWATCHED_TVSHOWEPISODES = 1;
   static const int VIDEOLIBRARY_THUMB_SHOW_UNWATCHED_EPISODE = 2;
+  // values for SETTING_VIDEOLIBRARY_LANGUAGEDETAILS
+  // Which audio stream the language, codec and channel count shown against an item describe
+  static const int VIDEOLIBRARY_LANGUAGE_DETAILS_PLAYER = 0; // the stream that will be played
+  static const int VIDEOLIBRARY_LANGUAGE_DETAILS_DEFAULT = 1; // the media default stream
+  static const int VIDEOLIBRARY_LANGUAGE_DETAILS_BEST = 2; // the technically best stream
   // values for SETTING_VIDEOLIBRARY_ARTWORK_LEVEL
   static const int VIDEOLIBRARY_ARTWORK_LEVEL_ALL = 0;
   static const int VIDEOLIBRARY_ARTWORK_LEVEL_BASIC = 1;

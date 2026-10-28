@@ -23,7 +23,6 @@
 #include "guilib/GUIMessage.h"
 #include "guilib/GUIWindowManager.h"
 #include "guilib/StereoscopicsManager.h"
-#include "interfaces/AnnouncementManager.h"
 #include "interfaces/python/XBPython.h"
 #include "jobs/JobManager.h"
 #include "music/MusicFileItemClassify.h"
@@ -33,6 +32,7 @@
 #include "settings/MediaSettings.h"
 #include "settings/SettingsComponent.h"
 #include "storage/MediaManager.h"
+#include "utils/ItemProperties.h"
 #include "utils/SaveFileStateJob.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
@@ -137,16 +137,14 @@ void UpdateRemovableBlurayPath(CFileItem& fileItem, bool updateStreamDetails)
       {
 #ifdef HAS_OPTICAL_DRIVE
         // Played through Video->Files or Movie/TV Shows etc..
-        // Only check if system supports optical (physical/mounted) drives
-        ::UTILS::DISCS::DiscInfo info{
-            CServiceBroker::GetMediaManager().GetDiscInfo(fileUrl.GetHostName())};
-        if (!info.empty() && info.type == ::UTILS::DISCS::DiscType::BLURAY)
-        {
-          url.Parse(CServiceBroker::GetMediaManager().GetDiskUniqueId(fileUrl.GetHostName()));
-        }
+        // GetDiskUniqueId() returns a bluray://... URL for physical Blu-ray media; it may return
+        // an empty string (or a non-bluray URL) for other media / failure cases.
+        url.Parse(CServiceBroker::GetMediaManager().GetDiskUniqueId(fileUrl.GetHostName()));
+        if (!url.IsProtocol("bluray")) // Not a bluray (ie. a DVD or CD)
+          url.Reset();
 #endif
       }
-      // Will be empty if not a physical/mounted disc (ie. an ISO file)
+      // Will be empty if not a physical/mounted disc (ie. a mounted ISO file)
       if (!url.Get().empty())
       {
         url.SetFileName(fileUrl.GetFileName());
@@ -208,16 +206,17 @@ bool UpdateDiscStackBookmark(CBookmark& bookmark,
         if (!stackHelper->IsPlayingLastStackPart())
           return false; // Not finished if not playing last part
         if (!stackHelper->IsSeekingParts() &&
-            !file.GetProperty("stopped_before_end").asBoolean(false))
+            !file.GetProperty(ITEM::PROPERTY::STOPPED_BEFORE_END).asBoolean(false))
           return true; // For disc stacks, if not flagged then we have not stopped early (decision made in InputStream unless seeking cross-parts)
         if (WithinPercentOfEnd(bookmark, advancedSettings->m_videoIgnorePercentAtEnd))
           return true; // Within videoIgnorePercentAtEnd of the end so consider watched
         return false;
       }()};
 
-  const bool currentPartFinished{!file.GetProperty("stopped_before_end").asBoolean(false)};
+  const bool currentPartFinished{
+      !file.GetProperty(ITEM::PROPERTY::STOPPED_BEFORE_END).asBoolean(false)};
   const bool allStackPartsPlayed{stackHelper->IsPlayingLastStackPart()};
-  const bool noMainTitle{file.GetProperty("no_main_title").asBoolean(false)};
+  const bool noMainTitle{file.GetProperty(ITEM::PROPERTY::NO_MAIN_TITLE).asBoolean(false)};
 
   bookmark.partNumber = stackHelper->GetStackPartNumber(file);
   stackHelper->SetCurrentPartFinished(currentPartFinished);
@@ -273,6 +272,13 @@ bool UpdateDiscStackBookmark(CBookmark& bookmark,
   return true;
 }
 
+bool IsFinished(double timeInSeconds, double totalTimeInSeconds)
+{
+  // If the total time is unknown then we can't determine if finished
+  constexpr double FINISH_THRESHOLD{1.0}; // 1 second from end is considered finished
+  return totalTimeInSeconds > 0.0 && (totalTimeInSeconds - timeInSeconds) <= FINISH_THRESHOLD;
+}
+
 void UpdateStackAndItem(const CFileItem& file,
                         CFileItem& fileItem,
                         CBookmark& bookmark,
@@ -291,7 +297,7 @@ void UpdateStackAndItem(const CFileItem& file,
   {
     stackHelper->UpdateDiscStackAndTimes(file);
 
-    if (file.GetProperty("update_stream_details").asBoolean(false))
+    if (file.GetProperty(ITEM::PROPERTY::UPDATE_STREAM_DETAILS).asBoolean(false))
     {
       fileItem.GetVideoInfoTag()->m_streamDetails =
           file.GetVideoInfoTag()->m_streamDetails; // Update streamdetails
@@ -300,7 +306,7 @@ void UpdateStackAndItem(const CFileItem& file,
     const std::string oldStackPath{stackHelper->GetOldStackDynPath()};
     if (!oldStackPath.empty())
     {
-      fileItem.SetProperty("new_stack_path", true);
+      fileItem.SetProperty(ITEM::PROPERTY::NEW_STACK_PATH, true);
       fileItem.SetProperty("old_stack_path", oldStackPath);
     }
 
@@ -317,10 +323,8 @@ void UpdateStackAndItem(const CFileItem& file,
   }
   else
   {
-    constexpr double FINISH_THRESHOLD{1.0}; // 1 second from end is considered finished
-    const bool currentPartFinished{bookmark.timeInSeconds + FINISH_THRESHOLD >
-                                   bookmark.totalTimeInSeconds};
-    stackHelper->SetCurrentPartFinished(currentPartFinished);
+    stackHelper->SetCurrentPartFinished(
+        IsFinished(bookmark.timeInSeconds, bookmark.totalTimeInSeconds));
 
     ConvertRelativeStackTimesToAbsolute(bookmark, file, stackHelper);
   }
@@ -370,14 +374,16 @@ void CApplicationPlayerCallback::OnPlayerCloseFile(const CFileItem& file,
     // otherwise if played through Video->Files we need to retrieve the removable:// path
     // We need to update DynPath with the removable:// path (for the database), keeping the playlist
     // Also flag if we need to update stream details from the played file
-    UpdateRemovableBlurayPath(fileItem, file.GetProperty("update_stream_details").asBoolean(false));
+    UpdateRemovableBlurayPath(
+        fileItem, file.GetProperty(ITEM::PROPERTY::UPDATE_STREAM_DETAILS).asBoolean(false));
 #endif
 
     // Update the stack
     if (stackHelper->GetStack(file) != nullptr)
       UpdateStackAndItem(file, fileItem, bookmark, stackHelper);
 
-    if (WithinPercentOfEnd(bookmark, advancedSettings->m_videoIgnorePercentAtEnd))
+    if (WithinPercentOfEnd(bookmark, advancedSettings->m_videoIgnorePercentAtEnd) ||
+        IsFinished(bookmark.timeInSeconds, bookmark.totalTimeInSeconds))
     {
       bookmark.timeInSeconds = -1.0; // Finished (bookmark cleared)
     }
@@ -388,9 +394,8 @@ void CApplicationPlayerCallback::OnPlayerCloseFile(const CFileItem& file,
   }
   else if (MUSIC::IsAudio(fileItem))
   {
-    if (bookmark.timeInSeconds >= bookmark.totalTimeInSeconds - 1)
+    if (IsFinished(bookmark.timeInSeconds, bookmark.totalTimeInSeconds))
     {
-      // If within 1 second of the end
       bookmark.timeInSeconds = -1.0; // Finished (bookmark cleared)
     }
   }

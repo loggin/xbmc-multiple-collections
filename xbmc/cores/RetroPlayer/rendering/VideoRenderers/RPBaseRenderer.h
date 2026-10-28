@@ -51,6 +51,7 @@ public:
   bool Configure(AVPixelFormat format);
   void FrameMove();
   void SetBuffer(IRenderBuffer* buffer);
+  void SetSpeed(double speed);
   void RenderFrame(bool clear, uint8_t alpha);
 
   // Feature support
@@ -69,7 +70,6 @@ public:
   void SetStretchMode(STRETCHMODE stretchMode);
   void SetRenderRotation(unsigned int rotationDegCCW);
   void SetShaderPreset(const std::string& presetPath);
-  void SetPixels(const std::string& pixelPath);
 
   // Rendering properties
   bool IsVisible() const;
@@ -78,7 +78,7 @@ public:
 protected:
   // Protected renderer interface
   virtual bool ConfigureInternal() { return true; }
-  virtual void RenderInternal(bool clear, uint8_t alpha) = 0;
+  virtual void RenderInternal(uint8_t alpha) = 0;
   virtual void FlushInternal() {}
 
   // Construction parameters
@@ -97,10 +97,12 @@ protected:
   CRect m_sourceRect;
   float m_fullDestWidth{0.0f};
   float m_fullDestHeight{0.0f};
+  float m_lastTargetWidth{0.0f};
+  float m_lastTargetHeight{0.0f};
   ViewportCoordinates m_rotatedDestCoords{};
 
   // Video shaders
-  void Updateshaders();
+  void UpdateShaders();
   std::unique_ptr<SHADER::IShaderPreset> m_shaderPreset;
 
   bool m_bShadersNeedUpdate = true;

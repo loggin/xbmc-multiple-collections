@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -126,7 +126,7 @@ protected:
    \param filter the filter to use.
    \sa FilterItems
    */
-  void OnFilterItems(const std::string &filter);
+  virtual void OnFilterItems(const std::string& filter);
 
   /* \brief Retrieve the filtered item list
    \param filter filter to apply
@@ -173,6 +173,12 @@ protected:
   static std::string RemoveParameterFromPath(const std::string &strDirectory, const std::string &strParameter);
 
   bool ProcessRenderLoop(bool renderOnly);
+
+  /*!
+   * \brief Helper function to remove the disc cache of <p> directory and possible dependencies
+   * \param[in] directory Directory
+   */
+  void RemoveDiscCache(const std::string& directory) const;
 
   XFILE::CVirtualDirectory m_rootDir;
   CGUIViewControl m_viewControl;

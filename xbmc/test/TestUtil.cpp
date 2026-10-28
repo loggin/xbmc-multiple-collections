@@ -1,12 +1,24 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
  *  See LICENSES/README.md for more information.
  */
 
+#include "ServiceBroker.h"
 #include "Util.h"
+#include "cores/VideoPlayer/Interface/StreamInfo.h"
+#include "filesystem/Directory.h"
+#include "filesystem/File.h"
+#include "filesystem/SpecialProtocol.h"
+#include "settings/AdvancedSettings.h"
+#include "settings/MediaSettings.h"
+#include "settings/Settings.h"
+#include "settings/SettingsComponent.h"
+#include "utils/StringUtils.h"
+#include "utils/URIUtils.h"
+#include "video/FilenameAttributes.h"
 
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
@@ -14,6 +26,8 @@
 using ::testing::Test;
 using ::testing::ValuesIn;
 using ::testing::WithParamInterface;
+
+using namespace KODI::VIDEO;
 
 TEST(TestUtil, GetQualifiedFilename)
 {
@@ -29,6 +43,24 @@ TEST(TestUtil, GetQualifiedFilename)
   file = "smb://foo/bar/";
   CUtil::GetQualifiedFilename("upnp://", file);
   EXPECT_EQ(file, "smb://foo/bar/");
+}
+
+TEST(TestUtil, IsInPlaylistsFolderFollowsThePlaylistsSetting)
+{
+  using KODI::MEDIA::MediaSection;
+  const auto settings = CServiceBroker::GetSettingsComponent()->GetSettings();
+  const std::string original{settings->GetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH)};
+  settings->SetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH, "special://temp/lists/");
+
+  EXPECT_TRUE(CUtil::IsInPlaylistsFolder("special://temp/lists/video/a.m3u", MediaSection::VIDEO));
+  EXPECT_FALSE(CUtil::IsInPlaylistsFolder("special://temp/lists/video/a.m3u", MediaSection::MUSIC));
+  EXPECT_TRUE(CUtil::IsInPlaylistsFolder("special://temp/lists/mixed/a.m3u", MediaSection::MUSIC));
+  EXPECT_TRUE(CUtil::IsInPlaylistsFolder("special://musicplaylists/a.xsp", MediaSection::MUSIC));
+  EXPECT_FALSE(
+      CUtil::IsInPlaylistsFolder("special://profile/playlists/video/a.m3u", MediaSection::VIDEO));
+  EXPECT_FALSE(CUtil::IsInPlaylistsFolder("special://temp/lists/video/a.m3u", MediaSection::FILES));
+
+  settings->SetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH, original);
 }
 
 TEST(TestUtil, MakeLegalPath)
@@ -71,6 +103,15 @@ TEST(TestUtil, ValidatePath)
 {
   std::string path;
 #ifdef TARGET_WINDOWS
+  for (const std::string drive : {"C", "c", "D", "x"})
+  {
+    SCOPED_TRACE(drive);
+    EXPECT_EQ(drive + R"(:\\Movies\movie.mkv)", CUtil::ValidatePath(drive + "://Movies/movie.mkv"));
+    EXPECT_EQ(drive + R"(:\Movies\movie.mkv)",
+              CUtil::ValidatePath(drive + "://Movies/movie.mkv", true));
+  }
+  EXPECT_EQ(R"(C:\file)", CUtil::ValidatePath("C:/file"));
+  EXPECT_EQ("C:relative", CUtil::ValidatePath("C:relative"));
   path = "C:\\\\foo\\\\bar\\";
   EXPECT_EQ(CUtil::ValidatePath(path, true), "C:\\foo\\bar\\");
   path = "\\\\foo\\\\bar\\";
@@ -111,13 +152,22 @@ std::ostream& operator<<(std::ostream& os, const TestUtilCleanStringData& rhs)
 
 class TestUtilCleanString : public Test, public WithParamInterface<TestUtilCleanStringData>
 {
+public:
+  static void SetUpTestSuite()
+  {
+    // Inject list of known metadata sources for reliable results
+    const std::shared_ptr<CAdvancedSettings> advancedSettings =
+        CServiceBroker::GetSettingsComponent()->GetAdvancedSettings();
+    ASSERT_TRUE(advancedSettings != nullptr);
+    advancedSettings->m_videoScannerMetadataSources = {"tmdb", "imdb"};
+  }
 };
 
 TEST_P(TestUtilCleanString, GetFilenameIdentifier)
 {
   std::string identifierType;
   std::string identifier;
-  CUtil::GetFilenameIdentifier(GetParam().input, identifierType, identifier);
+  CFilenameAttributes(GetParam().input, nullptr).GetIdentifier(identifierType, identifier);
   EXPECT_EQ(identifierType, GetParam().expIdentifierType);
   EXPECT_EQ(identifier, GetParam().expIdentifier);
 }
@@ -614,7 +664,22 @@ const TestBaseData Paths[] = {
     {"archive://%5c%5cServer%5cMovies%5cmovie%5cmovie.tar.gz/BDMV/index.BDMV",
      "\\\\Server\\Movies\\movie\\", "movie"},
     {"archive://%5c%5cServer%5cMovies%5cmovie%5cdisc%201%5cmovie.tar.gz/file.mkv",
-     "\\\\Server\\Movies\\movie\\disc 1\\", "file"}};
+     "\\\\Server\\Movies\\movie\\disc 1\\", "file"},
+    {"file:/videos/movie.mkv?cache=1#part", "file:/videos/", "movie"},
+    {"http:/videos/movie.mkv?cache=1#part", "http:/videos/", "movie"},
+    {"http://host/videos/movie.mkv?cache=1#part|auth=token", "http://host/videos/|auth=token",
+     "movie"},
+    {"magnet:/videos/movie.mkv?xt=urn:btih:hash&tr=one&tr=two#part",
+     "magnet:/videos/?xt=urn:btih:hash&tr=one&tr=two#part", "movie"},
+    // HTTP URL with query string
+    {"http://192.168.1.1/movie.mkv?session=abc", "http://192.168.1.1/", "movie"},
+    {"http://192.168.1.1/path/movie.mkv?session=abc", "http://192.168.1.1/path/", "movie"},
+    // Endpoint-style URL where the query selects the media
+    {"http://192.168.1.1/stream?file=movie.mkv", "http://192.168.1.1/", "stream"},
+    {"http://192.168.1.1/dir/stream?file=movie.mkv", "http://192.168.1.1/dir/", "stream"},
+    // HTTP URL with multi-param query string
+    {"http://192.168.0.110:80/immich/album-2025/VID_20250624_114200.mp4?index=1&play",
+     "http://192.168.0.110:80/immich/album-2025/", "VID_20250624_114200"}};
 
 TEST_P(TestVideoBasePathAndFileName, GetVideoBasePathAndFileName)
 {
@@ -802,19 +867,256 @@ constexpr TestMatchingSourceData SourcesToMatch[] = {
 
 TEST_P(TestMatchingSource, GetMatchingSource)
 {
+  char dosDriveLetter{'D'};
+
+#if defined(TARGET_WINDOWS_DESKTOP)
+  // D: is often an optical drive. Use a non-optical letter so this fixture tests source matching
+  // rather than the intentional optical-source shortcut.
+  if (URIUtils::IsOnDVD("D:\\"))
+  {
+    for (char candidate = 'C'; candidate <= 'Z'; ++candidate)
+    {
+      std::string driveRoot{"C:\\"};
+      driveRoot.front() = candidate;
+      if (!URIUtils::IsOnDVD(driveRoot))
+      {
+        dosDriveLetter = candidate;
+        break;
+      }
+    }
+  }
+  ASSERT_FALSE(URIUtils::IsOnDVD(std::string{dosDriveLetter} + ":\\"));
+#endif
+
+  const auto replaceOpticalTestDrive = [dosDriveLetter](const char* value)
+  {
+    std::string path{value};
+    const std::string drive{dosDriveLetter};
+    StringUtils::Replace(path, "D:\\", drive + ":\\");
+    StringUtils::Replace(path, "D%3a", drive + "%3a");
+    StringUtils::Replace(path, "D%253a", drive + "%253a");
+    return path;
+  };
+
   // Generate sources
   std::vector<CMediaSource> sources;
   for (const auto& source : Sources)
   {
-    CMediaSource mediaSource{
-        source.name,   "",    "",  source.path, SourceType::REMOTE, KODI::UTILS::CLockInfo{}, "",
-        {source.path}, false, true};
+    const std::string sourcePath{replaceOpticalTestDrive(source.path)};
+    CMediaSource mediaSource;
+    mediaSource.strName = source.name;
+    mediaSource.strPath = sourcePath;
+    mediaSource.m_iDriveType = SourceType::REMOTE;
+    mediaSource.vecPaths = {sourcePath};
     sources.emplace_back(mediaSource);
   }
 
   bool isSourceName{false};
-  int source{CUtil::GetMatchingSource(GetParam().path, sources, isSourceName)};
+  int source{
+      CUtil::GetMatchingSource(replaceOpticalTestDrive(GetParam().path), sources, isSourceName)};
   EXPECT_EQ(source, GetParam().matchingSource);
 }
 
 INSTANTIATE_TEST_SUITE_P(GetMatchingSource, TestMatchingSource, ValuesIn(SourcesToMatch));
+
+struct TestExternalStreamData
+{
+  std::string videoPath;
+  std::string associatedFile;
+  std::string language;
+  unsigned int flag;
+};
+
+// clang-format off
+const TestExternalStreamData ExternalStreams[] = {
+    // The language is a BCP 47 tag, which uses the alpha-2 code where one exists, whichever form
+    // the filename used
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.srt", "en", StreamFlags::FLAG_NONE},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.eng.srt", "en", StreamFlags::FLAG_NONE},
+    // A language with no ISO 639-1 code keeps its alpha-3 form
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.ady.srt", "ady", StreamFlags::FLAG_NONE},
+    // _ stands in for the BCP 47 - subtag separator, since - separates filename tokens
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en_AU.srt", "en-AU", StreamFlags::FLAG_NONE},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.pt_BR.srt", "pt-BR", StreamFlags::FLAG_NONE},
+    // Flags, before and after the language
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.forced.en.srt", "en", StreamFlags::FLAG_FORCED},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.forced.srt", "en", StreamFlags::FLAG_FORCED},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.default.srt", "en", StreamFlags::FLAG_DEFAULT},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.original.srt", "en", StreamFlags::FLAG_ORIGINAL},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.impaired.srt", "en", StreamFlags::FLAG_HEARING_IMPAIRED},
+    // No language in the filename
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.srt", "", StreamFlags::FLAG_NONE},
+    // The language nearest the extension is the stream's, and anything before it is its name
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.director.en.srt", "en", StreamFlags::FLAG_NONE},
+    {"/movies/BigBuckBunny.mkv", "/movies/BigBuckBunny.en.fr.srt", "fr", StreamFlags::FLAG_NONE},
+};
+// clang-format on
+
+class TestExternalStreamDetails : public Test, public WithParamInterface<TestExternalStreamData>
+{
+};
+
+TEST_P(TestExternalStreamDetails, GetExternalStreamDetailsFromFilename)
+{
+  const ExternalStreamInfo info =
+      CUtil::GetExternalStreamDetailsFromFilename(GetParam().videoPath, GetParam().associatedFile);
+
+  EXPECT_EQ(info.language.AsBcp47(), GetParam().language);
+  EXPECT_EQ(info.flag, GetParam().flag);
+}
+
+INSTANTIATE_TEST_SUITE_P(GetExternalStreamDetailsFromFilename,
+                         TestExternalStreamDetails,
+                         ValuesIn(ExternalStreams));
+
+/*!
+ * A percent-encoded path reaches here from any VFS that escapes its names - WebDAV among them.
+ * Hiding the extension must not hand back the escaped form.
+ */
+class TestTitleFromPath : public Test
+{
+protected:
+  void SetUp() override
+  {
+    const auto settings = CServiceBroker::GetSettingsComponent()->GetSettings();
+    m_showExtensions = settings->GetBool(CSettings::SETTING_FILELISTS_SHOWEXTENSIONS);
+    settings->SetBool(CSettings::SETTING_FILELISTS_SHOWEXTENSIONS, false);
+  }
+
+  void TearDown() override
+  {
+    CServiceBroker::GetSettingsComponent()->GetSettings()->SetBool(
+        CSettings::SETTING_FILELISTS_SHOWEXTENSIONS, m_showExtensions);
+  }
+
+private:
+  bool m_showExtensions{true};
+};
+
+TEST_F(TestTitleFromPath, DecodesAnEscapedNameWhileHidingTheExtension)
+{
+  EXPECT_EQ("file name", CUtil::GetTitleFromPath("davs://server/files/file%20name.mkv"));
+  EXPECT_EQ("file_name", CUtil::GetTitleFromPath("davs://server/files/file_name.mkv"));
+}
+
+/*! A local path is not escaped, so decoding one would corrupt every name holding a plus. */
+TEST_F(TestTitleFromPath, LeavesALocalNameAlone)
+{
+  EXPECT_EQ("C++ Media", CUtil::GetTitleFromPath("/path/to/C++ Media.mkv"));
+  EXPECT_EQ("100% proof", CUtil::GetTitleFromPath("/path/to/100% proof.mkv"));
+}
+
+TEST_F(TestTitleFromPath, KeepsAPlusInTheName)
+{
+  EXPECT_EQ("C++ Collection", CUtil::GetTitleFromPath("smb://server/share/C++ Collection.mkv"));
+  EXPECT_EQ("C++ Collection", CUtil::GetTitleFromPath("davs://server/files/C++ Collection.mkv"));
+}
+
+TEST_F(TestTitleFromPath, DecodesAnEscapedPercent)
+{
+  EXPECT_EQ("100% proof", CUtil::GetTitleFromPath("davs://server/files/100%25%20proof.mkv"));
+
+  // a name that itself contains the characters "%20"
+  EXPECT_EQ("100%20proof", CUtil::GetTitleFromPath("davs://server/files/100%2520proof.mkv"));
+
+  // the name is taken off the path before the decode, so an escaped separator stays in the leaf
+  EXPECT_EQ("file/name", CUtil::GetTitleFromPath("davs://server/files/file%2Fname.mkv"));
+}
+
+TEST_F(TestTitleFromPath, LeavesAMalformedEscapeAlone)
+{
+  EXPECT_EQ("file%2", CUtil::GetTitleFromPath("davs://server/files/file%2.mkv"));
+  EXPECT_EQ("file%zz", CUtil::GetTitleFromPath("davs://server/files/file%zz.mkv"));
+  EXPECT_EQ("file%", CUtil::GetTitleFromPath("davs://server/files/file%.mkv"));
+  EXPECT_EQ("100% off", CUtil::GetTitleFromPath("davs://server/files/100% off.mkv"));
+}
+
+TEST_F(TestTitleFromPath, LeavesANameOnANonEscapingProtocolAlone)
+{
+  EXPECT_EQ("file name", CUtil::GetTitleFromPath("smb://server/share/file name.mkv"));
+  EXPECT_EQ("file name", CUtil::GetTitleFromPath("nfs://server/export/file name.mkv"));
+  EXPECT_EQ("file name", CUtil::GetTitleFromPath("ftp://server/pub/file name.mkv"));
+  EXPECT_EQ("100% proof", CUtil::GetTitleFromPath("smb://server/share/100% proof.mkv"));
+}
+
+TEST_F(TestTitleFromPath, DecodesAnArchiveNameOnlyWhenItsParentIsAUrl)
+{
+  EXPECT_EQ(
+      "100% proof.zip",
+      CUtil::GetTitleFromPath("zip://davs%3a%2f%2fserver%2ffiles%2f100%2525%2520proof.zip/", true));
+  EXPECT_EQ("100%20proof.zip",
+            CUtil::GetTitleFromPath("zip://%2fmedia%2f100%2520proof.zip/", true));
+}
+
+TEST(TestUtil, FoundationNativeAndNestedNormalization)
+{
+  EXPECT_EQ("relative?name#part+100%.mkv", CUtil::ValidatePath("relative?name#part+100%.mkv"));
+  EXPECT_EQ("C:relative", CUtil::ValidatePath("C:relative"));
+  EXPECT_EQ("./notes:2026", CUtil::ValidatePath("./notes:2026"));
+  EXPECT_EQ("zip://%2ftmp%2fa.zip/dir//a.mkv",
+            CUtil::ValidatePath("zip://%2ftmp%2fa.zip/dir//a.mkv", true));
+  EXPECT_EQ("http://server/a%2Fb//c", CUtil::ValidatePath("http://server/a%2Fb//c", true));
+}
+
+namespace
+{
+//! The custom subtitle folder is checked once per session, the first time subtitles are looked for
+class TestCustomSubtitleFolder : public Test
+{
+protected:
+  void SetUp() override
+  {
+    XFILE::CDirectory::RemoveRecursive(m_folder);
+    ASSERT_TRUE(XFILE::CDirectory::Create(m_folder));
+    XFILE::CFile file;
+    ASSERT_TRUE(file.OpenForWrite(m_video, true));
+    file.Close();
+    CMediaSettings::GetInstance().SetAdditionalSubtitleDirectoryChecked(0);
+  }
+
+  void TearDown() override
+  {
+    Settings()->SetString(CSettings::SETTING_SUBTITLES_CUSTOMPATH, m_customPath);
+    CMediaSettings::GetInstance().SetAdditionalSubtitleDirectoryChecked(m_checked);
+    XFILE::CDirectory::RemoveRecursive(m_folder);
+  }
+
+  static std::shared_ptr<CSettings> Settings()
+  {
+    return CServiceBroker::GetSettingsComponent()->GetSettings();
+  }
+
+  const std::string m_folder{
+      CSpecialProtocol::TranslatePath("special://temp/TestCustomSubtitleFolder/")};
+  const std::string m_video{URIUtils::AddFileToFolder(m_folder, "Film.mkv")};
+  const std::string m_customPath{Settings()->GetString(CSettings::SETTING_SUBTITLES_CUSTOMPATH)};
+  const int m_checked{CMediaSettings::GetInstance().GetAdditionalSubtitleDirectoryChecked()};
+};
+} // namespace
+
+TEST_F(TestCustomSubtitleFolder, AFolderThatDoesNotExistStaysDisabled)
+{
+  ASSERT_TRUE(Settings()->SetString(CSettings::SETTING_SUBTITLES_CUSTOMPATH,
+                                    URIUtils::AddFileToFolder(m_folder, "Missing\\")));
+
+  std::vector<std::string> subtitles;
+  CUtil::ScanForExternalSubtitles(m_video, subtitles);
+
+  EXPECT_EQ(-1, CMediaSettings::GetInstance().GetAdditionalSubtitleDirectoryChecked());
+}
+
+TEST_F(TestCustomSubtitleFolder, AFolderThatExistsIsSearched)
+{
+  const std::string subtitles{URIUtils::AddFileToFolder(m_folder, "AlternateCaptions\\")};
+  ASSERT_TRUE(XFILE::CDirectory::Create(subtitles));
+  XFILE::CFile file;
+  ASSERT_TRUE(file.OpenForWrite(URIUtils::AddFileToFolder(subtitles, "Film.en.srt"), true));
+  file.Close();
+  ASSERT_TRUE(Settings()->SetString(CSettings::SETTING_SUBTITLES_CUSTOMPATH, subtitles));
+
+  std::vector<std::string> found;
+  CUtil::ScanForExternalSubtitles(m_video, found);
+
+  EXPECT_EQ(1, CMediaSettings::GetInstance().GetAdditionalSubtitleDirectoryChecked());
+  EXPECT_EQ(1U, found.size());
+}

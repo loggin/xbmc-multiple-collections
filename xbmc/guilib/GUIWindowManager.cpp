@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -149,9 +149,14 @@
 /* Game related include files */
 #include "cores/RetroPlayer/guiwindows/GameWindowFullScreen.h"
 #include "games/agents/windows/GUIAgentWindow.h"
+#include "games/cheats/dialogs/DialogGameCheats.h"
 #include "games/controllers/windows/GUIControllerWindow.h"
 #include "games/dialogs/disc/DialogGameDiscManager.h"
+#include "games/dialogs/osd/DialogGameAchievements.h"
 #include "games/dialogs/osd/DialogGameAdvancedSettings.h"
+#include "games/dialogs/osd/DialogGameIndicators.h"
+#include "games/dialogs/osd/DialogGameLeaderboardEntries.h"
+#include "games/dialogs/osd/DialogGameLeaderboards.h"
 #include "games/dialogs/osd/DialogGameOSD.h"
 #include "games/dialogs/osd/DialogGameSaves.h"
 #include "games/dialogs/osd/DialogGameStretchMode.h"
@@ -165,6 +170,29 @@
 using namespace KODI;
 using namespace PVR;
 using namespace PERIPHERALS;
+
+namespace
+{
+bool PreValidateMessage(CGUIMessage& message, CGUIWindow& window)
+{
+  // Click message: check that the underlying control hasn't been disabled by core code.
+  // note: the "regular" enabled status is modified by skin conditions > use a different function.
+  if (message.GetMessage() == GUI_MSG_CLICKED && window.HasID(message.GetControlId()))
+  {
+    // @todo: if this is not enough to locate the control, maybe borrow more from SendControlMessage
+    if (CGUIControl * ctrl{window.GetControl(message.GetSenderId(), nullptr)};
+        ctrl != nullptr && ctrl->IsDisabled())
+    {
+      CLog::Log(LOGWARNING,
+                "Window manager: Blocked an attempt to click a disabled control "
+                "(control {} window {})",
+                message.GetSenderId(), message.GetControlId());
+      return false;
+    }
+  }
+  return true;
+}
+} // namespace
 
 CGUIWindowManager::CGUIWindowManager()
 {
@@ -335,6 +363,11 @@ void CGUIWindowManager::CreateWindows()
   Add(new GAME::CDialogInGameSaves);
   Add(new GAME::CGUIAgentWindow);
   Add(new GAME::CDialogGameDiscManager);
+  Add(new GAME::CDialogGameAchievements);
+  Add(new GAME::CDialogGameLeaderboards);
+  Add(new GAME::CDialogGameLeaderboardEntries);
+  Add(new GAME::CDialogGameIndicators);
+  Add(new GAME::CDialogGameCheats);
   Add(new RETRO::CGameWindowFullScreen);
 }
 
@@ -464,6 +497,11 @@ bool CGUIWindowManager::DestroyWindows()
     DestroyWindow(WINDOW_DIALOG_IN_GAME_SAVES);
     DestroyWindow(WINDOW_DIALOG_GAME_AGENTS);
     DestroyWindow(WINDOW_DIALOG_GAME_DISC_MANAGER);
+    DestroyWindow(WINDOW_DIALOG_GAME_LEADERBOARDS);
+    DestroyWindow(WINDOW_DIALOG_GAME_LEADERBOARD_ENTRIES);
+    DestroyWindow(WINDOW_DIALOG_GAME_INDICATORS);
+    DestroyWindow(WINDOW_DIALOG_GAME_ACHIEVEMENTS);
+    DestroyWindow(WINDOW_DIALOG_GAME_CHEATS);
     DestroyWindow(WINDOW_FULLSCREEN_GAME);
 
     Remove(WINDOW_SETTINGS_SERVICE);
@@ -562,6 +600,10 @@ bool CGUIWindowManager::SendMessage(CGUIMessage& message)
   while (topWindow)
   {
     auto dialog = m_activeDialogs[--topWindow];
+
+    if (!PreValidateMessage(message, *dialog))
+      continue;
+
     if (!modalAcceptedMessage && dialog->IsModalDialog())
     { // modal window
       hasModalDialog = true;
@@ -582,7 +624,7 @@ bool CGUIWindowManager::SendMessage(CGUIMessage& message)
 
   // now send to the underlying window
   CGUIWindow* window = GetWindow(GetActiveWindow());
-  if (window)
+  if (window && PreValidateMessage(message, *window))
   {
     if (hasModalDialog)
     {
@@ -999,8 +1041,11 @@ bool CGUIWindowManager::SwitchToFullScreen(bool force /* = false */)
   const auto appPlayer = components.GetComponent<CApplicationPlayer>();
 
   // See if we're playing a game
-  if (activeWindowID != WINDOW_FULLSCREEN_GAME && appPlayer->IsPlayingGame())
-    windowID = WINDOW_FULLSCREEN_GAME;
+  if (appPlayer->IsPlayingGame())
+  {
+    if (activeWindowID != WINDOW_FULLSCREEN_GAME)
+      windowID = WINDOW_FULLSCREEN_GAME;
+  }
 
   // See if we're playing a video
   else if (activeWindowID != WINDOW_FULLSCREEN_VIDEO && appPlayer->IsPlayingVideo())
@@ -1390,10 +1435,15 @@ bool CGUIWindowManager::Render()
       CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_guiVisualizeDirtyRegions;
   if (visualizeDirtyRegions)
     bufferAge = 20;
-  if (bufferAge)
-    m_tracker.CleanMarkedRegions(bufferAge + 1);
-  else
-    m_tracker.CleanMarkedRegions(10);
+  // in the stereo modes Render() runs once per eye, age the regions once per frame
+  // otherwise the right eye drops them a frame early and misses redraws
+  if (CServiceBroker::GetWinSystem()->GetGfxContext().GetStereoView() != RenderStereoView::RIGHT)
+  {
+    if (bufferAge)
+      m_tracker.CleanMarkedRegions(bufferAge + 1);
+    else
+      m_tracker.CleanMarkedRegions(10);
+  }
 
   CDirtyRegionList dirtyRegions = m_tracker.GetDirtyRegions();
 
@@ -1454,14 +1504,27 @@ void CGUIWindowManager::AfterRender()
 
   // make copy of vector as we may remove items from it as we go
   auto activeDialogs = m_activeDialogs;
+  bool dialogDirty = false;
   for (const auto& window : activeDialogs)
   {
     if (window->IsDialogRunning())
     {
       window->AfterRender();
-      // Dialog state can affect visibility states
-      if (pWindow && window->IsControlDirty())
-        pWindow->MarkDirtyRegion();
+      dialogDirty |= window->IsControlDirty();
+    }
+  }
+
+  // Dialog state can affect visibility states of the window and the other dialogs
+  if (dialogDirty)
+  {
+    if (pWindow)
+      pWindow->MarkDirtyRegion(CGUIControl::DIRTY_STATE_CHILD);
+
+    CGUIMessage msg(GUI_MSG_NOTIFY_ALL, 0, 0, GUI_MSG_STATE_CHANGED);
+    for (const auto& window : activeDialogs)
+    {
+      if (window->IsDialogRunning())
+        window->OnMessage(msg);
     }
   }
 }
@@ -1580,6 +1643,11 @@ void CGUIWindowManager::DeInitialize()
   // clear our vectors of windows
   m_vecCustomWindows.clear();
   m_activeDialogs.clear();
+
+  // FrameMove is the only other drain and stops running at shutdown
+  for (const auto& window : m_deleteWindows)
+    window->FreeResources(true);
+  m_deleteWindows.clear();
 
   m_initialized = false;
 }

@@ -48,15 +48,16 @@ void CRendererVAAPIGLES::Register(IVaapiWinSystem* winSystem,
     return;
   }
 
-  CVaapi2Texture::TestInterop(vaDpy, eglDisplay, general, deepColor);
-  CLog::Log(LOGDEBUG, "Vaapi2 EGL interop test results: general {}, deepColor {}",
-            general ? "yes" : "no", deepColor ? "yes" : "no");
-  if (!general)
-  {
-    CVaapi1Texture::TestInterop(vaDpy, eglDisplay, general, deepColor);
-    CLog::Log(LOGDEBUG, "Vaapi1 EGL interop test results: general {}, deepColor {}",
-              general ? "yes" : "no", deepColor ? "yes" : "no");
-  }
+  // Probe importable surface formats via vaExportSurfaceHandle.
+  CCapabilities& caps = CDecoder::GetCaps();
+  CVaapi2Texture::TestInteropFormats(vaDpy, eglDisplay, caps);
+
+  CLog::Log(LOGDEBUG, "VAAPI EGL interop: {}", caps.ToString());
+
+  // Bool out-params are views over caps for the OptionalsReg / WinSystem
+  // boundary that still expresses capability as the general/deepColor pair.
+  general = caps.Supports(AV_PIX_FMT_NV12);
+  deepColor = caps.Supports(AV_PIX_FMT_P010);
 
   vaTerminate(vaDpy);
 
@@ -75,6 +76,8 @@ CRendererVAAPIGLES::~CRendererVAAPIGLES()
   {
     DeleteTexture(i);
   }
+  // renderer destruction runs on the render thread with the GL context current
+  m_texturePool.ReleaseAll();
 }
 
 bool CRendererVAAPIGLES::Configure(const VideoPicture& picture, float fps, unsigned int orientation)
@@ -84,6 +87,8 @@ bool CRendererVAAPIGLES::Configure(const VideoPicture& picture, float fps, unsig
     m_isVAAPIBuffer = true;
   else
     m_isVAAPIBuffer = false;
+
+  m_vaapiFourcc = pic->procPic.fourcc;
 
   if (m_isVAAPIBuffer)
   {
@@ -95,21 +100,10 @@ bool CRendererVAAPIGLES::Configure(const VideoPicture& picture, float fps, unsig
         (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
     interop.eglDisplay = m_pWinSystem->GetEGLDisplay();
 
-    bool useVaapi2 = VAAPI::CVaapi2Texture::TestInteropGeneral(
-        pic->vadsp, CRendererVAAPIGLES::m_pWinSystem->GetEGLDisplay());
-
+    m_texturePool.ReleaseAll();
+    m_texturePool.Init(interop);
     for (auto& tex : m_vaapiTextures)
-    {
-      if (useVaapi2)
-      {
-        tex = std::make_unique<VAAPI::CVaapi2Texture>();
-      }
-      else
-      {
-        tex = std::make_unique<VAAPI::CVaapi1Texture>();
-      }
-      tex->Init(interop);
-    }
+      tex = nullptr;
 
     for (auto& fence : m_fences)
     {
@@ -132,14 +126,39 @@ bool CRendererVAAPIGLES::ConfigChanged(const VideoPicture& picture)
 
 EShaderFormat CRendererVAAPIGLES::GetShaderFormat()
 {
-  EShaderFormat ret = SHADER_NONE;
+  if (!m_isVAAPIBuffer)
+    return SHADER_NV12;
 
-  if (m_isVAAPIBuffer)
-    ret = SHADER_NV12_RRG;
-  else
-    ret = SHADER_NV12;
-
-  return ret;
+  // Per-fourcc sampling path. Semi-planar 4:2:0 surfaces (NV12 / P010 /
+  // P012 / P016) all share SHADER_NV12_RRG; Mesa imports their DMA-BUF as
+  // GL_R16 / GL_RG16 textures whose normalized 0..1 sampled floats span
+  // the full range regardless of underlying bit depth, so one shader
+  // covers all 4:2:0 bit depths. Packed 4:2:2 and 4:4:4 each have their
+  // own shader because their channel layouts differ.
+  switch (m_vaapiFourcc)
+  {
+    case VA_FOURCC_NV12:
+    case VA_FOURCC_P010:
+    case VA_FOURCC_P012:
+    case VA_FOURCC_P016:
+      return SHADER_NV12_RRG;
+    case VA_FOURCC_Y210:
+    case VA_FOURCC_Y212:
+    case VA_FOURCC_Y216:
+      return SHADER_Y210;
+    case VA_FOURCC_AYUV:
+    case VA_FOURCC_XYUV:
+      return SHADER_AYUV;
+    case VA_FOURCC_Y410:
+      return SHADER_Y410;
+    case VA_FOURCC_Y412:
+    case VA_FOURCC_Y416:
+      return SHADER_Y412;
+    default:
+      CLog::Log(LOGDEBUG, "CRendererVAAPIGLES::GetShaderFormat - unrecognized fourcc: {:#x}",
+                m_vaapiFourcc);
+      return SHADER_NV12_RRG;
+  }
 }
 
 bool CRendererVAAPIGLES::LoadShadersHook()
@@ -246,7 +265,9 @@ bool CRendererVAAPIGLES::UploadTexture(int index)
     return false;
   }
 
-  m_vaapiTextures[index]->Map(pic);
+  m_vaapiTextures[index] = m_texturePool.Get(pic, m_vaapiTextures);
+  if (!m_vaapiTextures[index])
+    return false;
 
   YuvImage &im = buf.image;
   CYuvPlane (&planes)[3] = buf.fields[0];
@@ -255,6 +276,16 @@ bool CRendererVAAPIGLES::UploadTexture(int index)
   planes[0].texwidth  = size.Width();
   planes[0].texheight = size.Height();
 
+  // Packed 4:2:2 fourccs (YUY2 / Y210 / Y212 / Y216) hold two luma per
+  // texel, so the GL texture covers half the source width with each texel
+  // representing a (Y0, Cb, Y1, Cr) macropixel. Match the LinuxRendererGLES
+  // YUYV path: halve texwidth (ceiling for odd widths) and tell the shader
+  // pixpertex_x = 2.
+  const bool packed422 = (m_vaapiFourcc == VA_FOURCC_Y210 || m_vaapiFourcc == VA_FOURCC_Y212 ||
+                          m_vaapiFourcc == VA_FOURCC_Y216);
+  if (packed422)
+    planes[0].texwidth = (planes[0].texwidth + 1) / 2;
+
   planes[1].texwidth  = planes[0].texwidth  >> im.cshift_x;
   planes[1].texheight = planes[0].texheight >> im.cshift_y;
   planes[2].texwidth  = planes[1].texwidth;
@@ -262,7 +293,7 @@ bool CRendererVAAPIGLES::UploadTexture(int index)
 
   for (int p = 0; p < 3; p++)
   {
-    planes[p].pixpertex_x = 1;
+    planes[p].pixpertex_x = packed422 ? 2 : 1;
     planes[p].pixpertex_y = 1;
   }
 
@@ -290,7 +321,10 @@ bool CRendererVAAPIGLES::UploadTexture(int index)
 void CRendererVAAPIGLES::AfterRenderHook(int index)
 {
   if (m_fences[index])
+  {
+    m_fences[index]->DestroyFence();
     m_fences[index]->CreateFence();
+  }
 }
 
 bool CRendererVAAPIGLES::NeedBuffer(int index)
@@ -307,9 +341,7 @@ void CRendererVAAPIGLES::ReleaseBuffer(int index)
     m_fences[index]->DestroyFence();
 
   if (m_isVAAPIBuffer)
-  {
-    m_vaapiTextures[index]->Unmap();
-  }
+    m_vaapiTextures[index] = nullptr;
 
   CLinuxRendererGLES::ReleaseBuffer(index);
 }

@@ -78,8 +78,8 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
   // TV shows and seasons: navigate to WINDOW_VIDEO_NAV for proper season/episode browsing
   if (item && item->HasVideoInfoTag() && item->IsFolder())
   {
-    const std::string& type = item->GetVideoInfoTag()->m_type;
-    if (type == MediaTypeTvShow)
+    const MEDIA::TYPE type = item->GetVideoInfoTag()->GetMediaType();
+    if (type == MEDIA::TYPE::TV_SHOW)
     {
       const std::string navPath = StringUtils::Format("videodb://tvshows/titles/{}/",
                                                        item->GetVideoInfoTag()->m_iDbId);
@@ -88,7 +88,7 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
                                                                   {navPath, "return", collectionReturnParam});
       return true;
     }
-    else if (type == MediaTypeSeason)
+    else if (type == MEDIA::TYPE::SEASON)
     {
       const std::string navPath =
           StringUtils::Format("videodb://tvshows/titles/{}/{}/",
@@ -99,7 +99,7 @@ bool CGUIWindowVideoCollection::OnSelect(int iItem)
                                                                   {navPath, "return", collectionReturnParam});
       return true;
     }
-    else if (type == MediaTypeMovie)
+    else if (type == MEDIA::TYPE::MOVIE)
     {
       // Versioned/hybrid movie folder — open the versions list in WINDOW_VIDEO_NAV so that
       // Back returns here via the collectionreturn mechanism (same pattern as tvshow/season).
@@ -129,9 +129,10 @@ void CGUIWindowVideoCollection::GetContextButtons(int itemNumber, CContextButton
   if (!CVideoLibraryQueue::GetInstance().IsScanningLibrary() &&
       VIDEO::IsVideoDb(*item) && item->HasVideoInfoTag())
   {
-    const std::string& type = item->GetVideoInfoTag()->m_type;
-    if (type == MediaTypeMovie || type == MediaTypeTvShow || type == MediaTypeSeason ||
-        type == MediaTypeEpisode || type == MediaTypeMusicVideo)
+    const MEDIA::TYPE type = item->GetVideoInfoTag()->GetMediaType();
+    if (type == MEDIA::TYPE::MOVIE || type == MEDIA::TYPE::TV_SHOW ||
+        type == MEDIA::TYPE::SEASON || type == MEDIA::TYPE::EPISODE ||
+        type == MEDIA::TYPE::MUSIC_VIDEO)
     {
       buttons.Add(CONTEXT_BUTTON_EDIT, 16106); // "Manage..."
     }

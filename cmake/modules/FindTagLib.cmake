@@ -28,12 +28,11 @@ if(NOT TARGET ${APP_NAME_LC}::${CMAKE_FIND_PACKAGE_NAME})
       set(patches "${CMAKE_SOURCE_DIR}/tools/depends/target/${${CMAKE_FIND_PACKAGE_NAME}_MODULE_LC}/001-cmake-pdb-debug.patch")
       generate_patchcommand("${patches}")
       unset(patches)
-
-      if(WINDOWS_STORE)
-        set(EXTRA_ARGS -DPLATFORM_WINRT=ON)
-      endif()
     endif()
-  
+
+    if(WINDOWS_STORE)
+      set(EXTRA_ARGS -DPLATFORM_WINRT=ON)
+    endif()
     # Debug postfix only used for windows
     if(WIN32 OR WINDOWS_STORE)
       set(${${CMAKE_FIND_PACKAGE_NAME}_MODULE}_DEBUG_POSTFIX "d")

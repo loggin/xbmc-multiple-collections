@@ -27,6 +27,9 @@ namespace WINDOWING
 {
 namespace GBM
 {
+
+constexpr const char* SETTING_VIDEOSCREEN_LIMITGUISIZE = "videoscreen.limitguisize";
+
 // https://github.com/torvalds/linux/blob/7d0a66e4bb9081d75c82ec4957c50034cb0ea449/drivers/
 // gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_crtc.c#L683-L692
 //
@@ -72,6 +75,9 @@ public:
   bool FindGuiPlane(uint32_t format, uint64_t modifier);
   bool FindVideoPlane(uint32_t format, uint64_t modifier);
   bool FindVideoAndGuiPlane(uint32_t format, uint64_t modifier, uint64_t width, uint64_t height);
+  // FindGuiPlane never releases a D2P video plane reservation; a caller that
+  // means "video is over" states it here before revalidating the gui plane.
+  void ReleaseVideoPlane() { m_video_plane = nullptr; }
   bool HasQuirk(int quirk) const { return m_drm_quirks & quirk; }
 
   std::vector<std::string> GetConnectedConnectorNames();
@@ -91,7 +97,7 @@ protected:
   bool OpenDrm(bool needConnector);
   drm_fb* DrmFbGetFromBo(struct gbm_bo* bo);
 
-  int m_fd;
+  int m_fd{-1};
   CDRMConnector* m_connector{nullptr};
   CDRMEncoder* m_encoder{nullptr};
   CDRMCrtc* m_crtc{nullptr};
@@ -118,15 +124,19 @@ private:
   RESOLUTION_INFO GetResolutionInfo(drmModeModeInfoPtr mode);
   void PrintDrmDeviceInfo(drmDevicePtr device);
 
-  int m_renderFd;
+  int m_renderFd{-1};
   const char* m_renderDevicePath{nullptr};
 
   int m_drm_quirks{0};
   std::vector<std::unique_ptr<CDRMConnector>> m_connectors;
   std::vector<std::unique_ptr<CDRMEncoder>> m_encoders;
   std::vector<std::unique_ptr<CDRMCrtc>> m_crtcs;
+  // 8-bit formats first: Direct-to-Plane needs full 8-bit alpha for GUI overlay.
+  // 10-bit formats are available for single-plane HDR rendering when requested.
   std::vector<outputformat> m_output_formats = {{DRM_FORMAT_ARGB8888, 8, 8, false, {}},
-                                                {DRM_FORMAT_XRGB8888, 8, 0, false, {}}};
+                                                {DRM_FORMAT_XRGB8888, 8, 0, false, {}},
+                                                {DRM_FORMAT_ARGB2101010, 10, 2, false, {}},
+                                                {DRM_FORMAT_XRGB2101010, 10, 0, false, {}}};
 };
 
 } // namespace GBM

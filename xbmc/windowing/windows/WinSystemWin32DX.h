@@ -72,6 +72,9 @@ public:
   bool IsHDRDisplay() override;
   HDR_STATUS ToggleHDR() override;
   HDR_STATUS GetOSHDRStatus() override;
+  KODI::UTILS::Eotf GetEotf() const override;
+  KODI::UTILS::Colorimetry GetColorimetry() const override;
+  int GetOutputBitDepth() const override;
 
   // HDR support
   bool IsHDROutput() const;
@@ -91,6 +94,7 @@ protected:
   void ResizeDeviceBuffers() override;
   bool IsStereoEnabled() override;
   void OnScreenChange(HMONITOR monitor) override;
+  bool CanUseExclusiveFullscreen() const override;
   bool ChangeResolution(const RESOLUTION_INFO& res, bool forceChange = false) override;
 
   HMODULE m_hDriverModule;

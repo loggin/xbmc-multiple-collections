@@ -21,6 +21,7 @@ namespace KODI
 {
 namespace SHADER
 {
+class CShaderTextureGLES;
 class CShaderTextureGLESRef;
 } // namespace SHADER
 
@@ -47,7 +48,7 @@ public:
   CRPRendererOpenGLES(const CRenderSettings& renderSettings,
                       CRenderContext& context,
                       std::shared_ptr<IRenderBufferPool> bufferPool);
-  ~CRPRendererOpenGLES() override;
+  ~CRPRendererOpenGLES() override = default;
 
   // Implementation of CRPBaseRenderer
   bool Supports(RENDERFEATURE feature) const override;
@@ -56,53 +57,21 @@ public:
   static bool SupportsScalingMethod(SCALINGMETHOD method);
 
 protected:
-  struct PackedVertex
-  {
-    float x, y, z;
-    float u1, v1;
-  };
-
-  struct Svertex
-  {
-    float x;
-    float y;
-    float z;
-  };
-
   struct RenderBufferTextures
   {
     std::shared_ptr<SHADER::CShaderTextureGLESRef> sourceTexture;
-    std::shared_ptr<SHADER::CShaderTextureGLESRef> targetTexture;
+    std::shared_ptr<SHADER::CShaderTextureGLES> targetTexture;
   };
 
   // Implementation of CRPBaseRenderer
-  void RenderInternal(bool clear, uint8_t alpha) override;
+  void RenderInternal(uint8_t alpha) override;
   void FlushInternal() override;
-
-  /*!
-   * \brief Set the entire backbuffer to black
-   */
-  void ClearBackBuffer();
-
-  /*!
-   * \brief Draw black bars around the video quad
-   *
-   * This is more efficient than glClear() since it only sets pixels to
-   * black that aren't going to be overwritten by the game.
-   */
-  void DrawBlackBars();
 
   virtual void Render(uint8_t alpha);
 
   std::map<CRenderBufferOpenGLES*, std::unique_ptr<RenderBufferTextures>> m_RBTexturesMap;
 
-  GLuint m_mainIndexVBO;
-  GLuint m_mainVertexVBO;
-
-  GLuint m_blackbarsVertexVBO;
-
-  GLenum m_textureTarget = GL_TEXTURE_2D;
-  float m_clearColor = 0.0f;
+  const GLenum m_textureTarget = GL_TEXTURE_2D;
 };
 } // namespace RETRO
 } // namespace KODI

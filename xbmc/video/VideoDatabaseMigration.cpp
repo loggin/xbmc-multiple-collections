@@ -17,24 +17,23 @@
 #include "ServiceBroker.h"
 #include "URL.h"
 #include "VideoDatabase.h"
-#include "VideoDatabaseDDL.h"
 #include "dbwrappers/dataset.h"
 #include "filesystem/MultiPathDirectory.h"
+#include "language/i18n/TableLanguageCodes.h"
 #include "resources/LocalizeStrings.h"
 #include "resources/ResourcesComponent.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
-#include "utils/i18n/TableLanguageCodes.h"
 #include "utils/log.h"
 
 #include <algorithm>
-#include <cctype>
-#include <functional>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <sstream>
-#include <stdlib.h>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using namespace dbiplus;
@@ -101,11 +100,100 @@ static std::string LowerCaseEncodingV143(std::string_view in)
 
   return out;
 }
+
+static std::string SanitiseUrlEncodingV147(const std::string& path)
+{
+  // Firstly look at encoded character capitalization.
+  // Some providers (eg. vfs rar) return paths with %2F instead of %2f,
+  // which causes problems when comparing paths.
+  // This only applies to the hostname element of the url
+  constexpr std::string_view PROTOCOL_SEP = "://";
+  auto protocolEnd{path.find(PROTOCOL_SEP)};
+  if (protocolEnd == std::string::npos)
+    return path;
+
+  protocolEnd += PROTOCOL_SEP.size();
+  if (protocolEnd >= path.size())
+    return path;
+
+  auto hostEnd{path.find('/', protocolEnd)};
+  if (hostEnd == std::string::npos)
+    hostEnd = path.size();
+
+  constexpr auto is_hex = [](char c) noexcept
+  { return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'); };
+
+  std::string out{path.substr(0, protocolEnd)};
+  for (auto it = path.begin() + static_cast<long long>(protocolEnd);
+       it != path.begin() + static_cast<long long>(hostEnd); ++it)
+  {
+    if (*it == '%' && std::ranges::distance(it, path.end()) > 2)
+    {
+      if (is_hex(it[1]) && is_hex(it[2]))
+      {
+        out += '%';
+        out += StringUtils::ToLowerAscii(it[1]);
+        out += StringUtils::ToLowerAscii(it[2]);
+        std::ranges::advance(it, 2);
+      }
+      else
+      {
+        CLog::LogF(LOGDEBUG, "Invalid encoding in path {}", CURL::GetRedacted(std::string(path)));
+        out += *it;
+      }
+    }
+    else
+      out += *it;
+  }
+
+  // In case addon (eg. vfs rar) returns malformed DOS paths (eg. c:/ and not c:\)
+  // m_basePath is used to populate the VIDEODB_ID_BASEPATH column which in turn is used
+  // by GetItemsByPath() to find items when browsing Video -> Files
+  // Pattern for DOS drive letter path: "D:/" encoded as "D%3a%2f"
+  constexpr std::string_view DOS_DRIVE_PATTERN = "%3a%2f";
+  constexpr size_t DOS_DRIVE_PATTERN_LENGTH =
+      DOS_DRIVE_PATTERN.length() + 1; // +1 for the drive letter
+  if (out.size() >= DOS_DRIVE_PATTERN_LENGTH &&
+      std::isalpha(static_cast<unsigned char>(out[protocolEnd])) &&
+      out.compare(protocolEnd + 1, DOS_DRIVE_PATTERN.length(), DOS_DRIVE_PATTERN) == 0)
+    StringUtils::Replace(out, "%2f", "%5c");
+
+  out += path.substr(hostEnd);
+
+  return out;
+}
 } // namespace KODI::DATABASE::MIGRATION
 
 void CVideoDatabase::UpdateTables(int iVersion)
 {
   // Important: DO NOT use CREATE TABLE [...] AS SELECT [...] - it does not work on MySQL with GTID consistency enforced
+
+  // Multi Collections: before merging upstream Kodi schema v145-v153, this fork used the schema
+  // numbers 145-151 for its own collection steps (now 154-157). A database written by such a
+  // build has a `collection` table but none of upstream's 145-153 changes, so rewind it to 144
+  // to run those, and record which fork steps it already has so they are not repeated.
+  int forkVersion{0};
+  if (iVersion >= 145 && iVersion <= 151)
+  {
+    bool hasCollectionTable{false};
+    try
+    {
+      m_pDS->query("SELECT 1 FROM collection LIMIT 1");
+      m_pDS->close();
+      hasCollectionTable = true;
+    }
+    catch (...)
+    {
+    }
+    if (hasCollectionTable)
+    {
+      CLog::Log(LOGINFO,
+                "Video database v{} is a pre-merge Multi Collections schema, upgrading from v144",
+                iVersion);
+      forkVersion = iVersion;
+      iVersion = 144;
+    }
+  }
 
   if (iVersion < 76)
   {
@@ -1150,65 +1238,270 @@ void CVideoDatabase::UpdateTables(int iVersion)
   }
 
   if (iVersion < 144)
+  {
     m_pDS->exec("ALTER TABLE streamdetails ADD strHdrDetail text");
+  }
 
   if (iVersion < 145)
   {
-    // Add unified collections tables, inline set path tracking, and seed legacy sets.
-    // homePath and strPath included from the start so no further ALTER steps are needed.
-    m_pDS->exec("CREATE TABLE collection ( idCollection integer primary key, "
-                "name text not null, type text not null default 'franchise', "
-                "description text, sortType text not null default 'custom', artwork text, "
-                "homePath text, dateAdded text, dateModified text)");
-    m_pDS->exec("CREATE TABLE collection_item ( idCollection integer not null, "
-                "mediaType text not null, idMedia integer not null, "
-                "sortOrder integer not null default 0, groupName text, "
-                "PRIMARY KEY (idCollection, mediaType, idMedia))");
-
-    m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT");
-
-    // Seed legacy movie sets into collection table for v1 compatibility.
-    m_pDS->exec("INSERT INTO collection "
-                "(idCollection, name, type, description, sortType, artwork, homePath, "
-                "dateAdded, dateModified) "
-                "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL, NULL "
-                "FROM `sets`");
-
-    // Seed collection_item from movie.idSet so movie_view grouping works for all
-    // legacy sets. INSERT OR IGNORE is safe if rows already exist (e.g. partial prior run).
-    m_pDS->exec("INSERT OR IGNORE INTO collection_item "
-                "(idCollection, mediaType, idMedia, sortOrder, groupName) "
-                "SELECT m.idSet, 'movie', m.idMovie, 0, NULL "
-                "FROM movie m "
-                "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
+    m_pDS->exec("UPDATE streamdetails set strAudioCodec = 'dts' where strAudioCodec = 'dca'");
   }
 
   if (iVersion < 146)
   {
-    // Recreate all views: tvshow_view now includes idSet/strSet/strSetOverview from
-    // collection_item (mediaType='tvshow'), and movie_view uses the correlated
-    // subquery that picks the largest collection as primary set.
-    // Drop views in dependency order, then recreate via DDL.
-    m_pDS->exec("DROP VIEW IF EXISTS season_view");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshow_view");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshowlinkpath_minview");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshowcounts");
-    m_pDS->exec("DROP VIEW IF EXISTS episode_view");
-    m_pDS->exec("DROP VIEW IF EXISTS movie_view");
-    m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
-    KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
+    constexpr int LOCAL_VIDEODB_ID_EPISODE_RUNTIME = 9;
+
+    // Create indices to speed up the queries below (CVideoDatabaseDDL::CreateIndices() has not been called yet)
+    m_pDS->exec("CREATE UNIQUE INDEX ix_episode_file_1 ON episode (idEpisode, idFile)");
+    m_pDS->exec("CREATE UNIQUE INDEX id_episode_file_2 ON episode (idFile, idEpisode)");
+    m_pDS->exec("CREATE INDEX ix_streamdetails ON streamdetails (idFile)");
+
+    // Create temporary table
+    // Avoids MySQL/MariaDB/Sqlite incompatible differences in the later UPDATE and DELETE queries
+    m_pDS->exec("CREATE TABLE single_video_streams "
+                "(idEpisode INTEGER PRIMARY KEY, idFile INTEGER, iVideoDuration INTEGER, "
+                "iTotalStreams INTEGER)");
+
+    // Populate temporary table
+    // Find any episode where the duration (c09) is 0 but there is a video stream with a positive duration in streamdetails
+    // We don't look for height/width = 0 here as the file may have been played and proper streamdetails derived
+    m_pDS->exec(PrepareSQL(
+        "INSERT INTO single_video_streams (idEpisode, idFile, iVideoDuration, iTotalStreams) "
+        "SELECT e.idEpisode, e.idFile, "
+        "  MAX(s.iVideoDuration), "
+        "  (SELECT COUNT(*) FROM streamdetails s2 WHERE s2.idFile = e.idFile) "
+        "FROM episode e "
+        "JOIN streamdetails s ON e.idFile = s.idFile "
+        "WHERE (e.c%02d = '0' OR e.c%02d IS NULL) "
+        "  AND s.iStreamType = 0 AND s.iVideoDuration > 0 "
+        "GROUP BY e.idEpisode, e.idFile",
+        LOCAL_VIDEODB_ID_EPISODE_RUNTIME, LOCAL_VIDEODB_ID_EPISODE_RUNTIME));
+
+    // Update the episodes' duration with the value from streamdetails
+    m_pDS->exec(PrepareSQL("UPDATE episode "
+                           "SET c%02d = (SELECT iVideoDuration FROM single_video_streams AS s "
+                           "            WHERE s.idEpisode = episode.idEpisode) "
+                           "WHERE idEpisode IN (SELECT idEpisode FROM single_video_streams)",
+                           LOCAL_VIDEODB_ID_EPISODE_RUNTIME));
+
+    // Delete any streamdetails where the video height/width are 0 (dummy entry created by scraper)
+    m_pDS->exec(PrepareSQL("DELETE FROM streamdetails "
+                           "WHERE iVideoHeight = 0 AND iVideoWidth = 0 AND iStreamType = 0 "
+                           "  AND idFile IN (SELECT idFile FROM single_video_streams "
+                           "                   WHERE iTotalStreams = 1)"));
+
+    // Remove temporary table
+    m_pDS->exec("DROP TABLE IF EXISTS single_video_streams");
+
+    // Remove indices
+    m_pDS->dropIndex("episode", "ix_episode_file_1");
+    m_pDS->dropIndex("episode", "id_episode_file_2");
+    m_pDS->dropIndex("streamdetails", "ix_streamdetails");
   }
 
   if (iVersion < 147)
   {
-    // Safety net for installs upgrading from standard Kodi v146 (which never ran
-    // the v145/v146 blocks because GetSchemaVersion already returned 146).
-    // All statements are idempotent: CREATE IF NOT EXISTS, INSERT OR IGNORE, ALTER
-    // TABLE guarded by try/catch, and DROP IF EXISTS before view recreation.
+    constexpr int LOCAL_VIDEODB_ID_BASEPATH = 22;
+    constexpr int LOCAL_VIDEODB_ID_PARENTPATHID = 23;
+    constexpr int LOCAL_VIDEODB_ID_EPISODE_BASEPATH = 18;
+    constexpr int LOCAL_VIDEODB_ID_EPISODE_PARENTPATHID = 19;
 
-    // Ensure collection tables exist (no-op if v145 migration already ran).
-    m_pDS->exec("CREATE TABLE IF NOT EXISTS collection ( idCollection integer primary key, "
-                "name text not null, type text not null default 'franchise', "
+    std::unordered_set<int> idPathSet;
+    std::unordered_map<int, int> pathMap;
+
+    auto FixParentPath{
+        [&](const std::string& table, const std::string& mediaColumnName, int parentPathIdColumn,
+            int idMedia, int idParentPath, const std::string& parentPath)
+        {
+          if (parentPath.empty() || !URIUtils::IsDOSPath(parentPath))
+            return;
+
+          std::string newPath{parentPath};
+          StringUtils::Replace(newPath, '/', '\\');
+          if (newPath == parentPath)
+            return;
+
+          int newIdParentPath{idParentPath};
+          if (pathMap.contains(idParentPath))
+          {
+            newIdParentPath = pathMap[idParentPath];
+          }
+          else
+          {
+            m_pDS2->query(
+                PrepareSQL("SELECT idPath FROM path WHERE strPath = '%s'", newPath.c_str()));
+            if (!m_pDS2->eof())
+            {
+              newIdParentPath = m_pDS2->fv(0).get_asInt();
+              pathMap[idParentPath] = newIdParentPath;
+            }
+            else if (!idPathSet.contains(idParentPath))
+            {
+              m_pDS2->exec(PrepareSQL("UPDATE path SET strPath = '%s' WHERE idPath = %i",
+                                      newPath.c_str(), idParentPath));
+              idPathSet.insert(idParentPath);
+            }
+            m_pDS2->close();
+          }
+
+          if (newIdParentPath != idParentPath)
+            m_pDS2->exec(PrepareSQL("UPDATE %s SET c%02d = %i WHERE %s = %i", table.c_str(),
+                                    parentPathIdColumn, newIdParentPath, mediaColumnName.c_str(),
+                                    idMedia));
+        }};
+
+    // Movies
+    std::string sql{
+        PrepareSQL("SELECT m.idMovie, m.c%02d, p.idPath, p.strPath, pp.idPath, pp.strPath "
+                   "FROM movie AS m "
+                   "JOIN files AS f ON m.idFile = f.idFile "
+                   "JOIN path AS p ON f.idPath = p.idPath "
+                   "LEFT JOIN path AS pp ON m.c%02d = pp.idPath "
+                   "WHERE p.strPath LIKE 'rar://%%'",
+                   LOCAL_VIDEODB_ID_BASEPATH, LOCAL_VIDEODB_ID_PARENTPATHID)};
+    m_pDS->query(sql);
+
+    while (!m_pDS->eof())
+    {
+      const int idMovie{m_pDS->fv(0).get_asInt()};
+      const std::string basePath{m_pDS->fv(1).get_asString()};
+      const int idPath{m_pDS->fv(2).get_asInt()};
+      const std::string path{m_pDS->fv(3).get_asString()};
+      const int idParentPath{m_pDS->fv(4).get_asInt()};
+      const std::string parentPath{m_pDS->fv(5).get_asString()};
+
+      std::string newPath{KODI::DATABASE::MIGRATION::SanitiseUrlEncodingV147(path)};
+      if (newPath != path && !idPathSet.contains(idPath))
+      {
+        // Update rar:// path (in path)
+        sql =
+            PrepareSQL("UPDATE path SET strPath = '%s' WHERE idPath = %i", newPath.c_str(), idPath);
+        m_pDS2->exec(sql);
+        idPathSet.insert(idPath);
+      }
+
+      if (URIUtils::IsDOSPath(basePath))
+      {
+        newPath = basePath;
+        StringUtils::Replace(newPath, '/', '\\');
+        if (newPath != basePath)
+        {
+          // Update DOS basepath (in movie)
+          sql = PrepareSQL("UPDATE movie SET c%02d = '%s' WHERE idMovie = %i",
+                           LOCAL_VIDEODB_ID_BASEPATH, newPath.c_str(), idMovie);
+          m_pDS2->exec(sql);
+        }
+      }
+
+      FixParentPath("movie", "idMovie", LOCAL_VIDEODB_ID_PARENTPATHID, idMovie, idParentPath,
+                    parentPath);
+
+      m_pDS->next();
+    }
+    m_pDS->close();
+
+    // Episodes
+    sql = PrepareSQL("SELECT e.idEpisode, e.c%02d, p.idPath, p.strPath, pp.idPath, pp.strPath "
+                     "FROM episode AS e "
+                     "JOIN files AS f ON e.idFile = f.idFile "
+                     "JOIN path AS p ON f.idPath = p.idPath "
+                     "LEFT JOIN path AS pp ON e.c%02d = pp.idPath "
+                     "WHERE e.c%02d LIKE 'rar://%%'",
+                     LOCAL_VIDEODB_ID_EPISODE_BASEPATH, LOCAL_VIDEODB_ID_EPISODE_PARENTPATHID,
+                     LOCAL_VIDEODB_ID_EPISODE_BASEPATH);
+    m_pDS->query(sql);
+
+    while (!m_pDS->eof())
+    {
+      const int idEpisode{m_pDS->fv(0).get_asInt()};
+      const std::string basePath{m_pDS->fv(1).get_asString()};
+      const int idPath{m_pDS->fv(2).get_asInt()};
+      const std::string path{m_pDS->fv(3).get_asString()};
+      const int idParentPath{m_pDS->fv(4).get_asInt()};
+      const std::string parentPath{m_pDS->fv(5).get_asString()};
+
+      std::string newPath{KODI::DATABASE::MIGRATION::SanitiseUrlEncodingV147(path)};
+      if (newPath != path && !idPathSet.contains(idPath))
+      {
+        // Update rar:// path (in path)
+        sql =
+            PrepareSQL("UPDATE path SET strPath = '%s' WHERE idPath = %i", newPath.c_str(), idPath);
+        m_pDS2->exec(sql);
+        idPathSet.insert(idPath);
+      }
+
+      newPath = KODI::DATABASE::MIGRATION::SanitiseUrlEncodingV147(basePath);
+      if (newPath != basePath)
+      {
+        // Update rar:// base path (in episode)
+        sql = PrepareSQL("UPDATE episode SET c%02d = '%s' WHERE idEpisode = %i",
+                         LOCAL_VIDEODB_ID_EPISODE_BASEPATH, newPath.c_str(), idEpisode);
+        m_pDS2->exec(sql);
+      }
+
+      FixParentPath("episode", "idEpisode", LOCAL_VIDEODB_ID_EPISODE_PARENTPATHID, idEpisode,
+                    idParentPath, parentPath);
+
+      m_pDS->next();
+    }
+    m_pDS->close();
+  }
+
+  if (iVersion < 148)
+  {
+    m_pDS->exec("ALTER TABLE streamdetails ADD iSource INTEGER DEFAULT 40");
+    m_pDS->exec("ALTER TABLE streamdetails ADD iVersion INTEGER DEFAULT 1");
+  }
+
+  if (iVersion < 149)
+    m_pDS->exec("ALTER TABLE streamdetails ADD iFlags INTEGER DEFAULT 0");
+
+  if (iVersion < 150)
+  {
+    m_pDS->exec("ALTER TABLE `sets` ADD strSortSet TEXT");
+  }
+
+  if (iVersion < 151)
+  {
+    for (const char* table :
+         {"movie", "tvshow", "seasons", "episode", "musicvideo", "sets", "genre", "tag"})
+      AddAutoIncrement(table);
+  }
+
+  if (iVersion < 152)
+  {
+    constexpr int VideoAssetType_EXTRA = 2;
+    constexpr int VideoAssetTypeOwner_SYSTEM = 0;
+
+    // The kinds of video extra are built-in types of extras, where the rows were empty versions
+    for (int id = 40500; id <= 40699; ++id)
+    {
+      const std::string& type{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(id)};
+      m_pDS->exec(PrepareSQL(
+          "UPDATE videoversiontype SET name = '%s', owner = %i, itemType = %i WHERE id = %i",
+          type.c_str(), VideoAssetTypeOwner_SYSTEM, VideoAssetType_EXTRA, id));
+    }
+
+    // What an extra of a kind is called is no type
+    m_pDS->exec("DELETE FROM videoversiontype WHERE id BETWEEN 40700 AND 40799");
+  }
+
+  if (iVersion < 153)
+  {
+    m_pDS->exec("ALTER TABLE settings ADD Hue float DEFAULT 50");
+    m_pDS->exec("ALTER TABLE settings ADD Saturation float DEFAULT 50");
+    // gamma was never applied and stored 20, 50 is neutral now
+    m_pDS->exec("UPDATE settings SET Gamma=50");
+  }
+
+  if (iVersion < 154 && forkVersion < 147)
+  {
+    // Multi Collections: unified collection model (formerly fork schema v145-v147).
+    // Idempotent so a partially-migrated fork DB can safely run it again. Views are not touched
+    // here: DatabaseManager drops all analytics before UpdateTables() and recreates every
+    // view/trigger/index from the DDL afterwards.
+    m_pDS->exec("CREATE TABLE IF NOT EXISTS collection ( idCollection integer primary key "
+                "AUTOINCREMENT, name text not null, type text not null default 'franchise', "
                 "description text, sortType text not null default 'custom', artwork text, "
                 "homePath text, dateAdded text, dateModified text)");
     m_pDS->exec("CREATE TABLE IF NOT EXISTS collection_item ( idCollection integer not null, "
@@ -1216,41 +1509,26 @@ void CVideoDatabase::UpdateTables(int iVersion)
                 "sortOrder integer not null default 0, groupName text, "
                 "PRIMARY KEY (idCollection, mediaType, idMedia))");
 
-    // Add strPath to sets if it doesn't already exist.
+    // Inline set path tracking (folder where the set's collection.nfo was found).
     try { m_pDS->exec("ALTER TABLE `sets` ADD strPath TEXT"); } catch (...) {}
 
-    // Seed collection from sets — INSERT OR IGNORE prevents duplicates if already seeded.
+    // Seed legacy movie sets into collection table for v1 compatibility. Explicit idCollection
+    // values keep the legacy set ids, so existing set art (media_type='set') stays attached.
     m_pDS->exec("INSERT OR IGNORE INTO collection "
                 "(idCollection, name, type, description, sortType, artwork, homePath, "
                 "dateAdded, dateModified) "
                 "SELECT idSet, strSet, 'set', strOverview, 'custom', NULL, NULL, NULL, NULL "
                 "FROM `sets`");
 
-    // Seed collection_item from movie.idSet — idempotent via INSERT OR IGNORE.
+    // Seed collection_item from movie.idSet so movie_view grouping works for all legacy sets.
     m_pDS->exec("INSERT OR IGNORE INTO collection_item "
                 "(idCollection, mediaType, idMedia, sortOrder, groupName) "
                 "SELECT m.idSet, 'movie', m.idMovie, 0, NULL "
                 "FROM movie m "
                 "WHERE m.idSet IS NOT NULL AND m.idSet > 0");
-
-    // Recreate all views to ensure movie_view uses collection_item (not sets.idSet).
-    m_pDS->exec("DROP VIEW IF EXISTS season_view");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshow_view");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshowlinkpath_minview");
-    m_pDS->exec("DROP VIEW IF EXISTS tvshowcounts");
-    m_pDS->exec("DROP VIEW IF EXISTS episode_view");
-    m_pDS->exec("DROP VIEW IF EXISTS movie_view");
-    m_pDS->exec("DROP VIEW IF EXISTS musicvideo_view");
-    KODI::DATABASE::CVideoDatabaseDDL::CreateViews(*this);
   }
 
-  // Note: the new delete_collection trigger (added to VideoDatabaseDDL::CreateTriggers for the
-  // schema v148 bump below) needs no explicit migration step here. DatabaseManager already runs
-  // DropAnalytics() -> UpdateTables() -> CreateAnalytics() on every version upgrade, and
-  // CreateAnalytics() unconditionally recreates all triggers/indices/views from the DDL — adding
-  // it here too would just race with that and fail with "trigger already exists".
-
-  if (iVersion < 149)
+  if (iVersion < 155 && forkVersion < 149)
   {
     // Merge duplicate `collection` rows left behind by the Clean-Library id-divergence bug
     // fixed in VideoDatabase.cpp/VideoInfoScanner.cpp for schema v148: CleanDatabase() used to
@@ -1349,7 +1627,7 @@ void CVideoDatabase::UpdateTables(int iVersion)
     }
   }
 
-  if (iVersion < 150)
+  if (iVersion < 156 && forkVersion < 150)
   {
     // Add originalName (the collection's title as first known, kept immutable afterwards —
     // replaces the legacy sets.strOriginalSet as the source for GetOriginalSetById(), used by
@@ -1361,7 +1639,7 @@ void CVideoDatabase::UpdateTables(int iVersion)
     // independent AUTOINCREMENT sequences, so a matching id alone does NOT mean the rows are the
     // same entity - a collection created long after migration can coincidentally land on the id
     // of an unrelated orphaned legacy set (this is the exact bug this whole cleanup exists to
-    // fix). Rows that genuinely came from the v145/v147 seeding also share their name with the
+    // fix). Rows that genuinely came from the v154 (formerly v145/v147) seeding also share their name with the
     // `sets` row at that same id (seeded as `SELECT idSet, strSet, ... FROM sets`), so require
     // both id AND name to match before trusting the legacy value; otherwise fall back to the
     // collection's current name.
@@ -1373,7 +1651,7 @@ void CVideoDatabase::UpdateTables(int iVersion)
         "WHERE type='set' AND (originalName IS NULL OR originalName = '')");
   }
 
-  if (iVersion < 151)
+  if (iVersion < 157 && forkVersion < 151)
   {
     // Fix collections mis-typed as 'set' by the ManageMediaCollections "New set..." dialog,
     // which called AddCollection(name) with no explicit type and so always got the type="set"
@@ -1411,9 +1689,24 @@ void CVideoDatabase::UpdateTables(int iVersion)
         "  )"
         "  FROM (SELECT DISTINCT idMedia FROM collection_item WHERE mediaType='movie') m)");
   }
+
+  if (iVersion < 158)
+  {
+    // Collection sort title (mirrors upstream's sets.strSortSet, see v150), surfaced through
+    // movie_view.strSetSortTitle. Backfilled from the legacy set where the ids and names match.
+    try { m_pDS->exec("ALTER TABLE collection ADD sortTitle TEXT"); } catch (...) {}
+    m_pDS->exec("UPDATE collection SET sortTitle = ("
+                "SELECT strSortSet FROM `sets` WHERE `sets`.idSet = collection.idCollection "
+                "AND LOWER(TRIM(`sets`.strSet)) = LOWER(TRIM(collection.name))) "
+                "WHERE sortTitle IS NULL");
+
+    // Library ids are never reused (see v151), so art and links of a deleted collection can't
+    // attach to a new one.
+    AddAutoIncrement("collection");
+  }
 }
 
 int CVideoDatabase::GetSchemaVersion() const
 {
-  return 151;
+  return 158;
 }

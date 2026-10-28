@@ -16,17 +16,90 @@
 #include "utils/log.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdint>
 
 extern "C"
 {
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
 #include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
-#include <libswscale/swscale.h>
+#include <libavutil/display.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/pixdesc.h>
+#include <libswscale/swscale.h>
 }
+
+namespace
+{
+// Read the frame size out of a JPEG's own header. The image demuxers leave codecpar
+// dimensions unset and avformat_find_stream_info() would decode a whole frame to fill them in,
+// which is the allocation we want to size correctly in the first place.
+bool JpegDimensions(const uint8_t* data, size_t size, unsigned int& width, unsigned int& height)
+{
+  size_t pos = 2; // past the SOI marker
+  while (pos + 4 <= size)
+  {
+    if (data[pos] != 0xFF)
+    {
+      pos++;
+      continue;
+    }
+    const uint8_t marker = data[pos + 1];
+    if (marker == 0xFF) // fill byte
+    {
+      pos++;
+      continue;
+    }
+    pos += 2;
+    // markers that carry no payload
+    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9))
+      continue;
+    if (pos + 2 > size)
+      return false;
+    const size_t length = (static_cast<size_t>(data[pos]) << 8) | data[pos + 1];
+    // SOF0..SOF15, less the three codes in that range that are not frame headers
+    if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
+    {
+      if (pos + 7 > size)
+        return false;
+      height = (static_cast<unsigned int>(data[pos + 3]) << 8) | data[pos + 4];
+      width = (static_cast<unsigned int>(data[pos + 5]) << 8) | data[pos + 6];
+      return width > 0 && height > 0;
+    }
+    if (length < 2)
+      return false;
+    pos += length;
+  }
+  return false;
+}
+
+constexpr size_t DISPLAY_MATRIX_SIZE = 9;
+// by counter-clockwise quarter turns, unmirrored then mirrored
+constexpr unsigned int ORIENTATIONS[2][4] = {{1, 8, 3, 6}, {2, 7, 4, 5}};
+
+// EXIF orientation (1-8) of a display matrix, 0 if unknown
+unsigned int OrientationFromDisplayMatrix(const int32_t* displayMatrix)
+{
+  std::array<int32_t, DISPLAY_MATRIX_SIZE> matrix{};
+  std::copy_n(displayMatrix, matrix.size(), matrix.begin());
+
+  // a negative determinant means the image is mirrored
+  const bool flipped{static_cast<int64_t>(matrix[0]) * matrix[4] -
+                         static_cast<int64_t>(matrix[1]) * matrix[3] <
+                     0};
+  if (flipped)
+    av_display_matrix_flip(matrix.data(), 1, 0);
+
+  const double rotation{av_display_rotation_get(matrix.data())};
+  if (std::isnan(rotation))
+    return 0;
+
+  const int quarterTurns{(static_cast<int>(std::lround(rotation / 90.0)) % 4 + 4) % 4};
+  return ORIENTATIONS[flipped ? 1 : 0][quarterTurns];
+}
+} // namespace
 
 Frame::Frame(const Frame& src) :
   m_delay(src.m_delay),
@@ -144,6 +217,8 @@ CFFmpegImage::~CFFmpegImage()
 bool CFFmpegImage::LoadImageFromMemory(unsigned char* buffer, unsigned int bufSize,
                                       unsigned int width, unsigned int height)
 {
+  m_maxWidth = width;
+  m_maxHeight = height;
 
   if (!Initialize(buffer, bufSize))
   {
@@ -153,6 +228,19 @@ bool CFFmpegImage::LoadImageFromMemory(unsigned char* buffer, unsigned int bufSi
 
   av_frame_free(&m_pFrame);
   m_pFrame = ExtractFrame();
+
+  // The decoder refuses some JPEGs at a reduced size, such as lossless ones
+  if (!m_pFrame && m_codec_ctx->lowres > 0)
+  {
+    avcodec_free_context(&m_codec_ctx);
+    avformat_close_input(&m_fctx);
+    FreeIOCtx(&m_ioctx);
+    m_maxWidth = 0;
+    m_maxHeight = 0;
+    if (!Initialize(buffer, bufSize))
+      return false;
+    m_pFrame = ExtractFrame();
+  }
 
   return !(m_pFrame == nullptr);
 }
@@ -279,6 +367,25 @@ bool CFFmpegImage::Initialize(unsigned char* buffer, size_t bufSize)
     return false;
   }
 
+  // Nothing bounds the size of the file we were handed, and decoding more pixels than the
+  // caller can use costs memory that scaling afterwards cannot give back. Decoding at a
+  // reduced size is the only point at which that cost can be avoided rather than merely
+  // hidden, and it needs the dimensions before the frame is decoded.
+  if (is_jpeg)
+    JpegDimensions(buffer, bufSize, m_sourceWidth, m_sourceHeight);
+
+  if (codec && m_maxWidth > 0 && m_maxHeight > 0 && m_sourceWidth > 0 && m_sourceHeight > 0)
+  {
+    // The caller scales the image down to fit its own maximum, so everything decoded above
+    // that size is read and thrown away. Pre-reduce by the largest power of two that stays
+    // at or above it, which costs no detail the caller would have kept.
+    const unsigned int ratio = std::max(m_sourceWidth / m_maxWidth, m_sourceHeight / m_maxHeight);
+    int lowres = 0;
+    while (lowres < codec->max_lowres && (1U << (lowres + 1)) <= ratio)
+      lowres++;
+    m_codec_ctx->lowres = lowres;
+  }
+
   if (avcodec_open2(m_codec_ctx, codec, NULL) < 0)
   {
     avformat_close_input(&m_fctx);
@@ -337,8 +444,8 @@ AVFrame* CFFmpegImage::ExtractFrame()
 
   m_height = frame->height;
   m_width = frame->width;
-  m_originalWidth = m_width;
-  m_originalHeight = m_height;
+  m_originalWidth = m_sourceWidth > 0 ? m_sourceWidth : m_width;
+  m_originalHeight = m_sourceHeight > 0 ? m_sourceHeight : m_height;
 
   const AVPixFmtDescriptor* pixDescriptor = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(frame->format));
   if (pixDescriptor && ((pixDescriptor->flags & (AV_PIX_FMT_FLAG_ALPHA | AV_PIX_FMT_FLAG_PAL)) != 0))
@@ -357,6 +464,15 @@ AVFrame* CFFmpegImage::ExtractFrame()
       if (orientation >= 0 && orientation <= 8)
         m_orientation = (unsigned int)orientation;
     }
+  }
+
+  // FFmpeg 8.1 and later only report the EXIF orientation as a display matrix
+  if (m_orientation == 0)
+  {
+    const AVFrameSideData* sideData{av_frame_get_side_data(frame, AV_FRAME_DATA_DISPLAYMATRIX)};
+    if (sideData && sideData->size >= sizeof(int32_t) * DISPLAY_MATRIX_SIZE)
+      m_orientation =
+          OrientationFromDisplayMatrix(reinterpret_cast<const int32_t*>(sideData->data));
   }
   av_packet_unref(&pkt);
 
@@ -495,6 +611,8 @@ bool CFFmpegImage::DecodeFrame(AVFrame* frame, unsigned int width, unsigned int 
     pictureRGB->format = AV_PIX_FMT_RGB32;
     pictureRGB->width = width;
     pictureRGB->height = height;
+    // let av_frame_get_buffer choose an aligned stride instead of the one from av_image_fill_arrays
+    std::ranges::fill(pictureRGB->linesize, 0);
     // we copy the data manually later so give a chance to intrinsics (e.g. mmx, neon)
     if (av_frame_get_buffer(pictureRGB, 32) < 0)
     {
@@ -510,7 +628,7 @@ bool CFFmpegImage::DecodeFrame(AVFrame* frame, unsigned int width, unsigned int 
   AVColorRange range = frame->color_range;
   AVPixelFormat pixFormat = ConvertFormats(frame);
 
-  SwsContext* context = sws_getContext(m_originalWidth, m_originalHeight, pixFormat, width, height,
+  SwsContext* context = sws_getContext(frame->width, frame->height, pixFormat, width, height,
                                        AV_PIX_FMT_RGB32, SWS_BICUBIC, NULL, NULL, NULL);
 
   if (range == AVCOL_RANGE_JPEG)
@@ -523,8 +641,8 @@ bool CFFmpegImage::DecodeFrame(AVFrame* frame, unsigned int width, unsigned int 
     sws_setColorspaceDetails(context, inv_table, srcRange, table, dstRange, brightness, contrast, saturation);
   }
 
-  sws_scale(context, frame->data, frame->linesize, 0, m_originalHeight,
-    pictureRGB->data, pictureRGB->linesize);
+  sws_scale(context, frame->data, frame->linesize, 0, frame->height, pictureRGB->data,
+            pictureRGB->linesize);
   sws_freeContext(context);
 
   if (needsCopy)
@@ -561,6 +679,11 @@ bool CFFmpegImage::DecodeFrame(AVFrame* frame, unsigned int width, unsigned int 
   return true;
 }
 
+void CFFmpegImage::SetColorMetadata(const ImageColorMetadata& color)
+{
+  m_color = color;
+}
+
 bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned int width,
                                              unsigned int height, unsigned int format,
                                              unsigned int pitch,
@@ -568,12 +691,21 @@ bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned 
                                              unsigned char* &bufferout,
                                              unsigned int &bufferoutSize)
 {
-  // It seems XB_FMT_A8R8G8B8 mean RGBA and not ARGB
-  if (format != XB_FMT_A8R8G8B8)
+  // XB_FMT_A8R8G8B8 is BGRA byte order. The OPAQUE flag drops a source alpha via
+  // an X-variant; the capture path also passes RGBA8 and packed X2BGR10.
+  const bool opaque = (format & XB_FMT_OPAQUE) != 0;
+  const unsigned int baseFormat = format & XB_FMT_MASK;
+  if (baseFormat != XB_FMT_A8R8G8B8 && baseFormat != XB_FMT_RGBA8 && baseFormat != XB_FMT_RGBA16 &&
+      baseFormat != XB_FMT_X2BGR10)
   {
     CLog::Log(LOGERROR, "Supplied format: {} is not supported.", format);
     return false;
   }
+
+  bool is16bit = (baseFormat == XB_FMT_RGBA16 || baseFormat == XB_FMT_X2BGR10);
+
+  // XB_FMT_OPAQUE 16-bit sources carry undefined alpha; RGB48 output drops it
+  const AVPixelFormat fmt16bit = opaque ? AV_PIX_FMT_RGB48BE : AV_PIX_FMT_RGBA64BE;
 
   bool jpg_output = false;
   if (m_strMimeType == "image/jpeg" || m_strMimeType == "image/jpg")
@@ -607,7 +739,7 @@ bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned 
   tdm.avOutctx->width = width;
   tdm.avOutctx->time_base.num = 1;
   tdm.avOutctx->time_base.den = 1;
-  tdm.avOutctx->pix_fmt = jpg_output ? AV_PIX_FMT_YUVJ420P : AV_PIX_FMT_RGBA;
+  tdm.avOutctx->pix_fmt = jpg_output ? AV_PIX_FMT_YUVJ420P : is16bit ? fmt16bit : AV_PIX_FMT_RGBA;
   tdm.avOutctx->flags = AV_CODEC_FLAG_QSCALE;
   tdm.avOutctx->mb_lmin = tdm.avOutctx->qmin * FF_QP2LAMBDA;
   tdm.avOutctx->mb_lmax = tdm.avOutctx->qmax * FF_QP2LAMBDA;
@@ -659,7 +791,11 @@ bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned 
     return false;
   }
 
-  if (av_image_fill_arrays(tdm.frame_temporary->data, tdm.frame_temporary->linesize, tdm.intermediateBuffer, jpg_output ? AV_PIX_FMT_YUV420P : AV_PIX_FMT_RGBA, width, height, 16) < 0)
+  AVPixelFormat intermediateFmt = jpg_output ? AV_PIX_FMT_YUV420P
+                                  : is16bit  ? fmt16bit
+                                             : AV_PIX_FMT_RGBA;
+  if (av_image_fill_arrays(tdm.frame_temporary->data, tdm.frame_temporary->linesize,
+                           tdm.intermediateBuffer, intermediateFmt, width, height, 16) < 0)
   {
     CLog::Log(LOGERROR, "Could not fill picture for thumbnail: {}", destFile);
     CleanupLocalOutputBuffer();
@@ -669,8 +805,28 @@ bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned 
   uint8_t* src[] = { bufferin, NULL, NULL, NULL };
   int srcStride[] = { (int) pitch, 0, 0, 0};
 
-  //input size == output size which means only pix_fmt conversion
-  tdm.sws = sws_getContext(width, height, AV_PIX_FMT_RGB32, width, height, jpg_output ? AV_PIX_FMT_YUV420P : AV_PIX_FMT_RGBA, 0, 0, 0, 0);
+  //input size == output size which means only pix_fmt conversion; opaque uses an
+  //X-variant source so swscale drops the framebuffer alpha
+  AVPixelFormat srcFmt;
+  switch (baseFormat)
+  {
+    case XB_FMT_RGBA8:
+      srcFmt = opaque ? AV_PIX_FMT_RGB0 : AV_PIX_FMT_RGBA;
+      break;
+    case XB_FMT_RGBA16:
+      srcFmt = AV_PIX_FMT_RGBA64LE;
+      break;
+    case XB_FMT_X2BGR10:
+      srcFmt = AV_PIX_FMT_X2BGR10LE;
+      break;
+    default: // XB_FMT_A8R8G8B8
+      srcFmt = opaque ? AV_PIX_FMT_BGR0 : AV_PIX_FMT_RGB32;
+      break;
+  }
+  AVPixelFormat dstFmt = jpg_output ? AV_PIX_FMT_YUV420P : is16bit ? fmt16bit : AV_PIX_FMT_RGBA;
+  // SWS_ACCURATE_RND skips RGB->YUV fast paths that ignore the range set below
+  tdm.sws = sws_getContext(width, height, srcFmt, width, height, dstFmt,
+                           jpg_output ? SWS_ACCURATE_RND : 0, nullptr, nullptr, nullptr);
   if (!tdm.sws)
   {
     CLog::Log(LOGERROR, "Could not setup scaling context for thumbnail: {}", destFile);
@@ -718,7 +874,19 @@ bool CFFmpegImage::CreateThumbnailFromSurface(unsigned char* bufferin, unsigned 
   tdm.frame_input->linesize[1] = tdm.frame_temporary->linesize[1];
   tdm.frame_input->linesize[2] = tdm.frame_temporary->linesize[2];
   // this is deprecated but mjpeg is not yet transitioned
-  tdm.frame_input->format = jpg_output ? AV_PIX_FMT_YUVJ420P : AV_PIX_FMT_RGBA;
+  tdm.frame_input->format = jpg_output ? AV_PIX_FMT_YUVJ420P : is16bit ? fmt16bit : AV_PIX_FMT_RGBA;
+
+  // CICP color signaling (PNG cICP/sRGB chunk). Only the PNG (RGB) path uses
+  // it; JPEG ignores it. A negative code leaves the field unset.
+  if (!jpg_output)
+  {
+    if (m_color.primaries >= 0)
+      tdm.frame_input->color_primaries = static_cast<AVColorPrimaries>(m_color.primaries);
+    if (m_color.transfer >= 0)
+      tdm.frame_input->color_trc = static_cast<AVColorTransferCharacteristic>(m_color.transfer);
+    if (m_color.range >= 0)
+      tdm.frame_input->color_range = static_cast<AVColorRange>(m_color.range);
+  }
 
   int got_package = 0;
   AVPacket* avpkt;

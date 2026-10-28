@@ -13,6 +13,7 @@
 #include "ServiceBroker.h"
 #include "resources/LocalizeStrings.h"
 #include "resources/ResourcesComponent.h"
+#include "utils/ContentNames.h"
 #include "utils/StringUtils.h"
 #include "video/VideoDatabase.h"
 #include "video/VideoDbUrl.h"
@@ -32,7 +33,7 @@ NodeType CDirectoryNodeCollections::GetChildType() const
 
 std::string CDirectoryNodeCollections::GetLocalizedName() const
 {
-  return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(40803);
+  return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(39800);
 }
 
 bool CDirectoryNodeCollections::GetContent(CFileItemList& items) const
@@ -65,6 +66,6 @@ bool CDirectoryNodeCollections::GetContent(CFileItemList& items) const
     items.Add(item);
   }
 
-  items.SetContent("sets");
+  items.SetContent(KODI::MEDIA::CONTENT::SETS);
   return true;
 }

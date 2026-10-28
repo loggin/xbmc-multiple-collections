@@ -75,11 +75,11 @@ bool CDirectoryNodeCollectionItems::GetContent(CFileItemList& items) const
 
   if (collectionArtwork.empty())
   {
-    collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "poster");
+    collectionArtwork = db.GetArtForItem(idCollection, KODI::MEDIA::TYPE::VIDEO_COLLECTION, "poster");
     if (collectionArtwork.empty())
-      collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "thumb");
+      collectionArtwork = db.GetArtForItem(idCollection, KODI::MEDIA::TYPE::VIDEO_COLLECTION, "thumb");
     if (collectionArtwork.empty())
-      collectionArtwork = db.GetArtForItem(idCollection, MediaTypeVideoCollection, "icon");
+      collectionArtwork = db.GetArtForItem(idCollection, KODI::MEDIA::TYPE::VIDEO_COLLECTION, "icon");
   }
 
   std::string previousGroup;

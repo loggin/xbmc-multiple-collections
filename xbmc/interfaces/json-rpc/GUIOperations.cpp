@@ -14,6 +14,8 @@
 #include "addons/IAddon.h"
 #include "addons/addoninfo/AddonType.h"
 #include "application/Application.h"
+#include "application/ApplicationComponents.h"
+#include "application/ApplicationPlayer.h"
 #include "dialogs/GUIDialogKaiToast.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIWindowManager.h"
@@ -25,6 +27,7 @@
 #include "rendering/RenderSystem.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "utils/Screenshot.h"
 #include "utils/Variant.h"
 
 using namespace JSONRPC;
@@ -140,18 +143,45 @@ JSONRPC_STATUS CGUIOperations::ActivateScreenSaver(const std::string& method,
   return ACK;
 }
 
+JSONRPC_STATUS CGUIOperations::TakeScreenshot(const std::string& method,
+                                              ITransportLayer* transport,
+                                              IClient* client,
+                                              const CVariant& parameterObject,
+                                              CVariant& result)
+{
+  using KODI::RENDERING::CAPTURE::CaptureContent;
+
+  const std::string content = parameterObject["content"].asString();
+
+  if (content == "video" || content == "both")
+  {
+    const auto& components = CServiceBroker::GetAppComponents();
+    const auto appPlayer = components.GetComponent<CApplicationPlayer>();
+    if (!appPlayer->IsRenderingVideo())
+      return FailedToExecute;
+  }
+
+  if (content == "video")
+    CScreenShot::TakeScreenshot(CaptureContent::VIDEO);
+  else if (content == "both")
+    CScreenShot::TakeScreenshotBoth();
+  else
+    CScreenShot::TakeScreenshot(CaptureContent::COMPOSITE);
+
+  return ACK;
+}
+
 JSONRPC_STATUS CGUIOperations::GetPropertyValue(const std::string &property, CVariant &result)
 {
+  auto& infoManager{CServiceBroker::GetGUI()->GetInfoManager()};
   if (property == "currentwindow")
   {
-    result["label"] = CServiceBroker::GetGUI()->GetInfoManager().GetLabel(
-        CServiceBroker::GetGUI()->GetInfoManager().TranslateString("System.CurrentWindow"),
+    result["label"] = infoManager.GetLabel(infoManager.TranslateString("System.CurrentWindow"),
         INFO::DEFAULT_CONTEXT);
     result["id"] = CServiceBroker::GetGUI()->GetWindowManager().GetActiveWindowOrDialog();
   }
   else if (property == "currentcontrol")
-    result["label"] = CServiceBroker::GetGUI()->GetInfoManager().GetLabel(
-        CServiceBroker::GetGUI()->GetInfoManager().TranslateString("System.CurrentControl"),
+    result["label"] = infoManager.GetLabel(infoManager.TranslateString("System.CurrentControl"),
         INFO::DEFAULT_CONTEXT);
   else if (property == "skin")
   {

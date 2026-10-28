@@ -52,10 +52,12 @@ public:
    \param items the items to load information for.
    \param database open database object to retrieve the data from
    \param allowReplaceLabels allow label replacement if according GUI setting is enabled
+   \param getDetails bitmask specifying which additional video details to load
    */
   static void LoadVideoInfo(CFileItemList& items,
                             CVideoDatabase& database,
-                            bool allowReplaceLabels = true);
+                            bool allowReplaceLabels = true,
+                            int getDetails = VideoDbDetailsNone);
 
   bool PlayItem(const std::shared_ptr<CFileItem>& item, const std::string& player);
   void OnQueueItem(const std::shared_ptr<CFileItem>& item, int iItem, bool first = false);
@@ -66,6 +68,7 @@ protected:
   bool GetDirectory(const std::string &strDirectory, CFileItemList &items) override;
   void OnItemLoaded(CFileItem* pItem) override {};
   void GetGroupedItems(CFileItemList &items) override;
+  void OnFilterItems(const std::string& filter) override;
 
   bool CheckFilterAdvanced(CFileItemList &items) const override;
   bool CanContainFilter(const std::string &strDirectory) const override;

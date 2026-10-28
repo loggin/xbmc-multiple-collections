@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -37,6 +37,7 @@
 #include "filesystem/File.h"
 #include "filesystem/SpecialProtocol.h"
 #include "utils/StringUtils.h"
+#include "utils/URIPolicy.h"
 #include "utils/URIUtils.h"
 #include "utils/log.h"
 
@@ -84,12 +85,15 @@
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "storage/MediaManager.h"
+#include "utils/DefaultArt.h"
 #include "utils/Digest.h"
 #include "utils/FileExtensionProvider.h"
-#include "utils/LangCodeExpander.h"
 #include "utils/RegExp.h"
+#include "utils/StringUtils.h"
+#include "video/FilenameAttributes.h"
 #include "video/VideoDatabase.h"
 #include "video/VideoFileItemClassify.h"
+#include "video/VideoInfoTag.h"
 #include "windowing/GraphicContext.h"
 #include "windowing/WinSystem.h"
 
@@ -104,11 +108,14 @@
 #include <cstdlib>
 #include <iomanip>
 #include <memory>
+#include <optional>
 #include <random>
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <fstrcmp.h>
@@ -335,7 +342,10 @@ std::string CUtil::GetTitleFromPath(const CURL& url, bool bIsFolder /* = false *
   // use above to get the filename
   std::string path(url.Get());
   URIUtils::RemoveSlashAtEnd(path);
-  std::string strFilename = URIUtils::GetFileName(path);
+  // A VFS path carries percent escapes; a local path and the friendly names assigned
+  // below do not, so only this one is decoded.
+  std::string strFilename =
+      URIUtils::IsURL(path) ? URIUtils::GetDecodedFileName(path) : URIUtils::GetFileName(path);
 
 #ifdef HAS_UPNP
   // UPNP
@@ -393,17 +403,18 @@ std::string CUtil::GetTitleFromPath(const CURL& url, bool bIsFolder /* = false *
     strFilename = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(136);
 
   else if (URIUtils::HasParentInHostname(url) && strFilename.empty())
-    strFilename = URIUtils::GetFileName(url.GetHostName());
-
-  // now remove the extension if needed
-  if (!CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(CSettings::SETTING_FILELISTS_SHOWEXTENSIONS) && !bIsFolder)
   {
-    URIUtils::RemoveExtension(strFilename);
-    return strFilename;
+    const std::string& parent = url.GetHostName();
+    strFilename = URIUtils::IsURL(parent) ? URIUtils::GetDecodedFileName(parent)
+                                          : URIUtils::GetFileName(parent);
   }
 
-  // URLDecode since the original path may be an URL
-  strFilename = CURL::Decode(strFilename);
+  // now remove the extension if needed
+  if (!CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
+          CSettings::SETTING_FILELISTS_SHOWEXTENSIONS) &&
+      !bIsFolder)
+    URIUtils::RemoveExtension(strFilename);
+
   return strFilename;
 }
 
@@ -447,53 +458,6 @@ std::string CUtil::GetPartNumberFromPath(std::string path)
   return GetPartAndRemoveDiscFromPath(path, PreserveFileName::REMOVE);
 }
 
-bool CUtil::GetFilenameIdentifier(const std::string& fileName,
-                                  std::string& identifierType,
-                                  std::string& identifier)
-{
-  std::string match;
-  return GetFilenameIdentifier(fileName, identifierType, identifier, match);
-}
-
-bool CUtil::GetFilenameIdentifier(const std::string& fileName,
-                                  std::string& identifierType,
-                                  std::string& identifier,
-                                  std::string& match)
-{
-  CRegExp reIdentifier(true, CRegExp::autoUtf8);
-
-  const std::shared_ptr<CAdvancedSettings> advancedSettings =
-      CServiceBroker::GetSettingsComponent()->GetAdvancedSettings();
-  if (!reIdentifier.RegComp(advancedSettings->m_videoFilenameIdentifierRegExp))
-  {
-    CLog::LogF(LOGERROR, "Invalid filename identifier RegExp:'{}'",
-               advancedSettings->m_videoFilenameIdentifierRegExp);
-    return false;
-  }
-  else
-  {
-    if (reIdentifier.RegComp(advancedSettings->m_videoFilenameIdentifierRegExp))
-    {
-      if (reIdentifier.RegFind(fileName) >= 0)
-      {
-        match = reIdentifier.GetMatch(0);
-        identifierType = reIdentifier.GetMatch(1);
-        identifier = reIdentifier.GetMatch(2);
-        StringUtils::ToLower(identifierType);
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-bool CUtil::HasFilenameIdentifier(const std::string& fileName)
-{
-  std::string identifierType;
-  std::string identifier;
-  return GetFilenameIdentifier(fileName, identifierType, identifier);
-}
-
 void CUtil::CleanString(const std::string& strFileName,
                         std::string& strTitle,
                         std::string& strTitleAndYear,
@@ -506,11 +470,7 @@ void CUtil::CleanString(const std::string& strFileName,
   if (strFileName == "..")
    return;
 
-  std::string identifier;
-  std::string identifierType;
-  std::string identifierMatch;
-  if (GetFilenameIdentifier(strFileName, identifierType, identifier, identifierMatch))
-    StringUtils::Replace(strTitleAndYear, identifierMatch, "");
+  KODI::VIDEO::CFilenameAttributes::CleanFilenameAttributePairs(strTitleAndYear, nullptr);
 
   const std::shared_ptr<CAdvancedSettings> advancedSettings = CServiceBroker::GetSettingsComponent()->GetAdvancedSettings();
   const std::vector<std::string> &regexps = advancedSettings->m_videoCleanStringRegExps;
@@ -647,21 +607,24 @@ std::string CUtil::GetSplashPath()
   return CSpecialProtocol::TranslatePathConvertCase(*it);
 }
 
-bool CUtil::ExcludeFileOrFolder(const std::string& strFileOrFolder, const std::vector<std::string>& regexps)
+bool CUtil::ExcludeFileOrFolder(const std::string& strFileOrFolder,
+                                const std::vector<std::string>& regexps,
+                                KODI::REGEXP::RegExpCache* cache)
 {
   if (strFileOrFolder.empty())
     return false;
 
-  CRegExp regExExcludes(true, CRegExp::autoUtf8);  // case insensitive regex
+  std::shared_ptr<CRegExp> regExExcludes;
 
   for (const auto &regexp : regexps)
   {
-    if (!regExExcludes.RegComp(regexp.c_str()))
+    if (regExExcludes = KODI::REGEXP::GetRegExp(regexp, cache, true, CRegExp::autoUtf8);
+        regExExcludes == nullptr)
     { // invalid regexp - complain in logs
       CLog::Log(LOGERROR, "{}: Invalid exclude RegExp:'{}'", __FUNCTION__, regexp);
       continue;
     }
-    if (regExExcludes.RegFind(strFileOrFolder) > -1)
+    if (regExExcludes->RegFind(strFileOrFolder) > -1)
     {
       CLog::LogF(LOGDEBUG, "File '{}' excluded. (Matches exclude rule RegExp: '{}')", CURL::GetRedacted(strFileOrFolder), regexp);
       return true;
@@ -728,7 +691,7 @@ void CUtil::GetDVDDriveIcon(const std::string& strPath, std::string& strIcon)
 {
   if (!CServiceBroker::GetMediaManager().IsDiscInDrive(strPath))
   {
-    strIcon = "DefaultDVDEmpty.png";
+    strIcon = ART::DEFAULT::DVD_EMPTY;
     return ;
   }
 
@@ -736,33 +699,33 @@ void CUtil::GetDVDDriveIcon(const std::string& strPath, std::string& strIcon)
 
   if (item.IsBluray())
   {
-    strIcon = "DefaultBluray.png";
+    strIcon = ART::DEFAULT::BLURAY;
     return;
   }
 
   if ( URIUtils::IsDVD(strPath) )
   {
-    strIcon = "DefaultDVDFull.png";
+    strIcon = ART::DEFAULT::DVD_FULL;
     return ;
   }
 
   if ( URIUtils::IsISO9660(strPath) )
   {
 #ifdef HAS_OPTICAL_DRIVE
-    CCdInfo* pInfo = CServiceBroker::GetMediaManager().GetCdInfo();
-    if ( pInfo != NULL && pInfo->IsVideoCd( 1 ) )
+    const std::shared_ptr<CCdInfo> pInfo{CServiceBroker::GetMediaManager().GetCdInfo()};
+    if (pInfo && pInfo->IsVideoCd(1))
     {
-      strIcon = "DefaultVCD.png";
+      strIcon = ART::DEFAULT::VCD;
       return ;
     }
 #endif
-    strIcon = "DefaultDVDRom.png";
+    strIcon = ART::DEFAULT::DVD_ROM;
     return ;
   }
 
   if ( URIUtils::IsCDDA(strPath) )
   {
-    strIcon = "DefaultCDDA.png";
+    strIcon = ART::DEFAULT::CDDA;
     return ;
   }
 }
@@ -1072,6 +1035,8 @@ std::string CUtil::MakeLegalPath(const std::string& strPathAndFile, LegalPath Le
 
 std::string CUtil::ValidatePath(std::string path, bool bFixDoubleSlashes /* = false */)
 {
+  if (URIPolicy::IsURILocation(path) && !URIPolicy::UsesLegacyURL(path))
+    return path;
 
   // Don't do any stuff on URLs containing %-characters or protocols that embed
   // filenames. NOTE: Don't use IsInZip or IsInRar here since it will infinitely
@@ -1397,9 +1362,11 @@ std::string CUtil::TranslateSpecialSource(const std::string &strSpecial)
     else if (StringUtils::StartsWithNoCase(strSpecial, "$screenshots"))
       return URIUtils::AddFileToFolder("special://screenshots/", strSpecial.substr(12));
     else if (StringUtils::StartsWithNoCase(strSpecial, "$musicplaylists"))
-      return URIUtils::AddFileToFolder("special://musicplaylists/", strSpecial.substr(15));
+      return URIUtils::AddFileToFolder(PlaylistsPathOf(KODI::MEDIA::MediaSection::MUSIC),
+                                       strSpecial.substr(15));
     else if (StringUtils::StartsWithNoCase(strSpecial, "$videoplaylists"))
-      return URIUtils::AddFileToFolder("special://videoplaylists/", strSpecial.substr(15));
+      return URIUtils::AddFileToFolder(PlaylistsPathOf(KODI::MEDIA::MediaSection::VIDEO),
+                                       strSpecial.substr(15));
     else if (StringUtils::StartsWithNoCase(strSpecial, "$cdrips"))
       return URIUtils::AddFileToFolder("special://cdrips/", strSpecial.substr(7));
     // this one will be removed post 2.0
@@ -1409,22 +1376,58 @@ std::string CUtil::TranslateSpecialSource(const std::string &strSpecial)
   return strSpecial;
 }
 
-std::string CUtil::MusicPlaylistsLocation()
+namespace
+{
+//! The folders holding the playlists of \p section: its own, and the mixed one
+std::vector<std::string> PlaylistsFoldersOf(KODI::MEDIA::MediaSection section)
 {
   const std::string path = CServiceBroker::GetSettingsComponent()->GetSettings()->GetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH);
-  std::vector<std::string> vec;
-  vec.push_back(URIUtils::AddFileToFolder(path, "music"));
-  vec.push_back(URIUtils::AddFileToFolder(path, "mixed"));
-  return XFILE::CMultiPathDirectory::ConstructMultiPath(vec);
+  return {URIUtils::AddFileToFolder(path, section == KODI::MEDIA::MediaSection::MUSIC ? "music"
+                                                                                      : "video"),
+          URIUtils::AddFileToFolder(path, "mixed")};
+}
+} // namespace
+
+std::string CUtil::MusicPlaylistsLocation()
+{
+  return XFILE::CMultiPathDirectory::ConstructMultiPath(
+      PlaylistsFoldersOf(KODI::MEDIA::MediaSection::MUSIC));
 }
 
 std::string CUtil::VideoPlaylistsLocation()
 {
-  const std::string path = CServiceBroker::GetSettingsComponent()->GetSettings()->GetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH);
-  std::vector<std::string> vec;
-  vec.push_back(URIUtils::AddFileToFolder(path, "video"));
-  vec.push_back(URIUtils::AddFileToFolder(path, "mixed"));
-  return XFILE::CMultiPathDirectory::ConstructMultiPath(vec);
+  return XFILE::CMultiPathDirectory::ConstructMultiPath(
+      PlaylistsFoldersOf(KODI::MEDIA::MediaSection::VIDEO));
+}
+
+std::string CUtil::PlaylistsPathOf(KODI::MEDIA::MediaSection section)
+{
+  switch (section)
+  {
+    case KODI::MEDIA::MediaSection::MUSIC:
+      return "special://musicplaylists/";
+    case KODI::MEDIA::MediaSection::VIDEO:
+      return "special://videoplaylists/";
+    default:
+      return {};
+  }
+}
+
+bool CUtil::IsInPlaylistsFolder(const std::string& path, KODI::MEDIA::MediaSection section)
+{
+  const std::string playlists{PlaylistsPathOf(section)};
+  if (playlists.empty())
+    return false;
+  if (URIUtils::PathHasParent(path, playlists))
+    return true;
+  // With no playlists path set the folders are relative paths, which name no place
+  if (CServiceBroker::GetSettingsComponent()
+          ->GetSettings()
+          ->GetString(CSettings::SETTING_SYSTEM_PLAYLISTSPATH)
+          .empty())
+    return false;
+  return std::ranges::any_of(PlaylistsFoldersOf(section), [&path](const std::string& folder)
+                             { return URIUtils::PathHasParent(path, folder); });
 }
 
 void CUtil::DeleteMusicDatabaseDirectoryCache()
@@ -1441,7 +1444,7 @@ void CUtil::DeleteVideoDatabaseDirectoryCache()
 
 void CUtil::DeleteDirectoryCache(const std::string &prefix)
 {
-  std::string searchPath = "special://temp/";
+  std::string searchPath = "special://temp/archive_cache/";
   CFileItemList items;
   if (!XFILE::CDirectory::GetDirectory(searchPath, items, ".fi", DIR_FLAG_NO_FILE_DIRS))
     return;
@@ -1922,6 +1925,14 @@ void CUtil::GetVideoBasePathAndFileName(const std::string& videoPath,
                                         std::string& basePath,
                                         std::string& videoFileName)
 {
+  const CURL location{videoPath};
+  if (!location.SupportsPathOperations())
+  {
+    basePath.clear();
+    videoFileName.clear();
+    return;
+  }
+
   if (URIUtils::IsOpticalMediaFile(videoPath) || URIUtils::IsBlurayPath(videoPath))
   {
     const std::string path{URIUtils::IsBlurayPath(videoPath) ? URIUtils::GetDiscFile(videoPath)
@@ -1944,8 +1955,17 @@ void CUtil::GetVideoBasePathAndFileName(const std::string& videoPath,
   }
   else
   {
-    videoFileName = URIUtils::ReplaceExtension(URIUtils::GetFileName(videoPath), "");
-    basePath = URIUtils::GetBasePath(videoPath);
+    videoFileName = URIUtils::GetFileName(URIUtils::ReplaceExtension(videoPath, ""));
+    CURL url{location};
+    // Strip non-identity URL options before computing the parent path.
+    if (url.IsLosslessURI())
+      basePath = URIUtils::GetParentPath(url.PreservesQueryIdentity() ? url.Get()
+                                                                      : url.GetWithoutOptions());
+    else
+    {
+      url.SetOptions("");
+      basePath = URIUtils::GetParentPath(url.Get());
+    }
   }
 }
 
@@ -2111,8 +2131,20 @@ void CUtil::ScanForExternalSubtitles(const std::string& strMovie, std::vector<st
   auto start = std::chrono::steady_clock::now();
 
   CFileItem item(strMovie, false);
-  if ((NETWORK::IsInternetStream(item) && !URIUtils::IsOnLAN(item.GetDynPath())) ||
-      PLAYLIST::IsPlayList(item) || item.IsPVR() || !VIDEO::IsVideo(item))
+  // A local .strm is the anchor we want to scan around, not the playlist/stream we want to reject.
+  const bool isStrmAnchor = item.IsStrm() && !item.IsPlugin();
+  const bool isInternetStream = NETWORK::IsInternetStream(item);
+  const bool isOnLAN = URIUtils::IsOnLAN(item.GetDynPath());
+  const bool isPlayList = PLAYLIST::IsPlayList(item);
+  const bool isVideo = VIDEO::IsVideo(item);
+  const bool isPvr = item.IsPVR();
+  CLog::Log(LOGDEBUG,
+            "STRM-SUBS scan anchor path='{}' dyn='{}' isStrm={} isPlaylist={} isVideo={} "
+            "isInternetStream={} isOnLAN={} isPvr={}",
+            CURL::GetRedacted(item.GetPath()), CURL::GetRedacted(item.GetDynPath()), isStrmAnchor,
+            isPlayList, isVideo, isInternetStream, isOnLAN, isPvr);
+  if ((isInternetStream && !isOnLAN) || (!isStrmAnchor && isPlayList) || isPvr ||
+      (!isStrmAnchor && !isVideo))
     return;
 
   CLog::Log(LOGDEBUG, "{}: Searching for subtitles...", __FUNCTION__);
@@ -2141,8 +2173,8 @@ void CUtil::ScanForExternalSubtitles(const std::string& strMovie, std::vector<st
       CLog::Log(LOGINFO, "CUtil::CacheSubtitles: disabling alternate subtitle directory for this session, it's nonexistent");
       CMediaSettings::GetInstance().SetAdditionalSubtitleDirectoryChecked(-1); // disabled
     }
-
-    CMediaSettings::GetInstance().SetAdditionalSubtitleDirectoryChecked(1);
+    else
+      CMediaSettings::GetInstance().SetAdditionalSubtitleDirectoryChecked(1);
   }
 
   std::vector<std::string> strLookInPaths;
@@ -2205,6 +2237,50 @@ void CUtil::ScanForExternalSubtitles(const std::string& strMovie, std::vector<st
   CLog::Log(LOGDEBUG, "{}: END (total time: {} ms)", __FUNCTION__, duration.count());
 }
 
+namespace
+{
+//! Matched case-insensitively against filename tokens
+constexpr auto EXTERNAL_STREAM_FLAG_WORDS = std::array{
+    std::pair{std::string_view{"none"}, StreamFlags::FLAG_NONE},
+    std::pair{std::string_view{"default"}, StreamFlags::FLAG_DEFAULT},
+    std::pair{std::string_view{"forced"}, StreamFlags::FLAG_FORCED},
+    std::pair{std::string_view{"original"}, StreamFlags::FLAG_ORIGINAL},
+    std::pair{std::string_view{"impaired"}, StreamFlags::FLAG_HEARING_IMPAIRED},
+};
+
+/*!
+ * \brief The stream flag a filename token states.
+ * \note FLAG_NONE is one of the words rather than an absence of one, so that a filename
+ *       saying "none" has stated a flag rather than part of the stream's name.
+ * \param[in] token One token of the filename.
+ * \return The flag, or nullopt where the token states none.
+ */
+std::optional<StreamFlags> ExternalStreamFlagFromToken(std::string_view token)
+{
+  const auto it = std::ranges::find_if(EXTERNAL_STREAM_FLAG_WORDS, [&token](const auto& word)
+                                       { return StringUtils::EqualsNoCase(token, word.first); });
+  if (it == EXTERNAL_STREAM_FLAG_WORDS.end())
+    return std::nullopt;
+
+  return it->second;
+}
+
+/*!
+ * \brief The language a filename token states.
+ * \param[in] token One token of the filename.
+ * \return The language, or nullopt where the token states none.
+ */
+std::optional<KODI::LANGUAGE::CLanguageTag> ExternalStreamLanguageFromToken(
+    const std::string& token)
+{
+  // _ stands in for the BCP 47 subtag separator, since - separates the filename's own tokens
+  std::string langCode{token};
+  std::ranges::replace(langCode, '_', '-');
+
+  return KODI::LANGUAGE::CLanguageTag::TryParse(langCode);
+}
+} // namespace
+
 ExternalStreamInfo CUtil::GetExternalStreamDetailsFromFilename(const std::string& videoPath, const std::string& associatedFile)
 {
   ExternalStreamInfo info;
@@ -2237,46 +2313,23 @@ ExternalStreamInfo CUtil::GetExternalStreamDetailsFromFilename(const std::string
     std::vector<std::string> tokens;
     StringUtils::Tokenize(inputString, tokens, delimiters);
 
+    // The tokens are read from the end of the filename towards the front, so of several languages
+    // the one nearest the extension is the stream's and the rest belong to its name
     for (auto it = tokens.rbegin(); it != tokens.rend(); ++it)
     {
-      // try to recognize a flag
-      std::string flag_tmp(*it);
-      StringUtils::ToLower(flag_tmp);
-      if (!flag_tmp.compare("none"))
+      if (const auto flag = ExternalStreamFlagFromToken(*it); flag.has_value())
       {
-        info.flag |= StreamFlags::FLAG_NONE;
-        continue;
-      }
-      else if (!flag_tmp.compare("default"))
-      {
-        info.flag |= StreamFlags::FLAG_DEFAULT;
-        continue;
-      }
-      else if (!flag_tmp.compare("forced"))
-      {
-        info.flag |= StreamFlags::FLAG_FORCED;
-        continue;
-      }
-      else if (!flag_tmp.compare("original"))
-      {
-        info.flag |= StreamFlags::FLAG_ORIGINAL;
-        continue;
-      }
-      else if (!flag_tmp.compare("impaired"))
-      {
-        info.flag |= StreamFlags::FLAG_HEARING_IMPAIRED;
+        info.flag |= *flag;
         continue;
       }
 
-      if (info.language.empty())
+      if (info.language.IsEmpty())
       {
-        // try to recognize language
-        std::string langCode = *it;
-        // _ is used in BCP47 tags as subtag separator instead of - since - is a token separator.
-        // Convert back to - separator to parse.
-        std::ranges::replace(langCode, '_', '-');
-        if (g_LangCodeExpander.ConvertToBcp47(langCode, info.language))
+        if (const auto tag = ExternalStreamLanguageFromToken(*it); tag.has_value())
+        {
+          info.language = *tag;
           continue;
+        }
       }
 
       name = (*it) + " " + name;
@@ -2290,7 +2343,7 @@ ExternalStreamInfo CUtil::GetExternalStreamDetailsFromFilename(const std::string
     info.flag = StreamFlags::FLAG_NONE;
 
   CLog::Log(LOGDEBUG, "{} - Language = '{}' / Name = '{}' / Flag = '{}' from {}", __FUNCTION__,
-            info.language, info.name, info.flag, CURL::GetRedacted(associatedFile));
+            info.language.AsBcp47(), info.name, info.flag, CURL::GetRedacted(associatedFile));
 
   return info;
 }
@@ -2535,13 +2588,19 @@ std::string CUtil::GetHexString(const std::span<const uint8_t>& buf, int count)
 
 bool CUtil::UseDynPathForAddOrUpdate(const CFileItem& item)
 {
-  if (item.IsStack() ||
-      (URIUtils::IsBlurayPath(item.GetDynPath()) &&
-       (item.GetVideoContentType() == VideoDbContentType::MOVIES ||
-        item.GetVideoContentType() == VideoDbContentType::EPISODES ||
-        item.GetVideoContentType() == VideoDbContentType::UNKNOWN /* Removable bluray */)))
-  {
+  if (item.IsStack())
     return true;
+
+  if (URIUtils::IsBlurayPath(item.GetDynPath()))
+  {
+    // A disc image played from outside the library keeps its state against the image, as the
+    // image is what is looked up when it is played or listed again
+    const VideoDbContentType type{item.GetVideoContentType()};
+    const bool isLibraryItem{item.HasVideoInfoTag() && item.GetVideoInfoTag()->m_iDbId >= 0};
+    if (((type == VideoDbContentType::MOVIES || type == VideoDbContentType::EPISODES) &&
+         isLibraryItem) ||
+        type == VideoDbContentType::UNKNOWN /* Removable bluray */)
+      return true;
   }
 
   return URIUtils::IsArchive(CURL(item.GetDynPath()));

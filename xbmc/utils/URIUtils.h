@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2018 Team Kodi
+ *  Copyright (C) 2005-2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -9,6 +9,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 class CURL;
@@ -26,6 +27,10 @@ enum class LanCheckMode
   ANY_PRIVATE_SUBNET
 };
 
+/*! \brief Path operations for native paths, legacy URLs and lossless URIs.
+ * \note Non-file identifiers yield no filename or directory and remain unchanged by
+ *       path mutators. Lossless URI path changes preserve raw queries and fragments.
+ */
 class URIUtils
 {
 public:
@@ -37,13 +42,24 @@ public:
   static std::string URLEncode(std::string_view strURLData, std::string_view URLSpec = RFC1738);
   static std::string URLDecode(std::string_view strURLData);
 
+  /*! \brief Decode a path component, leaving a literal '+' alone. */
+  static std::string DecodePathEscapes(std::string_view strURLData);
+
   static void RegisterAdvancedSettings(const CAdvancedSettings& advancedSettings);
   static void UnregisterAdvancedSettings();
 
+  /*!
+   * \brief Return the directory of a mixed native-path/URI location.
+   * \return Empty for identifiers without filesystem-style hierarchy. New URI
+   *         forms preserve the raw query and fragment while replacing only the path.
+   */
   static std::string GetDirectory(const std::string &strFilePath);
 
   static std::string GetFileName(const CURL& url);
   static std::string GetFileName(const std::string& strFileNameAndPath);
+
+  /*! \brief The file name with any percent escapes resolved, as a label carries it. */
+  static std::string GetDecodedFileName(const std::string& strFileNameAndPath);
   static std::string GetFileOrFolderName(std::string_view path);
 
   static std::string GetExtension(const CURL& url);
@@ -83,8 +99,17 @@ public:
                     std::string& strPath, std::string& strFileName);
   static std::vector<std::string> SplitPath(const std::string& strPath);
 
+  /*! \brief Retain the common directory of two mixed native-path/URI locations.
+   *  \param parent Receives the common path, or is cleared if either URI has no hierarchy.
+   *  \param path The other location to compare with parent.
+   *  \note Lossless URIs must match in scheme and raw authority, query and fragment.
+   */
   static void GetCommonPath(std::string& parent, std::string_view path);
   static std::string GetParentPath(const std::string& strPath);
+  /*! \brief Navigate to the parent without resolving relative references.
+   * \param strParent Receives the parent, or is cleared on failure.
+   * \return False for non-file identifiers and the root of a lossless URI path.
+   */
   static bool GetParentPath(const std::string& strPath, std::string& strParent);
 
   /*! \brief Retrieve the base path, accounting for stacks and files in rars.
@@ -97,7 +122,7 @@ public:
 
   /*! \brief Given a bluray:// path or disc file path (index.bdmv/video_ts.ifo), return the base .ISO or folder
    containing the disc file structure.
-   \param path source path.
+   \param file source path.
    \return the base .ISO or folder containing the disc file structure.
    \note Used to determine file/folder to delete
    */
@@ -105,7 +130,7 @@ public:
 
   /*! \brief Given a bluray:// path or disc file path (index.bdmv/video_ts.ifo), return the folder
    containing the disc file structure or ISO.
-   \param path source path.
+   \param file source path.
    \return the folder containing the .ISO or disc file structure.
    */
   static std::string GetDiscBasePath(const std::string& file);
@@ -135,23 +160,35 @@ public:
    */
   static std::string GetBlurayMenuPath(const std::string& path);
 
-  /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to root.
-   \param path the ISO/index.BDMV path.
-   \return the bluray:// root path.
-   */
-  static std::string GetBlurayRootPath(const std::string& path);
+  enum class GetAllTitles : bool
+  {
+    LONG,
+    ALL
+  };
 
-  /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to titles.
+  enum class AllTitlesOptions : bool
+  {
+    MOVIES,
+    EPISODES
+  };
+
+  /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to select titles.
    \param path the ISO/index.BDMV path.
-   \return the bluray:// root/titles path.
+   \param getAllTitles whether to get all titles or just those within 70% of longest (most likely to be movies/episodes)
+   \param options movies or episodes - later dictates how to sort the titles - by length (movies) or by playlist (episodes)
+   \return the bluray:// titles path.
    */
-  static std::string GetBlurayTitlesPath(const std::string& path);
+  static std::string GetBlurayTitlesPath(const std::string& path,
+                                         GetAllTitles getAllTitles = GetAllTitles::LONG,
+                                         AllTitlesOptions options = AllTitlesOptions::MOVIES);
 
   /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to main title.
    \param path the ISO/index.BDMV path.
+   \param getAllTitles whether to get a single title or those within 70% of longest (most likely to be movies/episodes)
    \return the bluray:// root/main path.
    */
-  static std::string GetBlurayMainTitlePath(const std::string& path);
+  static std::string GetBlurayMainTitlePath(const std::string& path,
+                                            GetAllTitles getAllTitles = GetAllTitles::LONG);
 
   /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to a given episode.
    \param path the ISO/index.BDMV path.
@@ -164,6 +201,19 @@ public:
    \return the bluray:// root/episode/all path.
    */
   static std::string GetBlurayAllEpisodesPath(const std::string& path);
+
+  /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to the extras of the movie on disc.
+   \param path the ISO/index.BDMV path.
+   \return the bluray:// root/extras path.
+   */
+  static std::string GetBlurayExtrasPath(const std::string& path);
+
+  /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to the playlists the
+   disc's titles play that may be extras of the movie.
+   \param path the ISO/index.BDMV path.
+   \return the bluray:// root/extras/titles path.
+   */
+  static std::string GetBlurayExtraTitlesPath(const std::string& path);
 
   /*! \brief Given a path to an .ISO or index.BDMV, returns a bluray:// path to default playlist path.
    \param path the ISO/index.BDMV path.
@@ -204,6 +254,10 @@ public:
    */
   static std::string ChangeBasePath(const std::string &fromPath, const std::string &fromFile, const std::string &toPath, const bool &bAddPath = true);
 
+  /*! \brief Apply path mappings, optionally in reverse.
+   * \note Unchanged locations retain their CURL representation; replacements use
+   *       the target's mixed native-path/URI interpretation.
+   */
   static CURL SubstitutePath(const CURL& url, bool reverse = false);
   static std::string SubstitutePath(const std::string& strPath, bool reverse = false);
 
@@ -216,13 +270,15 @@ public:
    */
   static bool IsProtocol(const std::string& url, const std::string& type);
 
-  /*! \brief Check whether a path has a given parent.
-   Comparison is case-sensitive.
+  /*! \brief Check equality or directory ancestry for mixed native-path/URI locations.
+   Comparison is case-sensitive, except for the scheme of new URI forms.
    Use IsProtocol() to compare the protocol portion only.
    \param path a std::string path.
    \param parent the string the parent of the path should be compared against.
    \param translate whether to translate any special paths into real paths
-   \return true if the path has the given parent string, false otherwise.
+   \return true for identical nonempty locations or a matching directory ancestor.
+   \note Distinct non-file identifiers have no ancestry. Lossless URIs must match
+         raw authority, query and fragment, including component presence.
    \sa IsProtocol, PathEquals
    */
   static bool PathHasParent(std::string path, std::string parent, bool translate = false);
@@ -271,6 +327,7 @@ public:
                       LanCheckMode lanCheckMode = LanCheckMode::ONLY_LOCAL_SUBNET);
   static bool IsHostOnLAN(const std::string& hostName,
                           LanCheckMode lanCheckMode = LanCheckMode::ONLY_LOCAL_SUBNET);
+  static bool IsLocalOrLAN(const std::string& path);
   static bool IsPlugin(const std::string& strFile);
   static bool IsScript(const std::string& strFile);
   static bool IsRAR(const std::string& strFile);
@@ -278,9 +335,16 @@ public:
   static bool IsSmb(const std::string& strFile);
   static bool IsSpecial(const std::string& strFile);
   static bool IsStack(const std::string& strFile);
+  static bool IsContainerPath(const std::string& strFile);
   static bool IsFavourite(const std::string& strFile);
   static bool IsUPnP(const std::string& strFile);
-  static bool IsURL(const std::string& strFile);
+  /*!
+   * \brief Recognize Kodi's legacy leading scheme:// form in mixed path input.
+   * \param file URI or native path; DOS paths take native precedence.
+   * \return True only when // immediately follows the leading scheme colon.
+   * \note This compatibility predicate does not validate URI syntax or imply a backend.
+   */
+  static bool IsURL(std::string_view file);
   static bool IsVideoDb(const std::string& strFile);
   static bool IsAPK(const std::string& strFile);
   static bool IsZIP(const std::string& strFile);
@@ -310,7 +374,7 @@ public:
 
   static std::string AppendSlash(std::string strFolder);
   static void AddSlashAtEnd(std::string& strFolder);
-  static bool HasSlashAtEnd(const std::string& strFile, bool checkURL = false);
+  static bool HasSlashAtEnd(std::string_view file, bool checkURL = false);
   static void RemoveSlashAtEnd(std::string& strFolder);
   static bool CompareWithoutSlashAtEnd(const std::string& strPath1, const std::string& strPath2);
   static std::string FixSlashesAndDups(const std::string& path, const char slashCharacter = '/', const size_t startFrom = 0);
@@ -320,7 +384,7 @@ public:
    * Resolve and remove relative directories ("/../" and "/./")
    * Will ignore slashes with other direction than specified
    * Will not resolve path starting from relative directory
-   * @warning Don't use with "protocol://path"-style URLs
+   * URI operations apply only to the path component; non-file identifiers are unchanged.
    * @param path string to process
    * @param slashCharacter character to use as directory delimiter
    * @return transformed path
@@ -332,6 +396,10 @@ public:
                                 const std::string& pathInArchive = "",
                                 const std::string& password = "");
 
+  /*! \brief Append a path component to a location.
+   * \param strFile Path component, not a separately recognized URI.
+   * \return Empty if the folder has no hierarchy or the resulting URI path is invalid.
+   */
   static std::string AddFileToFolder(const std::string& strFolder, const std::string& strFile);
   template<typename... T>
   static std::string AddFileToFolder(const std::string& strFolder,
@@ -339,11 +407,27 @@ public:
                                      const T&... args)
   {
     auto newPath = AddFileToFolder(strFolder, strFile);
+    if (newPath.empty())
+      return {};
     return AddFileToFolder(newPath, args...);
   }
 
+  /*!
+   \brief Append a segment to a folder, matching the folder's filename encoding.
+
+   Sources whose paths keep the filename portion percent-encoded (WebDAV, http, ...)
+   cannot resolve a path built by appending a raw, human readable segment, because the
+   result ends up with mixed encoding. This helper percent-encodes \p strFile when
+   \p strFolder reports an encoded filename and appends it verbatim otherwise.
+
+   \param strFolder base folder, either a local path or a URL
+   \param strFile raw (unencoded) segment to append
+   \return the combined path, consistently encoded
+   */
+  static std::string AddFileToFolderMatchingEncoding(const std::string& strFolder,
+                                                     const std::string& strFile);
+
   static bool HasParentInHostname(const CURL& url);
-  static bool HasEncodedHostname(const CURL& url);
   static bool HasEncodedFilename(const CURL& url);
 
   /*!
@@ -356,23 +440,28 @@ public:
    for file paths and host names (in case of VFS paths).
 
    \param path Path to be cleaned up
-   \return Actual path without any "." or ".."
+   \return Actual path without any "." or "..", or the unchanged non-file identifier.
+   \note Only explicit Kodi nested-location wrappers recurse into their hostname;
+         new URI forms change their path without altering raw query or fragment.
    */
   static std::string GetRealPath(const std::string &path);
 
-  /*!
-   \brief Updates the URL encoded hostname of the given path
-
-   This method must only be used to update paths encoded with
-   the old (Eden) URL encoding implementation to the new (Frodo)
-   URL encoding implementation (which does not URL encode -_.!().
-
-   \param strFilename Path to update
-   \return True if the path has been updated/changed otherwise false
-   */
-  static bool UpdateUrlEncoding(std::string &strFilename);
-
   static CURL AddCredentials(CURL url);
+
+  /*!
+   \brief Updates the URL encoding (if needed) of the hostname element of the given url path 
+   and returns the updated path.
+
+   Ensures that the hex encoded characters are lower case
+   Ensures that DOS paths use '\' as path separator and not '/'
+   as this can cause unintentional path mismatches
+
+   \param path Path to update
+   \return Updated path
+   */
+  static std::string SanitiseUrlEncoding(std::string_view path);
+
+  static std::string GetDecodedPath(const std::string& path);
 
 private:
   static std::string resolvePath(const std::string &path);

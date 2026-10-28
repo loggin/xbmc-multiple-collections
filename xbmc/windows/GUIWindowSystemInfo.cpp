@@ -188,7 +188,7 @@ void CGUIWindowSystemInfo::FrameMove()
     auto windowSystem = CServiceBroker::GetWinSystem();
     if (windowSystem)
     {
-      static std::string platform = windowSystem->GetName();
+      const std::string platform = windowSystem->GetName();
       if (platform != "platform default")
         SET_CONTROL_LABEL(
             i++,
@@ -275,6 +275,10 @@ void CGUIWindowSystemInfo::FrameMove()
   else if (m_section == CONTROL_BT_POLICY)
   {
     SET_CONTROL_LABEL(40, CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(12389));
+  }
+  else if (m_section == CONTROL_BT_DONATE)
+  {
+    SET_CONTROL_LABEL(40, CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(12396));
   }
   CGUIWindow::FrameMove();
 }

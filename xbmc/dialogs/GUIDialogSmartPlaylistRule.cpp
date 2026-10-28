@@ -18,6 +18,7 @@
 #include "guilib/GUIEditControl.h"
 #include "guilib/GUIWindowManager.h"
 #include "music/MusicDatabase.h"
+#include "music/MusicDbPaths.h"
 #include "resources/LocalizeStrings.h"
 #include "resources/ResourcesComponent.h"
 #include "settings/MediaSourceSettings.h"
@@ -28,11 +29,13 @@
 #include "utils/StringUtils.h"
 #include "utils/Variant.h"
 #include "video/VideoDatabase.h"
+#include "video/VideoDbPaths.h"
 
 #include <utility>
 
 using enum CDatabaseQueryRule::FieldType;
 using namespace KODI;
+using KODI::MEDIA::MediaSection;
 
 #define CONTROL_FIELD           15
 #define CONTROL_OPERATOR        16
@@ -98,6 +101,7 @@ void CGUIDialogSmartPlaylistRule::OnOK()
 
 void CGUIDialogSmartPlaylistRule::OnBrowse()
 {
+  auto& localizeStrings{CServiceBroker::GetResourcesComponent().GetLocalizeStrings()};
   CFileItemList items;
   CMusicDatabase database;
   database.Open();
@@ -106,9 +110,9 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
 
   std::string basePath;
   if (PLAYLIST::CSmartPlaylist::IsMusicType(m_type))
-    basePath = "musicdb://";
+    basePath = MUSIC::DB_PATH::ROOT;
   else
-    basePath = "videodb://";
+    basePath = VIDEO::DB_PATH::ROOT;
 
   VideoDbContentType type = VideoDbContentType::MOVIES;
   if (m_type == "movies")
@@ -145,12 +149,12 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
              m_type == "albums" ||
              m_type == "artists" ||
              m_type == "mixed")
-      database.GetGenresNav("musicdb://genres/",items);
+      database.GetGenresNav(MUSIC::DB_PATH::GENRES, items);
     if (m_type == "musicvideos" ||
         m_type == "mixed")
     {
       CFileItemList items2;
-      videodatabase.GetGenresNav("videodb://musicvideos/genres/", items2,
+      videodatabase.GetGenresNav(VIDEO::DB_PATH::MUSICVIDEO_GENRES, items2,
                                  VideoDbContentType::MUSICVIDEOS);
       items.Append(items2);
     }
@@ -163,7 +167,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
       m_type == "artists" ||
       m_type == "mixed")
     {
-      database.GetSourcesNav("musicdb://sources/", items);
+      database.GetSourcesNav(MUSIC::DB_PATH::SOURCES, items);
       iLabel = 39030;
     }
   }
@@ -171,7 +175,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   {
     if (m_type == "artists" || m_type == "mixed")
     {
-      database.GetRolesNav("musicdb://songs/", items);
+      database.GetRolesNav(MUSIC::DB_PATH::SONGS, items);
       iLabel = 38033;
     }
   }
@@ -184,7 +188,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
            m_rule.m_field == static_cast<int>(Field::ALBUM_ARTIST))
   {
     if (PLAYLIST::CSmartPlaylist::IsMusicType(m_type))
-      database.GetArtistsNav("musicdb://artists/", items, SortDescription(),
+      database.GetArtistsNav(MUSIC::DB_PATH::ARTISTS, items, SortDescription(),
                              m_rule.m_field == static_cast<int>(Field::ALBUM_ARTIST), -1);
     if (m_type == "musicvideos" ||
         m_type == "mixed")
@@ -198,7 +202,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   else if (m_rule.m_field == static_cast<int>(Field::ALBUM))
   {
     if (PLAYLIST::CSmartPlaylist::IsMusicType(m_type))
-      database.GetAlbumsNav("musicdb://albums/", items, SortDescription());
+      database.GetAlbumsNav(MUSIC::DB_PATH::ALBUMS, items, SortDescription());
     if (m_type == "musicvideos" ||
         m_type == "mixed")
     {
@@ -216,7 +220,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   else if (m_rule.m_field == static_cast<int>(Field::YEAR))
   {
     if (PLAYLIST::CSmartPlaylist::IsMusicType(m_type))
-      database.GetYearsNav("musicdb://years/", items);
+      database.GetYearsNav(MUSIC::DB_PATH::YEARS, items);
     if (PLAYLIST::CSmartPlaylist::IsVideoType(m_type))
     {
       CFileItemList items2;
@@ -227,7 +231,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   }
   else if (m_rule.m_field == static_cast<int>(Field::ORIG_YEAR))
   {
-    database.GetYearsNav("musicdb://originalyears/", items);
+    database.GetYearsNav(MUSIC::DB_PATH::ORIGINAL_YEARS, items);
     iLabel = 38078;
   }
   else if (m_rule.m_field == static_cast<int>(Field::DIRECTOR))
@@ -255,7 +259,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   {
     if (m_type == "songs" || m_type == "mixed")
     {
-      database.GetSongsNav("musicdb://songs/", items, SortDescription(), -1, -1, -1);
+      database.GetSongsNav(MUSIC::DB_PATH::SONGS, items, SortDescription(), -1, -1, -1);
       iLabel = 134;
     }
     if (m_type == "movies")
@@ -320,18 +324,17 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   {
     std::vector<CMediaSource> sources;
     if (m_type == "songs" || m_type == "mixed")
-      sources = *CMediaSourceSettings::GetInstance().GetSources("music");
+      sources = CMediaSourceSettings::GetInstance().GetSources(MediaSection::MUSIC);
     if (PLAYLIST::CSmartPlaylist::IsVideoType(m_type))
     {
-      std::vector<CMediaSource> sources2 = *CMediaSourceSettings::GetInstance().GetSources("video");
+      std::vector<CMediaSource> sources2 =
+          CMediaSourceSettings::GetInstance().GetSources(MediaSection::VIDEO);
       sources.insert(sources.end(),sources2.begin(),sources2.end());
     }
     CServiceBroker::GetMediaManager().GetLocalDrives(sources);
 
     std::string path = m_rule.GetParameter();
-    CGUIDialogFileBrowser::ShowAndGetDirectory(
-        sources, CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(657), path,
-        false);
+    CGUIDialogFileBrowser::ShowAndGetDirectory(sources, localizeStrings.Get(657), path, false);
     if (!m_rule.m_parameter.empty())
       m_rule.m_parameter.clear();
     if (!path.empty())
@@ -342,7 +345,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   }
   else if (m_rule.m_field == static_cast<int>(Field::SET))
   {
-    videodatabase.GetSetsNav("videodb://movies/sets/", items, VideoDbContentType::MOVIES);
+    videodatabase.GetSetsNav(VIDEO::DB_PATH::MOVIE_SETS, items, VideoDbContentType::MOVIES);
     iLabel = 20434;
   }
   else if (m_rule.m_field == static_cast<int>(Field::TAG))
@@ -375,8 +378,7 @@ void CGUIDialogSmartPlaylistRule::OnBrowse()
   pDialog->Reset();
   pDialog->SetItems(items);
   std::string strHeading =
-      StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13401),
-                          CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(iLabel));
+      StringUtils::Format(localizeStrings.Get(13401), localizeStrings.Get(iLabel));
   pDialog->SetHeading(CVariant{std::move(strHeading)});
   pDialog->SetMultiSelection(m_rule.m_field != static_cast<int>(Field::PLAYLIST) &&
                              m_rule.m_field != static_cast<int>(Field::VIRTUAL_FOLDER));
